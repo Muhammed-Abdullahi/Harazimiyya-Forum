@@ -15,7 +15,6 @@
   --shadow-hover: 0 8px 25px rgba(11,94,59,0.15);
 }
 
-
 /* Make everything scale properly */
 * {
     max-width: 100%;
@@ -30,7 +29,7 @@ button,
 .logout-btn,
 .logout-btn-sidebar,
 .clickable {
-    min-height: 44px;  /* Good for fat fingers */
+    min-height: 44px;
     min-width: 44px;
 }
 
@@ -47,7 +46,6 @@ table {
     white-space: nowrap;
 }
 
-
 /* RESET */
 * {
   margin: 0;
@@ -62,108 +60,206 @@ body {
   min-height: 100vh;
 }
 
-/* ================= SIDEBAR ================= */
-.sidebar {
-  position: fixed;
-  top: 0;
-  left: -280px;
-  width: 260px;
-  height: 100%;
-  background: var(--primary);
-  color: white;
-  padding: 20px;
-  transition: left 0.3s ease;
-  z-index: 1000;
-  display: flex;
-  flex-direction: column;
-  box-shadow: 2px 0 10px rgba(0,0,0,0.1);
+/* ================= DEEPSEEK SIDEBAR (FROM HOME) ================= */
+.deepseek-sidebar {
+    position: fixed;
+    left: -300px;
+    top: 0;
+    width: 280px;
+    height: 100vh;
+    background: linear-gradient(180deg, #0b5e3b 0%, #094c31 100%);
+    color: white;
+    box-shadow: 4px 0 30px rgba(0, 0, 0, 0.2);
+    transition: left 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    z-index: 1200;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
 }
 
-.sidebar.active {
-  left: 0;
+.deepseek-sidebar.active {
+    left: 0;
 }
 
-.sidebar-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 30px;
-  padding-bottom: 15px;
-  border-bottom: 1px solid rgba(255,255,255,0.1);
+/* Sidebar Header */
+.deepseek-sidebar .sidebar-header {
+    padding: 24px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
 }
 
-.sidebar-header h3 {
-  font-size: 1.2rem;
+.deepseek-sidebar .logo-area {
+    display: flex;
+    align-items: center;
+    gap: 12px;
 }
 
-.sidebar-header button {
-  background: rgba(255,255,255,0.1);
-  border: none;
-  color: white;
-  font-size: 1.5rem;
-  width: 32px;
-  height: 32px;
-  border-radius: 6px;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  transition: background 0.3s;
+.deepseek-sidebar .logo-area i {
+    font-size: 28px;
+    color: #ffd700;
 }
 
-.sidebar-header button:hover {
-  background: rgba(255,255,255,0.2);
+.deepseek-sidebar .logo-text {
+    font-size: 20px;
+    font-weight: 700;
+    letter-spacing: 0.5px;
 }
 
-.sidebar-links {
-  list-style: none;
-  flex: 1;
+.deepseek-sidebar .close-sidebar {
+    background: rgba(255, 255, 255, 0.1);
+    border: none;
+    color: white;
+    width: 36px;
+    height: 36px;
+    border-radius: 8px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 18px;
+    transition: all 0.3s;
 }
 
-.sidebar-links li {
-  margin: 5px 0;
+.deepseek-sidebar .close-sidebar:hover {
+    background: rgba(255, 255, 255, 0.2);
+    transform: rotate(90deg);
 }
 
-.sidebar-links a {
-  color: white;
-  text-decoration: none;
-  padding: 12px 15px;
-  border-radius: 8px;
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  transition: all 0.3s;
+/* User Profile */
+.deepseek-sidebar .user-profile {
+    padding: 24px;
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+    background: rgba(0, 0, 0, 0.1);
 }
 
-.sidebar-links a i {
-  width: 20px;
+.deepseek-sidebar .user-avatar {
+    width: 56px;
+    height: 56px;
+    background: rgba(255, 255, 255, 0.15);
+    border-radius: 16px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 28px;
+    color: #ffd700;
+    border: 2px solid rgba(255, 215, 0, 0.3);
 }
 
-.sidebar-links a:hover,
-.sidebar-links a.active {
-  background: var(--primary-dark);
-  transform: translateX(5px);
+.deepseek-sidebar .user-info h4 {
+    margin: 0 0 4px;
+    font-size: 18px;
+    font-weight: 600;
+    color: white;
 }
 
-.logout-btn {
-  background: var(--danger);
-  border: none;
-  color: white;
-  padding: 12px;
-  border-radius: 8px;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
-  font-size: 1rem;
-  transition: all 0.3s;
-  margin-top: 20px;
+.deepseek-sidebar .user-info p {
+    margin: 0;
+    font-size: 13px;
+    opacity: 0.9;
+    display: flex;
+    align-items: center;
+    gap: 6px;
 }
 
-.logout-btn:hover {
-  background: var(--danger-dark);
-  transform: translateY(-2px);
+.deepseek-sidebar .user-info p i {
+    color: #ffd700;
+}
+
+/* Sidebar Menu */
+.deepseek-sidebar .sidebar-menu {
+    padding: 24px 0;
+}
+
+.deepseek-sidebar .menu-section {
+    margin-bottom: 24px;
+}
+
+.deepseek-sidebar .menu-title {
+    padding: 0 24px;
+    margin-bottom: 12px;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    color: rgba(255, 255, 255, 0.5);
+}
+
+.deepseek-sidebar .menu-items {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+}
+
+.deepseek-sidebar .menu-items li {
+    margin: 2px 0;
+}
+
+.deepseek-sidebar .menu-items li a {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    padding: 12px 24px;
+    color: rgba(255, 255, 255, 0.9);
+    text-decoration: none;
+    font-size: 15px;
+    font-weight: 500;
+    transition: all 0.3s;
+    position: relative;
+}
+
+.deepseek-sidebar .menu-items li a:hover {
+    background: rgba(255, 255, 255, 0.1);
+    color: white;
+    padding-left: 32px;
+}
+
+.deepseek-sidebar .menu-items li.active a {
+    background: rgba(255, 255, 255, 0.15);
+    color: white;
+    font-weight: 600;
+    border-left: 4px solid #ffd700;
+}
+
+.deepseek-sidebar .menu-items li a i {
+    width: 22px;
+    font-size: 18px;
+    color: #ffd700;
+}
+
+/* Sidebar Footer */
+.deepseek-sidebar .sidebar-footer {
+    padding: 24px;
+    border-top: 1px solid rgba(255, 255, 255, 0.1);
+    position: sticky;
+    bottom: 0;
+    background: #094c31;
+}
+
+.deepseek-sidebar .logout-btn-sidebar {
+    width: 100%;
+    padding: 14px;
+    background: rgba(255, 255, 255, 0.1);
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    color: white;
+    border-radius: 12px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+    font-size: 15px;
+    font-weight: 600;
+    transition: all 0.3s;
+}
+
+.deepseek-sidebar .logout-btn-sidebar:hover {
+    background: #dc2626;
+    border-color: #dc2626;
+    transform: translateY(-2px);
 }
 
 /* OVERLAY */
@@ -173,7 +269,7 @@ body {
   background: rgba(0,0,0,0.5);
   backdrop-filter: blur(4px);
   display: none;
-  z-index: 900;
+  z-index: 1100;
 }
 
 .overlay.active {
@@ -199,8 +295,8 @@ body {
   color: var(--primary);
   border: none;
   font-size: 1.25rem;
-  width: 40px;
-  height: 40px;
+  width: 44px;
+  height: 44px;
   border-radius: 8px;
   cursor: pointer;
   display: flex;
@@ -208,6 +304,7 @@ body {
   justify-content: center;
   transition: all 0.3s;
   margin-right: 15px;
+  flex-shrink: 0;
 }
 
 .menu-btn:hover {
@@ -219,6 +316,9 @@ body {
 .app-header h1 {
   flex: 1;
   font-size: 1.5rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .subtitle {
@@ -226,6 +326,8 @@ body {
   opacity: 0.9;
   margin-left: 15px;
   white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 /* MAIN CONTENT */
@@ -346,24 +448,24 @@ body {
   z-index: 2;
 }
 
-.profile-info {
+.sheikh-profile div {
   position: relative;
   z-index: 2;
 }
 
-.profile-info h2 {
+.sheikh-profile h2 {
   font-size: 2.5rem;
   margin-bottom: 10px;
   font-weight: 700;
 }
 
-.profile-info .title {
+.sheikh-profile .title {
   font-size: 1.2rem;
   opacity: 0.9;
   margin-bottom: 15px;
 }
 
-.profile-info .quote {
+.sheikh-profile .quote {
   font-size: 1.1rem;
   font-style: italic;
   opacity: 0.9;
@@ -809,7 +911,7 @@ body {
     height: 120px;
   }
   
-  .profile-info h2 {
+  .sheikh-profile h2 {
     font-size: 1.8rem;
   }
   
@@ -819,5 +921,320 @@ body {
   
   .modal-actions button {
     width: 100%;
+  }
+}
+
+/* ================= PROFILE IMAGE UPLOAD - FIXED FOR MOBILE ================= */
+.profile-image-container {
+  position: relative;
+  width: 150px;
+  height: 150px;
+  border-radius: 50%;
+  overflow: hidden;
+  cursor: pointer;
+}
+
+/* For desktop - hover effect only on devices that support hover */
+@media (hover: hover) and (pointer: fine) {
+  .profile-image-overlay {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.6);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    opacity: 0;
+    transition: opacity 0.3s ease;
+    border-radius: 50%;
+    pointer-events: none;
+  }
+
+  .profile-image-container:hover .profile-image-overlay {
+    opacity: 1;
+  }
+}
+
+/* For mobile - always show a small edit button at bottom */
+@media (max-width: 768px), (hover: none) {
+  .profile-image-container {
+    cursor: default;
+  }
+  
+  .profile-image-overlay {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    top: auto;
+    height: auto;
+    background: linear-gradient(to top, rgba(0,0,0,0.8), transparent);
+    display: flex;
+    align-items: flex-end;
+    justify-content: center;
+    padding: 10px 0;
+    border-radius: 0 0 50% 50%;
+    opacity: 1;
+    pointer-events: auto;
+  }
+  
+  .profile-image-btn {
+    background: var(--primary);
+    color: white;
+    border: none;
+    padding: 8px 16px;
+    border-radius: 30px;
+    font-size: 0.85rem;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    box-shadow: 0 4px 10px rgba(0,0,0,0.3);
+    transform: scale(1);
+    transition: transform 0.2s;
+    margin-bottom: 5px;
+    min-height: 44px; /* Better touch target */
+  }
+  
+  .profile-image-btn:active {
+    transform: scale(0.95);
+  }
+  
+  .profile-image-btn i {
+    font-size: 1rem;
+  }
+}
+
+/* Common styles for both desktop and mobile */
+.profile-image-btn {
+  background: var(--primary);
+  color: white;
+  border: none;
+  padding: 8px 12px;
+  border-radius: 20px;
+  font-size: 0.8rem;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  transition: all 0.3s;
+  z-index: 10;
+}
+
+.profile-image-btn:hover {
+  background: var(--primary-dark);
+  transform: scale(1.05);
+}
+
+.profile-image-btn:active {
+  transform: scale(0.95);
+}
+
+/* Profile Preview Modal */
+.profile-preview-container {
+  text-align: center;
+  margin: 20px 0;
+}
+
+.profile-preview {
+  width: 200px;
+  height: 200px;
+  border-radius: 50%;
+  object-fit: cover;
+  border: 4px solid var(--primary);
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.2);
+}
+
+/* Admin controls for profile */
+.profile-admin-controls {
+  position: absolute;
+  bottom: 20px;
+  right: 20px;
+  z-index: 10;
+}
+
+.profile-edit-btn {
+  background: white;
+  color: var(--primary);
+  border: none;
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.2rem;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+  transition: all 0.3s;
+}
+
+.profile-edit-btn:hover {
+  background: var(--primary);
+  color: white;
+  transform: scale(1.1);
+}
+
+/* Responsive for profile image */
+@media (max-width: 768px) {
+  .profile-image-container {
+    width: 120px;
+    height: 120px;
+  }
+  
+  .profile-preview {
+    width: 150px;
+    height: 150px;
+  }
+}
+
+/* ================= RESUME READING BUTTON ================= */
+.resume-container {
+  margin-bottom: 20px;
+  text-align: center;
+  animation: slideDown 0.5s ease;
+}
+
+@keyframes slideDown {
+  from {
+    opacity: 0;
+    transform: translateY(-20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.resume-btn {
+  background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%);
+  color: white;
+  border: none;
+  padding: 16px 24px;
+  border-radius: 50px;
+  font-size: 1rem;
+  font-weight: 600;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  box-shadow: 0 4px 20px rgba(11, 94, 59, 0.3);
+  transition: all 0.3s ease;
+  width: auto;
+  max-width: 600px;
+  border: 2px solid rgba(255, 255, 255, 0.2);
+}
+
+.resume-btn:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 8px 25px rgba(11, 94, 59, 0.4);
+  background: linear-gradient(135deg, var(--primary-dark) 0%, var(--primary) 100%);
+}
+
+.resume-btn:active {
+  transform: translateY(0);
+}
+
+.resume-btn i {
+  font-size: 1.2rem;
+  transition: transform 0.3s;
+}
+
+.resume-btn:hover i:last-child {
+  transform: translateX(5px);
+}
+
+.resume-btn:hover i:first-child {
+  transform: scale(1.1);
+}
+
+/* ================= SCROLL TRACKING INDICATOR ================= */
+.scroll-progress {
+  position: fixed;
+  top: 70px;
+  left: 0;
+  width: 100%;
+  height: 3px;
+  background: rgba(11, 94, 59, 0.1);
+  z-index: 99;
+}
+
+.scroll-progress-bar {
+  height: 100%;
+  background: linear-gradient(90deg, var(--primary), var(--primary-light));
+  width: 0%;
+  transition: width 0.1s ease;
+}
+
+/* ================= JUMP TO TOP BUTTON ================= */
+.jump-to-top-btn {
+  position: fixed;
+  bottom: 30px;
+  right: 30px;
+  width: 50px;
+  height: 50px;
+  border-radius: 50%;
+  background: var(--primary);
+  color: white;
+  border: none;
+  cursor: pointer;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.2rem;
+  box-shadow: 0 4px 15px rgba(11, 94, 59, 0.3);
+  z-index: 1000;
+  transition: all 0.3s ease;
+  border: 2px solid rgba(255, 255, 255, 0.2);
+}
+
+.jump-to-top-btn:hover {
+  background: var(--primary-dark);
+  transform: scale(1.1);
+  box-shadow: 0 6px 20px rgba(11, 94, 59, 0.4);
+}
+
+.jump-to-top-btn:active {
+  transform: scale(0.95);
+}
+
+/* Mobile adjustments for resume button */
+@media (max-width: 768px) {
+  .resume-btn {
+    padding: 14px 20px;
+    font-size: 0.9rem;
+    gap: 8px;
+    width: 95%;
+  }
+  
+  .resume-btn i {
+    font-size: 1rem;
+  }
+  
+  .scroll-progress {
+    top: 60px;
+  }
+  
+  .jump-to-top-btn {
+    bottom: 20px;
+    right: 20px;
+    width: 44px;
+    height: 44px;
+    font-size: 1rem;
+  }
+}
+
+@media (max-width: 480px) {
+  .resume-btn {
+    padding: 12px 16px;
+    font-size: 0.8rem;
+    flex-wrap: wrap;
+  }
+  
+  .resume-btn span {
+    white-space: normal;
   }
 }

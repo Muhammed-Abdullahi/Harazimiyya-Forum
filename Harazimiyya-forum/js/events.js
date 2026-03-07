@@ -2,7 +2,7 @@
 // HARAZIMIYYA FORUM - EVENTS DASHBOARD
 // Admin: Create, Edit, Delete Events
 // Members: View Events, RSVP
-// Features: AM/PM time format, Auto-limit to 11 events
+// Features: AM/PM time format, Auto-limit to 11 events, Contact Phone Number
 // ============================================
 
 // Global variables
@@ -84,9 +84,15 @@ function createModals() {
             <label><i class="fas fa-calendar"></i> Date *</label>
             <input type="date" id="eventDate" required>
           </div>
-          <div class="form-group">
+          <div class="form-group" style="flex: 0.7;">
             <label><i class="fas fa-clock"></i> Time</label>
-            <input type="time" id="eventTime">
+            <input type="number" id="eventHour" placeholder="HH" min="1" max="12" style="width: 70px; display: inline-block; margin-right: 5px;">
+            <span style="color: var(--text);">:</span>
+            <input type="number" id="eventMinute" placeholder="MM" min="0" max="59" style="width: 70px; display: inline-block; margin: 0 5px;">
+            <select id="eventAmPm" style="width: 70px; display: inline-block;">
+              <option value="AM">AM</option>
+              <option value="PM">PM</option>
+            </select>
           </div>
         </div>
         
@@ -104,6 +110,13 @@ function createModals() {
         <div class="form-group">
           <label><i class="fas fa-address-card"></i> Address</label>
           <input type="text" id="eventAddress" placeholder="Full address">
+        </div>
+        
+        <!-- Phone Number Field -->
+        <div class="form-group">
+          <label><i class="fas fa-phone"></i> Contact Phone Number</label>
+          <input type="tel" id="eventPhone" placeholder="e.g., +234 123 456 7890">
+          <small style="color: var(--text-muted); display: block; margin-top: 5px;">Attendees can reach you at this number</small>
         </div>
         
         <div class="form-row">
@@ -436,6 +449,17 @@ function formatTimeWithAmPm(timeString) {
   }
 }
 
+// ================= CONVERT 12-HOUR TO 24-HOUR FOR STORAGE =================
+function convertTo24Hour(hour, minute, ampm) {
+  let hours = parseInt(hour);
+  if (ampm === 'PM' && hours !== 12) {
+    hours += 12;
+  } else if (ampm === 'AM' && hours === 12) {
+    hours = 0;
+  }
+  return `${hours.toString().padStart(2, '0')}:${minute.toString().padStart(2, '0')}`;
+}
+
 // ================= CREATE EVENT CARD =================
 function createEventCard(event) {
   const card = document.createElement("div");
@@ -489,6 +513,19 @@ function createEventCard(event) {
           <i class="fas fa-map-marker-alt"></i>
           <span class="label">State:</span>
           <span class="value">${event.state}</span>
+        </div>
+      ` : ''}
+      
+      <!-- Phone Number Display -->
+      ${event.phone ? `
+        <div class="event-detail">
+          <i class="fas fa-phone"></i>
+          <span class="label">Contact:</span>
+          <span class="value">
+            <a href="tel:${event.phone}" style="color: var(--primary); text-decoration: none;">
+              ${event.phone}
+            </a>
+          </span>
         </div>
       ` : ''}
     </div>
@@ -721,6 +758,7 @@ Time: ${timeDisplay}
 Location: ${event.location}
 Address: ${event.address || 'Not specified'}
 State: ${event.state || 'Not specified'}
+📞 Contact: ${event.phone || 'Not provided'}
 Host: ${event.host?.full_name || 'Unknown'}
 
 📝 Description:
@@ -787,10 +825,13 @@ function openCreateModal() {
   document.getElementById('eventTitle').value = '';
   document.getElementById('eventDescription').value = '';
   document.getElementById('eventDate').value = '';
-  document.getElementById('eventTime').value = '';
+  document.getElementById('eventHour').value = '';
+  document.getElementById('eventMinute').value = '';
+  document.getElementById('eventAmPm').value = 'AM';
   document.getElementById('eventLocation').value = '';
   document.getElementById('eventState').value = '';
   document.getElementById('eventAddress').value = '';
+  document.getElementById('eventPhone').value = '';
   document.getElementById('eventMaxAttendees').value = '';
   document.getElementById('eventStatus').value = 'upcoming';
   
@@ -803,14 +844,33 @@ window.editEvent = function(eventId) {
   const event = allEvents.find(e => e.id === eventId);
   if (!event) return;
   
+  // Parse time if exists
+  if (event.time) {
+    const timeParts = event.time.split(':');
+    if (timeParts.length >= 2) {
+      const hours24 = parseInt(timeParts[0]);
+      const minutes = timeParts[1];
+      const ampm = hours24 >= 12 ? 'PM' : 'AM';
+      const hours12 = hours24 % 12 || 12;
+      
+      document.getElementById('eventHour').value = hours12;
+      document.getElementById('eventMinute').value = minutes;
+      document.getElementById('eventAmPm').value = ampm;
+    }
+  } else {
+    document.getElementById('eventHour').value = '';
+    document.getElementById('eventMinute').value = '';
+    document.getElementById('eventAmPm').value = 'AM';
+  }
+  
   document.getElementById('modalTitle').textContent = 'Edit Event';
   document.getElementById('eventTitle').value = event.title || '';
   document.getElementById('eventDescription').value = event.description || '';
   document.getElementById('eventDate').value = event.date || '';
-  document.getElementById('eventTime').value = event.time || '';
   document.getElementById('eventLocation').value = event.location || '';
   document.getElementById('eventState').value = event.state || '';
   document.getElementById('eventAddress').value = event.address || '';
+  document.getElementById('eventPhone').value = event.phone || '';
   document.getElementById('eventMaxAttendees').value = event.max_attendees || '';
   document.getElementById('eventStatus').value = event.status || 'upcoming';
   
@@ -829,14 +889,26 @@ async function saveEvent() {
     return;
   }
   
+  // Get time components
+  const hour = document.getElementById('eventHour').value;
+  const minute = document.getElementById('eventMinute').value;
+  const ampm = document.getElementById('eventAmPm').value;
+  
+  // Convert to 24-hour format for storage
+  let time = null;
+  if (hour && minute) {
+    time = convertTo24Hour(hour, minute, ampm);
+  }
+  
   const eventData = {
     title,
     description: document.getElementById('eventDescription').value.trim() || null,
     date,
-    time: document.getElementById('eventTime').value || null,
+    time: time,
     location,
     state: document.getElementById('eventState').value.trim() || null,
     address: document.getElementById('eventAddress').value.trim() || null,
+    phone: document.getElementById('eventPhone').value.trim() || null,
     max_attendees: document.getElementById('eventMaxAttendees').value ? 
                    parseInt(document.getElementById('eventMaxAttendees').value) : null,
     status: document.getElementById('eventStatus').value,

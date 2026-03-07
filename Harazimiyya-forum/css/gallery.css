@@ -60,103 +60,205 @@ body {
     min-height: 100vh;
 }
 
-/* ================= SIDEBAR ================= */
-.sidebar {
+/* ================= DEEPSEEK SIDEBAR (FROM HOME) ================= */
+.deepseek-sidebar {
     position: fixed;
-    left: -280px;
+    left: -300px;
     top: 0;
-    width: 260px;
-    height: 100%;
-    background: var(--primary);
+    width: 280px;
+    height: 100vh;
+    background: linear-gradient(180deg, #0b5e3b 0%, #094c31 100%);
+    color: white;
+    box-shadow: 4px 0 30px rgba(0, 0, 0, 0.2);
+    transition: left 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    z-index: 1200;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+}
+
+.deepseek-sidebar.active {
+    left: 0;
+}
+
+/* Sidebar Header */
+.deepseek-sidebar .sidebar-header {
     padding: 24px;
-    display: flex;
-    flex-direction: column;
-    color: var(--white);
-    transition: left 0.3s ease;
-    z-index: 1000;
-    box-shadow: 2px 0 10px rgba(0,0,0,0.1);
-}
-
-.sidebar.active { 
-    left: 0; 
-}
-
-.sidebar-header {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    padding-bottom: 20px;
-    border-bottom: 1px solid rgba(255,255,255,0.1);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
 }
 
-.sidebar-header h2 {
-    font-size: 1.2rem;
+.deepseek-sidebar .logo-area {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.deepseek-sidebar .logo-area i {
+    font-size: 28px;
+    color: #ffd700;
+}
+
+.deepseek-sidebar .logo-text {
+    font-size: 20px;
+    font-weight: 700;
+    letter-spacing: 0.5px;
+}
+
+.deepseek-sidebar .close-sidebar {
+    background: rgba(255, 255, 255, 0.1);
+    border: none;
+    color: white;
+    width: 36px;
+    height: 36px;
+    border-radius: 8px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 18px;
+    transition: all 0.3s;
+}
+
+.deepseek-sidebar .close-sidebar:hover {
+    background: rgba(255, 255, 255, 0.2);
+    transform: rotate(90deg);
+}
+
+/* User Profile */
+.deepseek-sidebar .user-profile {
+    padding: 24px;
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+    background: rgba(0, 0, 0, 0.1);
+}
+
+.deepseek-sidebar .user-avatar {
+    width: 56px;
+    height: 56px;
+    background: rgba(255, 255, 255, 0.15);
+    border-radius: 16px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 28px;
+    color: #ffd700;
+    border: 2px solid rgba(255, 215, 0, 0.3);
+}
+
+.deepseek-sidebar .user-info h4 {
+    margin: 0 0 4px;
+    font-size: 18px;
     font-weight: 600;
+    color: white;
 }
 
-.sidebar-header button {
-    background: rgba(255,255,255,0.1);
-    border: none;
-    color: white;
-    font-size: 1.5rem;
-    width: 32px;
-    height: 32px;
-    border-radius: 6px;
-    cursor: pointer;
+.deepseek-sidebar .user-info p {
+    margin: 0;
+    font-size: 13px;
+    opacity: 0.9;
     display: flex;
     align-items: center;
-    justify-content: center;
-    transition: background 0.3s;
+    gap: 6px;
 }
 
-.sidebar-header button:hover {
-    background: rgba(255,255,255,0.2);
+.deepseek-sidebar .user-info p i {
+    color: #ffd700;
 }
 
-.nav-links {
-    margin-top: 30px;
+/* Sidebar Menu */
+.deepseek-sidebar .sidebar-menu {
+    padding: 24px 0;
+}
+
+.deepseek-sidebar .menu-section {
+    margin-bottom: 24px;
+}
+
+.deepseek-sidebar .menu-title {
+    padding: 0 24px;
+    margin-bottom: 12px;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    color: rgba(255, 255, 255, 0.5);
+}
+
+.deepseek-sidebar .menu-items {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+}
+
+.deepseek-sidebar .menu-items li {
+    margin: 2px 0;
+}
+
+.deepseek-sidebar .menu-items li a {
     display: flex;
-    flex-direction: column;
-    gap: 5px;
-    flex: 1;
-}
-
-.nav-links a {
-    padding: 12px 14px;
-    border-radius: 10px;
+    align-items: center;
+    gap: 14px;
+    padding: 12px 24px;
+    color: rgba(255, 255, 255, 0.9);
     text-decoration: none;
-    color: var(--white);
+    font-size: 15px;
+    font-weight: 500;
     transition: all 0.3s;
-    display: flex;
-    align-items: center;
-    gap: 10px;
+    position: relative;
 }
 
-.nav-links a:hover,
-.nav-links a.active {
-    background: var(--white);
-    color: var(--primary);
-    transform: translateX(5px);
-}
-
-.logout-btn {
-    background: var(--danger);
-    border: none;
-    padding: 12px;
-    border-radius: 10px;
+.deepseek-sidebar .menu-items li a:hover {
+    background: rgba(255, 255, 255, 0.1);
     color: white;
+    padding-left: 32px;
+}
+
+.deepseek-sidebar .menu-items li.active a {
+    background: rgba(255, 255, 255, 0.15);
+    color: white;
+    font-weight: 600;
+    border-left: 4px solid #ffd700;
+}
+
+.deepseek-sidebar .menu-items li a i {
+    width: 22px;
+    font-size: 18px;
+    color: #ffd700;
+}
+
+/* Sidebar Footer */
+.deepseek-sidebar .sidebar-footer {
+    padding: 24px;
+    border-top: 1px solid rgba(255, 255, 255, 0.1);
+    position: sticky;
+    bottom: 0;
+    background: #094c31;
+}
+
+.deepseek-sidebar .logout-btn-sidebar {
+    width: 100%;
+    padding: 14px;
+    background: rgba(255, 255, 255, 0.1);
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    color: white;
+    border-radius: 12px;
     cursor: pointer;
     display: flex;
     align-items: center;
     justify-content: center;
-    gap: 8px;
-    font-size: 1rem;
+    gap: 12px;
+    font-size: 15px;
+    font-weight: 600;
     transition: all 0.3s;
-    margin-top: 20px;
 }
 
-.logout-btn:hover {
-    background: var(--danger-dark);
+.deepseek-sidebar .logout-btn-sidebar:hover {
+    background: #dc2626;
+    border-color: #dc2626;
     transform: translateY(-2px);
 }
 
@@ -167,7 +269,7 @@ body {
     background: rgba(0,0,0,0.5);
     backdrop-filter: blur(4px);
     display: none;
-    z-index: 900;
+    z-index: 1100;
 }
 
 .overlay.active { 
@@ -1037,8 +1139,6 @@ body {
 .w-100 {
     width: 100%;
 }
-
-
 
 /* ================= JUMP TO BOTTOM BUTTON ================= */
 .jump-to-bottom-btn {

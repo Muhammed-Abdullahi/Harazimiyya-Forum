@@ -23,6 +23,7 @@ let touchStartX = 0;
 let touchCurrentX = 0;
 let currentSwipeElement = null;
 let swipeThreshold = 80; // Minimum swipe distance to trigger reply
+let allMembers = []; // Store all members for search
 
 // Smart scroll variables
 let showJumpToBottom = false;
@@ -190,11 +191,84 @@ async function setupPresenceTracking() {
     }
 }
 
+// ================= SHOW ONLINE USERS MODAL =================
+async function showOnlineUsers() {
+    try {
+        // Get all online user IDs
+        const onlineUserIds = Array.from(onlineUsers);
+        onlineUserIds.push(currentUser.id); // Include current user
+        
+        // Fetch profiles of online users
+        const { data: profiles, error } = await window.supabase
+            .from('profiles')
+            .select('id, full_name, email, role, state')
+            .in('id', onlineUserIds);
+        
+        if (error) throw error;
+        
+        // Create modal
+        const modal = document.createElement('div');
+        modal.className = 'online-users-modal';
+        
+        let usersHtml = '';
+        profiles.forEach(user => {
+            const isCurrentUser = user.id === currentUser.id;
+            const crown = user.role === 'admin' ? ' 👑' : '';
+            const userState = user.state ? ` • ${user.state}` : '';
+            
+            usersHtml += `
+                <div class="online-user-item">
+                    <div class="online-user-avatar">
+                        <i class="fas fa-user"></i>
+                    </div>
+                    <div class="online-user-info">
+                        <h4>${user.full_name || user.email}${crown} ${isCurrentUser ? '(You)' : ''}</h4>
+                        <p><i class="fas fa-circle"></i> Online now${userState}</p>
+                    </div>
+                    <span class="online-status-dot"></span>
+                </div>
+            `;
+        });
+        
+        modal.innerHTML = `
+            <div class="online-users-content">
+                <div class="online-users-header">
+                    <h3><i class="fas fa-users"></i> Online Members (${profiles.length})</h3>
+                    <button class="close-online-modal"><i class="fas fa-times"></i></button>
+                </div>
+                <div class="online-users-list">
+                    ${usersHtml}
+                </div>
+                <div class="online-users-footer">
+                    <i class="fas fa-globe"></i> Total online: ${profiles.length}
+                </div>
+            </div>
+        `;
+        
+        document.body.appendChild(modal);
+        
+        // Close modal handlers
+        modal.querySelector('.close-online-modal').onclick = () => modal.remove();
+        modal.onclick = (e) => {
+            if (e.target === modal) modal.remove();
+        };
+        
+    } catch (err) {
+        console.error("Error showing online users:", err);
+        showNotification('Error loading online users', 'error');
+    }
+}
+
+// ================= UPDATED ONLINE COUNTER =================
 function updateOnlineCount() {
     const onlineCountEl = document.getElementById('onlineCount');
     if (onlineCountEl) {
         const count = onlineUsers.size + 1;
-        onlineCountEl.textContent = `${count} online`;
+        onlineCountEl.innerHTML = `<i class="fas fa-circle" style="font-size: 8px; color: #10b981;"></i> ${count} online`;
+        
+        // Make it clickable
+        onlineCountEl.style.cursor = 'pointer';
+        onlineCountEl.onclick = showOnlineUsers;
     }
 }
 
@@ -241,14 +315,19 @@ async function loadUserProfile(userId) {
         const userNameEl = document.getElementById('userName');
         if (userNameEl) userNameEl.textContent = data.full_name || 'Member';
         
-        const userSelect = document.getElementById('userSelect');
-        if (userSelect) {
+        // IMPORTANT FIX: Make sure container is visible and load members for admin
+        const container = document.getElementById('memberSelectorContainer');
+        if (container) {
             if (isAdmin) {
-                userSelect.style.display = 'block';
+                console.log("✅ Admin detected - showing member selector");
+                container.style.display = 'block';
                 await loadMembers();
             } else {
-                userSelect.style.display = 'none';
+                console.log("👤 Regular member - hiding member selector");
+                container.style.display = 'none';
             }
+        } else {
+            console.error("❌ memberSelectorContainer not found in HTML!");
         }
         
         await loadGroupMessages();
@@ -258,59 +337,231 @@ async function loadUserProfile(userId) {
     }
 }
 
+// ================= SEARCHABLE MEMBER DROPDOWN =================
 async function loadMembers() {
-    if (!isAdmin) return;
-    
     try {
-        console.log("Loading members for admin private messaging...");
+        console.log("📋 Loading members for admin private messaging...");
         
         const { data, error } = await window.supabase
             .from('profiles')
-            .select('id, full_name, email')
+            .select('id, full_name, email, state')
             .eq('is_approved', true)
             .order('full_name');
         
         if (error) throw error;
         
-        const userSelect = document.getElementById('userSelect');
-        if (!userSelect) return;
+        allMembers = data || [];
+        console.log(`✅ Loaded ${allMembers.length} members for search`);
         
-        // Clear existing options
-        userSelect.innerHTML = '';
-        
-        // Add default group option with empty value
-        const defaultOption = document.createElement('option');
-        defaultOption.value = '';  // Empty value = group chat
-        defaultOption.textContent = '👥 Group Chat (All Members)';
-        defaultOption.selected = true;
-        userSelect.appendChild(defaultOption);
-        
-        // Add separator
-        const separator = document.createElement('option');
-        separator.disabled = true;
-        separator.textContent = '──────────';
-        userSelect.appendChild(separator);
-        
-        // Add individual members
-        data.forEach(user => {
-            if (user.id === currentUser?.id) return;
-            const option = document.createElement('option');
-            option.value = user.id;  // Member ID = private chat
-            option.textContent = `👤 ${user.full_name || user.email} (Private)`;
-            userSelect.appendChild(option);
-        });
-        
-        // Set default to group
-        selectedMemberId = null;
-        currentChatPartner = null;
-        console.log("Members loaded. Default: group chat");
+        // Create searchable dropdown
+        createSearchableMemberDropdown();
         
     } catch (err) {
         console.error("Error loading members:", err);
     }
 }
 
-// ================= FIXED: LOAD MESSAGES WITH PROPER PARENT SENDER INFO =================
+function createSearchableMemberDropdown() {
+    const container = document.getElementById('memberSelectorContainer');
+    if (!container) {
+        console.error("❌ Cannot create dropdown - container not found");
+        return;
+    }
+    
+    console.log("🔍 Creating searchable member dropdown");
+    
+    // Clear container first
+    container.innerHTML = '';
+    
+    // Create search dropdown HTML
+    container.innerHTML = `
+        <div class="member-search-container">
+            <div class="member-search-input-wrapper">
+                <i class="fas fa-search member-search-icon"></i>
+                <input type="text" class="member-search-input" id="memberSearchInput" 
+                       placeholder="🔍 Search members... (type to search)" autocomplete="off">
+                <button class="member-search-clear" id="memberSearchClear">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <div class="member-search-results" id="memberSearchResults"></div>
+        </div>
+    `;
+    
+    const searchInput = document.getElementById('memberSearchInput');
+    const searchResults = document.getElementById('memberSearchResults');
+    const clearBtn = document.getElementById('memberSearchClear');
+    
+    if (!searchInput || !searchResults || !clearBtn) {
+        console.error("❌ Search elements not created properly");
+        return;
+    }
+    
+    // Search function
+    function searchMembers(query) {
+        query = query.toLowerCase().trim();
+        
+        if (!query) {
+            // Show group chat option when empty
+            searchResults.innerHTML = `
+                <div class="member-search-result-item" data-id="">
+                    <div class="member-result-avatar"><i class="fas fa-users"></i></div>
+                    <div class="member-result-info">
+                        <div class="member-result-name">👥 Group Chat</div>
+                        <div class="member-result-email">All members</div>
+                    </div>
+                    <span class="member-result-badge">group</span>
+                </div>
+                <div class="member-search-footer">Type to search members...</div>
+            `;
+            return;
+        }
+        
+        // Filter members
+        const filtered = allMembers.filter(member => 
+            (member.full_name && member.full_name.toLowerCase().includes(query)) ||
+            (member.email && member.email.toLowerCase().includes(query)) ||
+            (member.state && member.state.toLowerCase().includes(query))
+        );
+        
+        if (filtered.length === 0) {
+            searchResults.innerHTML = `
+                <div class="member-search-result-item" data-id="">
+                    <div class="member-result-avatar"><i class="fas fa-users"></i></div>
+                    <div class="member-result-info">
+                        <div class="member-result-name">👥 Group Chat</div>
+                        <div class="member-result-email">All members</div>
+                    </div>
+                    <span class="member-result-badge">group</span>
+                </div>
+                <div class="no-results-item">
+                    <i class="fas fa-user-slash"></i> No members found matching "${query}"
+                </div>
+            `;
+            return;
+        }
+        
+        // Build results HTML
+        let resultsHtml = `
+            <div class="member-search-result-item" data-id="">
+                <div class="member-result-avatar"><i class="fas fa-users"></i></div>
+                <div class="member-result-info">
+                    <div class="member-result-name">👥 Group Chat</div>
+                    <div class="member-result-email">All members</div>
+                </div>
+                <span class="member-result-badge">group</span>
+            </div>
+        `;
+        
+        filtered.forEach(member => {
+            resultsHtml += `
+                <div class="member-search-result-item" data-id="${member.id}">
+                    <div class="member-result-avatar"><i class="fas fa-user"></i></div>
+                    <div class="member-result-info">
+                        <div class="member-result-name">${member.full_name || 'Unnamed'}</div>
+                        <div class="member-result-email">${member.email}</div>
+                    </div>
+                    ${member.state ? `<span class="member-result-badge">${member.state}</span>` : ''}
+                </div>
+            `;
+        });
+        
+        resultsHtml += `<div class="member-search-footer">Found ${filtered.length} member${filtered.length !== 1 ? 's' : ''}</div>`;
+        searchResults.innerHTML = resultsHtml;
+    }
+    
+    // Handle input
+    searchInput.addEventListener('input', (e) => {
+        const query = e.target.value;
+        searchMembers(query);
+        searchResults.classList.add('show');
+        
+        // Show/hide clear button
+        if (query.length > 0) {
+            clearBtn.classList.add('visible');
+        } else {
+            clearBtn.classList.remove('visible');
+        }
+    });
+    
+    // Handle focus
+    searchInput.addEventListener('focus', () => {
+        searchMembers(searchInput.value);
+        searchResults.classList.add('show');
+    });
+    
+    // Handle click outside
+    document.addEventListener('click', (e) => {
+        if (!container.contains(e.target)) {
+            searchResults.classList.remove('show');
+        }
+    });
+    
+    // Handle result selection
+    searchResults.addEventListener('click', (e) => {
+        const resultItem = e.target.closest('.member-search-result-item');
+        if (!resultItem) return;
+        
+        const memberId = resultItem.dataset.id;
+        const memberName = resultItem.querySelector('.member-result-name')?.textContent || '';
+        const memberEmail = resultItem.querySelector('.member-result-email')?.textContent || '';
+        
+        if (memberId === '') {
+            // Group chat selected
+            selectedMemberId = null;
+            currentChatPartner = null;
+            searchInput.value = '';
+            searchInput.placeholder = '👥 Group Chat (All Members)';
+            console.log("✅ Selected: Group Chat");
+        } else {
+            // Member selected
+            selectedMemberId = memberId;
+            currentChatPartner = memberId;
+            searchInput.value = memberName.replace('👥 ', '').replace('👤 ', '');
+            searchInput.placeholder = `💬 Chatting with ${memberName}`;
+            console.log("✅ Selected: Private chat with:", memberName, memberId);
+        }
+        
+        // Hide results and clear button
+        searchResults.classList.remove('show');
+        clearBtn.classList.remove('visible');
+        
+        // Reload messages for this selection
+        loadGroupMessages();
+    });
+    
+    // Handle clear button
+    clearBtn.addEventListener('click', () => {
+        searchInput.value = '';
+        searchInput.placeholder = '🔍 Search members... (type to search)';
+        selectedMemberId = null;
+        currentChatPartner = null;
+        clearBtn.classList.remove('visible');
+        searchMembers('');
+        searchResults.classList.add('show');
+        
+        // Reload group messages
+        loadGroupMessages();
+    });
+    
+    // Handle Enter key
+    searchInput.addEventListener('keypress', (e) => {
+        if (e.key === 'Enter') {
+            e.preventDefault();
+            // Select first result if available
+            const firstResult = searchResults.querySelector('.member-search-result-item');
+            if (firstResult) {
+                firstResult.click();
+            }
+        }
+    });
+    
+    // Initialize with group chat
+    searchMembers('');
+    console.log("✅ Searchable dropdown created successfully");
+}
+
+// ================= LOAD MESSAGES WITH PROPER PARENT SENDER INFO =================
 async function loadGroupMessages() {
     try {
         const messagesContainer = document.getElementById('messages');
@@ -322,7 +573,7 @@ async function loadGroupMessages() {
         
         if (isAdmin && currentChatPartner) {
             // Admin viewing private chat with specific member
-            console.log("Loading private messages between admin and member:", currentChatPartner);
+            console.log("📨 Loading private messages between admin and member:", currentChatPartner);
             query = window.supabase
                 .from('chat_messages')
                 .select(`*, 
@@ -332,7 +583,7 @@ async function loadGroupMessages() {
                 .order('created_at', { ascending: true });
         } else if (!isAdmin) {
             // Regular member - show group messages AND their private messages
-            console.log("Loading messages for regular member");
+            console.log("📨 Loading messages for regular member");
             query = window.supabase
                 .from('chat_messages')
                 .select(`*, 
@@ -342,7 +593,7 @@ async function loadGroupMessages() {
                 .order('created_at', { ascending: true });
         } else {
             // Admin viewing group chat (default)
-            console.log("Loading group messages for admin");
+            console.log("📨 Loading group messages for admin");
             query = window.supabase
                 .from('chat_messages')
                 .select(`*, 
@@ -359,11 +610,7 @@ async function loadGroupMessages() {
         if (!messages || messages.length === 0) {
             if (isAdmin && currentChatPartner) {
                 // Get the member's name for better message
-                const { data: member } = await window.supabase
-                    .from('profiles')
-                    .select('full_name')
-                    .eq('id', currentChatPartner)
-                    .single();
+                const member = allMembers.find(m => m.id === currentChatPartner);
                 
                 messagesContainer.innerHTML = `<div class="empty-chat"><i class="fas fa-comments"></i><h3>No messages yet</h3><p>Start a private conversation with ${member?.full_name || 'this member'}!</p></div>`;
             } else {
@@ -799,7 +1046,7 @@ window.showReplyInput = function(parentId, senderName) {
     replyDiv.id = 'replyInputContainer';
     replyDiv.className = 'reply-input-area';
     replyDiv.innerHTML = `
-        <span style="color: var(--primary-color); font-size: 12px; white-space: nowrap;">Replying to ${senderName}</span>
+        <span>Replying to ${senderName}</span>
         <button id="cancelReplyBtn" class="cancel-reply"><i class="fas fa-times"></i></button>
         <input type="text" id="replyMessageInput" placeholder="Write your reply..." autofocus>
         <button id="sendReplyBtn"><i class="fas fa-paper-plane"></i></button>
@@ -905,7 +1152,6 @@ function setupChatListeners() {
     const videoBtn = document.getElementById('videoBtn');
     const voiceBtn = document.getElementById('voiceBtn');
     const fileInput = document.getElementById('fileInput');
-    const userSelect = document.getElementById('userSelect');
     
     if (sendBtn) sendBtn.addEventListener('click', sendMessage);
     if (messageInput) {
@@ -914,25 +1160,6 @@ function setupChatListeners() {
                 e.preventDefault();
                 sendMessage();
             }
-        });
-    }
-    
-    if (userSelect) {
-        userSelect.addEventListener('change', async (e) => {
-            const value = e.target.value;
-            console.log("Dropdown changed to value:", value);
-            
-            if (value === '' || value === 'group') {
-                selectedMemberId = null;
-                currentChatPartner = null;
-                console.log("Selected: Group Chat - showing all group messages");
-            } else {
-                selectedMemberId = value;
-                currentChatPartner = value;
-                console.log("Selected: Private chat with member ID:", value, "- showing private messages only");
-            }
-            
-            await loadGroupMessages();
         });
     }
     
@@ -1102,7 +1329,7 @@ function showImagePreview(file) {
         const chatInput = document.querySelector('.chat-input-area');
         const previewDiv = document.createElement('div');
         previewDiv.id = 'mediaPreview';
-        previewDiv.style.cssText = `display: flex; align-items: center; gap: 10px; padding: 10px; background: var(--card-bg); border-radius: 8px; margin-bottom: 100px; width: 10%; flex-wrap: wrap;`;
+        previewDiv.style.cssText = `display: flex; align-items: center; gap: 10px; padding: 10px; background: var(--card-bg); border-radius: 8px; margin-bottom: 10px; width: 100%; flex-wrap: wrap;`;
         
         previewDiv.innerHTML = `
             <img src="${e.target.result}" style="max-width: 80px; max-height: 80px; border-radius: 4px; object-fit: cover;">

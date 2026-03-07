@@ -5,32 +5,106 @@
   <title>Harazimiyya Forum | Events</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
+  <!-- Font Awesome for Icons -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+
   <link rel="stylesheet" href="../css/events.css">
 </head>
 <body>
 
-<!-- SIDEBAR -->
-<div class="sidebar" id="sidebar">
+<!-- DeepSeek Sidebar (EXACTLY LIKE HOME DASHBOARD) -->
+<div class="deepseek-sidebar" id="sidebar">
   <div class="sidebar-header">
-    <h3>Harazimiyya Forum</h3>
-    <button id="closeSidebar">&times;</button>
+    <div class="logo-area">
+      <i class="fas fa-mosque"></i>
+      <span class="logo-text">Harazimiyya</span>
+    </div>
+    <button class="close-sidebar" id="closeSidebar">
+      <i class="fas fa-times"></i>
+    </button>
   </div>
-
-  <ul class="sidebar-links">
-  <li><a href="home.html">🏠 Home</a></li>
-      <li><a href="member.html">📍 Members</a></li>
-      <li><a href="chat.html">💬 Chat</a></li>
-      <li><a href="events.html">📅 Programs</a></li>
-      <li><a href="gallery.html">🖼️ Gallery</a></li>
-      <li><a href="sheikh-history.html">📖 Sheikh History</a></li>
-      <li><a href="announcement.html">📢 Announcements</a></li>
-      <li><a href="events.html" class="active">📅 Events</a></li>
-      <li><a href="admin.html">📍 admin dash board</a></li>
-  </ul>
-
-  <button id="logoutBtn" class="logout-btn">Logout</button>
+  
+  <div class="user-profile">
+    <div class="user-avatar">
+      <i class="fas fa-user"></i>
+    </div>
+    <div class="user-info">
+      <h4 id="userName">Member</h4>
+      <p><i class="fas fa-user-tag"></i> Community Member</p>
+    </div>
+  </div>
+  
+  <div class="sidebar-menu">
+    <div class="menu-section">
+      <h5 class="menu-title">MAIN</h5>
+      <ul class="menu-items">
+        <li>
+          <a href="home.html">
+            <i class="fas fa-home"></i>
+            <span>Home</span>
+          </a>
+        </li>
+        <li>
+          <a href="member.html">
+            <i class="fas fa-map-marker-alt"></i>
+            <span>Members</span>
+          </a>
+        </li>
+        <li>
+          <a href="chat.html">
+            <i class="fas fa-comments"></i>
+            <span>Chat</span>
+          </a>
+        </li>
+        <li class="active">
+          <a href="events.html">
+            <i class="fas fa-calendar"></i>
+            <span>Programs</span>
+          </a>
+        </li>
+        <li>
+          <a href="gallery.html">
+            <i class="fas fa-images"></i>
+            <span>Gallery</span>
+          </a>
+        </li>
+        <li>
+          <a href="sheikh-history.html">
+            <i class="fas fa-star-and-crescent"></i>
+            <span>Sheikh History</span>
+          </a>
+        </li>
+        <li>
+          <a href="announcement.html">
+            <i class="fas fa-bullhorn"></i>
+            <span>Announcements</span>
+          </a>
+        </li>
+        <li>
+          <a href="map.html">
+            <i class="fas fa-map-marker-alt"></i>
+            <span>Map</span>
+          </a>
+        </li>
+        <li>
+          <a href="admin.html">
+            <i class="fas fa-user-shield"></i>
+            <span>Admin</span>
+          </a>
+        </li>
+      </ul>
+    </div>
+  </div>
+  
+  <div class="sidebar-footer">
+    <button class="logout-btn-sidebar" id="logoutBtn">
+      <i class="fas fa-sign-out-alt"></i>
+      <span>Logout</span>
+    </button>
+  </div>
 </div>
 
+<!-- Overlay -->
 <div class="overlay" id="overlay"></div>
 
 <!-- HEADER -->

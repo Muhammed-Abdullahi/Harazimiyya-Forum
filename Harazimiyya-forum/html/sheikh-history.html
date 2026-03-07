@@ -5,31 +5,102 @@
   <title>Sheikh History | Harazimiyya Forum</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
+  <!-- Font Awesome for Icons -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+
   <link rel="stylesheet" href="../css/sheikh-history.css">
 </head>
 <body>
 
-<!-- SIDEBAR (HOME STYLE) -->
-<div class="sidebar" id="sidebar">
+<!-- DeepSeek Sidebar (EXACTLY LIKE HOME DASHBOARD) -->
+<div class="deepseek-sidebar" id="sidebar">
   <div class="sidebar-header">
-    <h3>Harazimiyya Forum</h3>
-    <button id="closeSidebar">&times;</button>
+    <div class="logo-area">
+      <i class="fas fa-mosque"></i>
+      <span class="logo-text">Harazimiyya</span>
+    </div>
+    <button class="close-sidebar" id="closeSidebar">
+      <i class="fas fa-times"></i>
+    </button>
   </div>
+  
+  <div class="user-profile">
+    <div class="user-avatar">
+      <i class="fas fa-user"></i>
+    </div>
+    <div class="user-info">
+      <h4 id="userName">Member</h4>
+      <p><i class="fas fa-user-tag"></i> Community Member</p>
+    </div>
+  </div>
+  
+  <div class="sidebar-menu">
+    <div class="menu-section">
+      <h5 class="menu-title">MAIN</h5>
+      <ul class="menu-items">
+        <li>
+          <a href="home.html">
+            <i class="fas fa-home"></i>
+            <span>Home</span>
+          </a>
+        </li>
+      
+        <li>
+          <a href="chat.html">
+            <i class="fas fa-comments"></i>
+            <span>Chat</span>
+          </a>
+        </li>
+        <li>
+          <a href="events.html">
+            <i class="fas fa-calendar"></i>
+            <span>Programs</span>
+          </a>
+        </li>
+        <li>
+          <a href="gallery.html">
+            <i class="fas fa-images"></i>
+            <span>Gallery</span>
+          </a>
+        </li>
+        <li class="active">
+          <a href="sheikh-history.html">
+            <i class="fas fa-star-and-crescent"></i>
+            <span>Sheikh History</span>
+          </a>
+        </li>
+        <li>
+          <a href="announcement.html">
+            <i class="fas fa-bullhorn"></i>
+            <span>Announcements</span>
+          </a>
+        </li>
+        <li>
+          <a href="map.html">
+            <i class="fas fa-map-marker-alt"></i>
+            <span>Map</span>
+          </a>
+        </li>
+        <li>
+          <a href="admin.html">
+            <i class="fas fa-user-shield"></i>
+            <span>Admin</span>
+          </a>
+        </li>
+      </ul>
 
-  <ul class="sidebar-links">
-    <li><a href="home.html">🏠 Home</a></li>
-      <li><a href="member.html">📍 Members</a></li>
-      <li><a href="chat.html">💬 Chat</a></li>
-      <li><a href="events.html">📅 Programs</a></li>
-      <li><a href="gallery.html">🖼️ Gallery</a></li>
-      <li><a href="sheikh-history.html">📖 Sheikh History</a></li>
-      <li><a href="announcement.html">📢 Announcements</a></li>
-      <li><a href="events.html" class="active">📅 Events</a></li>
-      <li><a href="admin.html">📍 admin dash board</a></li>
-  </ul>
-
-  <button id="logoutBtn" class="logout-btn">Logout</button>
+      <div class="sidebar-footer">
+    <button class="logout-btn-sidebar" id="logoutBtn">
+      <i class="fas fa-sign-out-alt"></i>
+      <span>Logout</span>
+    </button>
+  </div>
 </div>
+
+    </div>
+  </div>
+  
+  
 
 <!-- OVERLAY -->
 <div class="overlay" id="overlay"></div>
@@ -55,13 +126,29 @@
     </button>
   </header>
 
-  <!-- PROFILE -->
-  <section class="sheikh-profile">
-    <img src="/assets/images/sheikh-placeholder.png" alt="Sheikh">
+  <!-- RESUME READING BUTTON -->
+  <div id="resumeButtonContainer" class="resume-container hidden">
+    <button id="resumeReadingBtn" class="resume-btn">
+      <i class="fas fa-book-open"></i>
+      <span>📖 Continue Reading from Where You Left Off</span>
+      <i class="fas fa-arrow-right"></i>
+    </button>
+  </div>
+
+  <!-- PROFILE SECTION WITH ADMIN CONTROLS -->
+  <section class="sheikh-profile" id="sheikhProfile">
+    <div class="profile-image-container">
+      <img id="sheikhProfileImage" src="/assets/images/sheikh-placeholder.png" alt="Sheikh Mahadi">
+      <div class="profile-image-overlay" id="profileImageOverlay" style="display: none;">
+        <button id="changeProfileImageBtn" class="profile-image-btn">
+          <i class="fas fa-camera"></i> Change Photo
+        </button>
+      </div>
+    </div>
     <div>
-      <h2>Sheikh Mahadi</h2>
-      <p class="title">Spiritual Leader of Harazimiyya Forum</p>
-      <p class="quote">
+      <h2 id="sheikhName">Sheikh Mahadi</h2>
+      <p class="title" id="sheikhTitle">Spiritual Leader of Harazimiyya Forum</p>
+      <p class="quote" id="sheikhQuote">
         “Knowledge without sincerity is a burden; sincerity without knowledge is blind.”
       </p>
     </div>
@@ -72,7 +159,7 @@
 
 </main>
 
-<!-- MODAL -->
+<!-- ADD/EDIT CONTENT MODAL -->
 <div id="uploadModal" class="modal hidden">
   <div class="modal-content">
     <h3>Add Sheikh Content</h3>
@@ -92,6 +179,27 @@
       <button id="selectFileBtn">Select File</button>
       <button id="saveContentBtn" class="primary-btn">Save</button>
       <button id="closeModalBtn">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<!-- PROFILE IMAGE MODAL -->
+<div id="profileImageModal" class="modal hidden">
+  <div class="modal-content">
+    <h3><i class="fas fa-camera"></i> Update Sheikh Profile Image</h3>
+    
+    <div class="profile-preview-container">
+      <img id="profileImagePreview" src="/assets/images/sheikh-placeholder.png" alt="Preview" class="profile-preview">
+    </div>
+
+    <div class="form-group">
+      <label><i class="fas fa-image"></i> Select New Image</label>
+      <input type="file" id="profileImageFile" accept="image/*">
+    </div>
+
+    <div class="modal-actions">
+      <button id="saveProfileImageBtn" class="primary-btn"><i class="fas fa-save"></i> Save Image</button>
+      <button id="closeProfileModalBtn" class="ghost-btn"><i class="fas fa-times"></i> Cancel</button>
     </div>
   </div>
 </div>

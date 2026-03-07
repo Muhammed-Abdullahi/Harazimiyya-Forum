@@ -88,16 +88,19 @@
                     </a>
                 </li>
             </ul>
-        </div>
-    </div>
-    
-    <div class="sidebar-footer">
+
+            <div class="sidebar-footer">
         <button class="logout-btn-sidebar" id="logoutBtn">
             <i class="fas fa-sign-out-alt"></i>
             <span>Logout</span>
         </button>
     </div>
 </div>
+
+        </div>
+    </div>
+    
+    
 
 <!-- Overlay -->
 <div class="overlay" id="overlay"></div>
@@ -113,12 +116,12 @@
                     </button>
                     <h3>Community Chat</h3>
                 </div>
-                <span id="onlineCount" class="online-count">0 online</span>
+                <span id="onlineCount" class="online-count">
+                    <i class="fas fa-circle" style="font-size: 8px; color: #10b981;"></i> 0 online
+                </span>
             </div>
-            <div class="chat-header-bottom">
-                <select id="userSelect" class="user-select">
-                    <option value="">👥 Group Chat (All Members)</option>
-                </select>
+            <div class="chat-header-bottom" id="memberSelectorContainer">
+                <!-- Member selector will be dynamically inserted here for admin -->
             </div>
         </header>
 

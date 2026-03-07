@@ -1,7 +1,9 @@
 // ============================================
 // HARAZIMIYYA FORUM - SHEIKH HISTORY
 // Admin: Add, Edit, Delete Content (Text, Images, Videos)
+// Admin: Upload/Change Sheikh Profile Image
 // Members: View All Content
+// Features: Resume reading from last position
 // ============================================
 
 // Global variables
@@ -11,6 +13,16 @@ let isAdmin = false;
 let allContent = [];
 let selectedContentId = null;
 let selectedFile = null;
+let scrollTimer = null;
+let lastScrollPosition = 0;
+let hasResumeButtonShown = false;
+
+let sheikhProfile = {
+  image_url: '/assets/images/sheikh-placeholder.png',
+  name: 'Sheikh Mahadi',
+  title: 'Spiritual Leader of Harazimiyya Forum',
+  quote: 'Knowledge without sincerity is a burden; sincerity without knowledge is blind.'
+};
 
 // DOM Elements
 const sidebar = document.getElementById("sidebar");
@@ -28,6 +40,23 @@ const fileInput = document.getElementById("fileInput");
 const contentType = document.getElementById("contentType");
 const contentTitle = document.getElementById("contentTitle");
 const contentText = document.getElementById("contentText");
+
+// Profile elements
+const sheikhProfileImage = document.getElementById("sheikhProfileImage");
+const sheikhName = document.getElementById("sheikhName");
+const sheikhTitle = document.getElementById("sheikhTitle");
+const sheikhQuote = document.getElementById("sheikhQuote");
+const profileImageOverlay = document.getElementById("profileImageOverlay");
+const changeProfileImageBtn = document.getElementById("changeProfileImageBtn");
+const profileImageModal = document.getElementById("profileImageModal");
+const closeProfileModalBtn = document.getElementById("closeProfileModalBtn");
+const profileImageFile = document.getElementById("profileImageFile");
+const profileImagePreview = document.getElementById("profileImagePreview");
+const saveProfileImageBtn = document.getElementById("saveProfileImageBtn");
+
+// Resume elements
+const resumeContainer = document.getElementById("resumeButtonContainer");
+const resumeBtn = document.getElementById("resumeReadingBtn");
 
 // Delete modal (will be created dynamically)
 let deleteModal = null;
@@ -90,11 +119,251 @@ function createDeleteModal() {
   document.getElementById('confirmDeleteBtn').onclick = confirmDelete;
 }
 
+// ================= CREATE SCROLL PROGRESS BAR =================
+function createScrollProgressBar() {
+  const progressBar = document.createElement('div');
+  progressBar.className = 'scroll-progress';
+  progressBar.innerHTML = '<div class="scroll-progress-bar" id="scrollProgressBar"></div>';
+  document.body.appendChild(progressBar);
+}
+
+// ================= CREATE JUMP TO TOP BUTTON =================
+function createJumpToTopButton() {
+  const jumpBtn = document.createElement('button');
+  jumpBtn.id = 'jumpToTopBtn';
+  jumpBtn.className = 'jump-to-top-btn';
+  jumpBtn.innerHTML = '<i class="fas fa-arrow-up"></i>';
+  jumpBtn.title = 'Jump to top';
+  
+  jumpBtn.addEventListener('click', () => {
+    window.scrollTo({
+      top: 0,
+      behavior: 'smooth'
+    });
+  });
+  
+  document.body.appendChild(jumpBtn);
+}
+
+// ================= SETUP SCROLL TRACKING =================
+function setupScrollTracking() {
+  const progressBar = document.getElementById('scrollProgressBar');
+  const jumpBtn = document.getElementById('jumpToTopBtn');
+  
+  window.addEventListener('scroll', () => {
+    // Calculate scroll percentage
+    const winScroll = document.documentElement.scrollTop;
+    const height = document.documentElement.scrollHeight - document.documentElement.clientHeight;
+    const scrolled = (winScroll / height) * 100;
+    
+    // Update progress bar
+    if (progressBar) {
+      progressBar.style.width = scrolled + '%';
+    }
+    
+    // Show/hide jump to top button
+    if (jumpBtn) {
+      if (winScroll > 400) {
+        jumpBtn.style.display = 'flex';
+      } else {
+        jumpBtn.style.display = 'none';
+      }
+    }
+    
+    // Save scroll position to localStorage (debounced)
+    if (scrollTimer) clearTimeout(scrollTimer);
+    scrollTimer = setTimeout(() => {
+      if (winScroll > 100) { // Only save if scrolled down a bit
+        localStorage.setItem('sheikhHistoryScroll', winScroll);
+        localStorage.setItem('sheikhHistoryTimestamp', Date.now());
+        console.log("📝 Saved scroll position:", winScroll);
+      }
+    }, 500);
+  });
+}
+
+// ================= CHECK FOR SAVED SCROLL POSITION =================
+function checkSavedScrollPosition() {
+  const savedScroll = localStorage.getItem('sheikhHistoryScroll');
+  const savedTimestamp = localStorage.getItem('sheikhHistoryTimestamp');
+  
+  if (!savedScroll || !savedTimestamp) {
+    console.log("📖 No saved scroll position");
+    return false;
+  }
+  
+  // Check if saved position is from last 24 hours (86400000 ms)
+  const hoursSinceSaved = (Date.now() - parseInt(savedTimestamp)) / (1000 * 60 * 60);
+  
+  if (hoursSinceSaved > 24) {
+    console.log("📖 Saved position is older than 24 hours, clearing");
+    localStorage.removeItem('sheikhHistoryScroll');
+    localStorage.removeItem('sheikhHistoryTimestamp');
+    return false;
+  }
+  
+  // Check if scroll position is valid
+  const maxScroll = document.documentElement.scrollHeight - document.documentElement.clientHeight;
+  const scrollPos = parseInt(savedScroll);
+  
+  if (scrollPos > 0 && scrollPos < maxScroll - 100) {
+    console.log("📖 Found valid saved scroll position:", scrollPos);
+    return scrollPos;
+  }
+  
+  return false;
+}
+
+// ================= SHOW RESUME BUTTON =================
+function showResumeButton(scrollPosition) {
+  if (!resumeContainer || hasResumeButtonShown) return;
+  
+  // Format the position as percentage
+  const maxScroll = document.documentElement.scrollHeight - document.documentElement.clientHeight;
+  const percentage = Math.round((scrollPosition / maxScroll) * 100);
+  
+  resumeContainer.classList.remove('hidden');
+  hasResumeButtonShown = true;
+  
+  // Add click handler
+  resumeBtn.onclick = () => {
+    window.scrollTo({
+      top: scrollPosition,
+      behavior: 'smooth'
+    });
+    
+    // Hide the button after clicking
+    resumeContainer.classList.add('hidden');
+    
+    // Show notification
+    showNotification('📖 Continuing from where you left off', 'success', 2000);
+  };
+  
+  // Auto-hide after 10 seconds
+  setTimeout(() => {
+    if (resumeContainer && !resumeContainer.classList.contains('hidden')) {
+      resumeContainer.classList.add('hidden');
+    }
+  }, 10000);
+}
+
+// ================= LOAD SHEIKH PROFILE =================
+async function loadSheikhProfile() {
+  try {
+    // Try to get profile from database
+    const { data, error } = await supabase
+      .from('sheikh_profile')
+      .select('*')
+      .limit(1)
+      .single();
+
+    if (error && error.code !== 'PGRST116') {
+      console.error("Error loading profile:", error);
+    }
+
+    if (data) {
+      sheikhProfile = { ...sheikhProfile, ...data };
+    }
+
+    // Update UI
+    if (sheikhProfileImage) {
+      sheikhProfileImage.src = sheikhProfile.image_url;
+    }
+    if (sheikhName) {
+      sheikhName.textContent = sheikhProfile.name;
+    }
+    if (sheikhTitle) {
+      sheikhTitle.textContent = sheikhProfile.title;
+    }
+    if (sheikhQuote) {
+      sheikhQuote.textContent = sheikhProfile.quote;
+    }
+
+  } catch (err) {
+    console.error("Error loading sheikh profile:", err);
+  }
+}
+
+// ================= SAVE SHEIKH PROFILE =================
+async function saveSheikhProfile(updates) {
+  try {
+    sheikhProfile = { ...sheikhProfile, ...updates };
+
+    const { error } = await supabase
+      .from('sheikh_profile')
+      .upsert([sheikhProfile]);
+
+    if (error) throw error;
+
+    return true;
+  } catch (err) {
+    console.error("Error saving sheikh profile:", err);
+    return false;
+  }
+}
+
+// ================= UPLOAD PROFILE IMAGE =================
+async function uploadProfileImage(file) {
+  try {
+    if (!file) throw new Error("No file selected");
+
+    // Validate file size (5MB max for profile)
+    if (file.size > 5 * 1024 * 1024) {
+      throw new Error("Image too large. Maximum size is 5MB.");
+    }
+
+    // Validate file type
+    if (!file.type.startsWith('image/')) {
+      throw new Error("Please select a valid image file.");
+    }
+
+    // Upload to storage
+    const fileExt = file.name.split('.').pop();
+    const fileName = `sheikh-profile/profile.${fileExt}`;
+    
+    // Remove old image if exists
+    if (sheikhProfile.image_url && !sheikhProfile.image_url.includes('placeholder')) {
+      try {
+        const oldPath = sheikhProfile.image_url.split('/').pop();
+        await supabase.storage
+          .from('sheikh-media')
+          .remove([`sheikh-profile/${oldPath}`]);
+      } catch (e) {
+        console.log("No old image to remove");
+      }
+    }
+
+    // Upload new image
+    const { error: uploadError } = await supabase.storage
+      .from('sheikh-media')
+      .upload(fileName, file, { upsert: true });
+
+    if (uploadError) throw uploadError;
+
+    // Get public URL
+    const { data: { publicUrl } } = supabase.storage
+      .from('sheikh-media')
+      .getPublicUrl(fileName);
+
+    return publicUrl;
+  } catch (err) {
+    console.error("Error uploading profile image:", err);
+    throw err;
+  }
+}
+
 // ================= INITIALIZATION =================
 document.addEventListener("DOMContentLoaded", async () => {
+  // Create UI elements
+  createScrollProgressBar();
+  createJumpToTopButton();
+  
   await init();
   createDeleteModal();
   setupEventListeners();
+  setupProfileListeners();
+  setupScrollTracking();
+  await loadSheikhProfile();
 });
 
 async function init() {
@@ -125,19 +394,106 @@ async function init() {
     isAdmin = profile.role === "admin";
     console.log("Is admin:", isAdmin);
 
-    // Show add button only for admin
-    if (addSectionBtn) {
-      if (isAdmin) {
+    // Show admin controls
+    if (isAdmin) {
+      if (addSectionBtn) {
         addSectionBtn.classList.remove("hidden");
+      }
+      if (profileImageOverlay) {
+        profileImageOverlay.style.display = 'flex';
       }
     }
 
     // Load content
     await loadContent();
 
+    // Check for saved scroll position after content loads
+    setTimeout(() => {
+      const savedScroll = checkSavedScrollPosition();
+      if (savedScroll) {
+        showResumeButton(savedScroll);
+      }
+    }, 1000);
+
   } catch (err) {
     console.error("Initialization error:", err);
   }
+}
+
+// ================= SETUP PROFILE LISTENERS =================
+function setupProfileListeners() {
+  if (!isAdmin) return;
+
+  // Change profile image button
+  if (changeProfileImageBtn) {
+    changeProfileImageBtn.onclick = () => {
+      profileImageModal.classList.remove('hidden');
+      profileImagePreview.src = sheikhProfile.image_url;
+    };
+  }
+
+  // Close profile modal
+  if (closeProfileModalBtn) {
+    closeProfileModalBtn.onclick = () => {
+      profileImageModal.classList.add('hidden');
+      profileImageFile.value = '';
+    };
+  }
+
+  // Profile image preview
+  if (profileImageFile) {
+    profileImageFile.onchange = (e) => {
+      const file = e.target.files[0];
+      if (file) {
+        const reader = new FileReader();
+        reader.onload = (e) => {
+          profileImagePreview.src = e.target.result;
+        };
+        reader.readAsDataURL(file);
+      }
+    };
+  }
+
+  // Save profile image
+  if (saveProfileImageBtn) {
+    saveProfileImageBtn.onclick = async () => {
+      const file = profileImageFile.files[0];
+      
+      if (!file) {
+        showNotification('Please select an image', 'error');
+        return;
+      }
+
+      saveProfileImageBtn.disabled = true;
+      saveProfileImageBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Uploading...';
+
+      try {
+        const imageUrl = await uploadProfileImage(file);
+        const success = await saveSheikhProfile({ image_url: imageUrl });
+
+        if (success) {
+          sheikhProfileImage.src = imageUrl;
+          profileImageModal.classList.add('hidden');
+          showNotification('Profile image updated successfully!', 'success');
+        } else {
+          showNotification('Failed to update profile image', 'error');
+        }
+      } catch (err) {
+        showNotification(err.message || 'Error uploading image', 'error');
+      } finally {
+        saveProfileImageBtn.disabled = false;
+        saveProfileImageBtn.innerHTML = '<i class="fas fa-save"></i> Save Image';
+        profileImageFile.value = '';
+      }
+    };
+  }
+
+  // Close modal when clicking outside
+  window.onclick = (e) => {
+    if (e.target === profileImageModal) {
+      profileImageModal.classList.add('hidden');
+    }
+  };
 }
 
 // ================= LOAD CONTENT =================
@@ -197,6 +553,7 @@ function displayContent(content) {
 function createContentCard(item) {
   const card = document.createElement("div");
   card.className = `content-card ${item.content_type}`;
+  card.setAttribute('data-content-id', item.id);
   
   const date = new Date(item.created_at).toLocaleDateString('en-US', {
     year: 'numeric',
@@ -220,7 +577,7 @@ function createContentCard(item) {
     `;
   } else if (item.content_type === 'image') {
     content = `
-      <img src="${item.media_url}" alt="${item.title}" class="card-media">
+      <img src="${item.media_url}" alt="${item.title}" class="card-media" loading="lazy">
       <div class="card-content">
         <h3>${item.title}</h3>
         <div class="card-meta">
@@ -230,7 +587,7 @@ function createContentCard(item) {
     `;
   } else if (item.content_type === 'video') {
     content = `
-      <video controls class="card-media">
+      <video controls class="card-media" preload="metadata">
         <source src="${item.media_url}" type="video/mp4">
         Your browser does not support the video tag.
       </video>
@@ -543,4 +900,39 @@ function closeModal() {
   
   contentText.style.display = 'block';
   selectFileBtn.style.display = 'none';
+}
+
+// Clear scroll position on logout
+logoutBtn.addEventListener('click', () => {
+  localStorage.removeItem('sheikhHistoryScroll');
+  localStorage.removeItem('sheikhHistoryTimestamp');
+});
+
+
+
+
+// ================= SETUP TOUCH HANDLERS FOR MOBILE =================
+function setupTouchHandlers() {
+  const profileContainer = document.querySelector('.profile-image-container');
+  const overlay = document.getElementById('profileImageOverlay');
+  
+  if (!profileContainer || !overlay || !isAdmin) return;
+  
+  // For touch devices, show overlay on tap
+  profileContainer.addEventListener('touchstart', (e) => {
+    e.preventDefault();
+    // Toggle overlay visibility
+    if (overlay.style.opacity === '1') {
+      overlay.style.opacity = '0';
+    } else {
+      overlay.style.opacity = '1';
+    }
+  });
+  
+  // Hide overlay when tapping outside
+  document.addEventListener('touchstart', (e) => {
+    if (!profileContainer.contains(e.target)) {
+      overlay.style.opacity = '0';
+    }
+  });
 }

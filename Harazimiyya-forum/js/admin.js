@@ -12,6 +12,7 @@ document.addEventListener('DOMContentLoaded', function() {
         
         initializeAdmin();
         initializeSidebar();
+        setupJumpToTopButton();
     }
     
     checkAdminAuth();
@@ -45,6 +46,48 @@ function initializeSidebar() {
             sidebar.classList.remove('active');
             overlay.classList.remove('active');
             mainContent.classList.remove('sidebar-open');
+        });
+    }
+}
+
+// ================= JUMP TO TOP BUTTON =================
+function setupJumpToTopButton() {
+    const jumpBtn = document.getElementById('jumpToTopBtn');
+    if (!jumpBtn) return;
+    
+    window.addEventListener('scroll', () => {
+        if (window.scrollY > 400) {
+            jumpBtn.style.display = 'flex';
+        } else {
+            jumpBtn.style.display = 'none';
+        }
+    });
+    
+    jumpBtn.addEventListener('click', () => {
+        window.scrollTo({
+            top: 0,
+            behavior: 'smooth'
+        });
+    });
+}
+
+// ================= USER DROPDOWN =================
+function setupUserDropdown() {
+    const dropdownBtn = document.getElementById('userDropdownBtn');
+    const dropdown = document.getElementById('userDropdown');
+    
+    if (dropdownBtn && dropdown) {
+        dropdownBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            dropdown.classList.toggle('show');
+        });
+        
+        document.addEventListener('click', () => {
+            dropdown.classList.remove('show');
+        });
+        
+        dropdown.addEventListener('click', (e) => {
+            e.stopPropagation();
         });
     }
 }
@@ -120,6 +163,9 @@ async function initializeAdmin() {
         adminNameElements.forEach(el => {
             if (el) el.textContent = profile.full_name || 'Admin';
         });
+        
+        // Setup user dropdown
+        setupUserDropdown();
         
         // Load all sections
         showIslamicNotification("Loading your dashboard...", "info", 2000);
@@ -302,9 +348,7 @@ async function loadPendingUsers() {
                             </div>
                             <div class="user-details">
                                 <h4>${user.full_name || 'Waiting for Name'}</h4>
-                                <p><i class="fas fa-envelope"></i> ${user.email}</p>
-                                <p><i class="fas fa-map-marker-alt"></i> ${user.state || 'Location not shared'}</p>
-                                <p class="meta-text"><i class="fas fa-clock"></i> Requested: ${date}</p>
+                                <!-- Email and other details removed - only name shows -->
                             </div>
                         </div>
                         <div class="user-actions">
@@ -346,7 +390,7 @@ async function loadPendingUsers() {
     }
 }
 
-// View user details function
+// View user details function - shows all info when clicked
 window.viewUserDetails = function(userId, name, email, date) {
     showIslamicNotification(`
         👤 Member Details:
@@ -441,10 +485,8 @@ function renderMembers(members) {
                         <div class="user-details">
                             <h4>
                                 ${user.full_name || 'Unnamed Member'}
-                                ${isAdmin ? '<span class="admin-badge">👑 Admin</span>' : ''}
+                                ${isAdmin ? '<span class="badge admin">👑 Admin</span>' : ''}
                             </h4>
-                            <p><i class="fas fa-envelope"></i> ${user.email}</p>
-                            <p><i class="fas fa-map-marker-alt"></i> ${user.state || 'Location not shared'}</p>
                             <div class="user-meta">
                                 <span class="badge ${isAdmin ? 'admin' : ''}">
                                     ${isAdmin ? '👑' : '👤'} ${user.role || 'member'}
@@ -480,6 +522,9 @@ function renderMembers(members) {
                                 <i class="fas fa-ban"></i> ⏳ Revoke Access
                             </button>
                         `}
+                        <button class="btn-islamic btn-view" onclick="viewUserDetails('${user.id}', '${user.full_name || ''}', '${user.email}', '${date}')">
+                            <i class="fas fa-eye"></i> 👁️ Details
+                        </button>
                     </div>
                 </div>
             </div>
