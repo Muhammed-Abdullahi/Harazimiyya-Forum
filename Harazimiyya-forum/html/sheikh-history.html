@@ -44,7 +44,6 @@
             <span>Home</span>
           </a>
         </li>
-      
         <li>
           <a href="chat.html">
             <i class="fas fa-comments"></i>
@@ -90,17 +89,14 @@
       </ul>
 
       <div class="sidebar-footer">
-    <button class="logout-btn-sidebar" id="logoutBtn">
-      <i class="fas fa-sign-out-alt"></i>
-      <span>Logout</span>
-    </button>
-  </div>
-</div>
-
+        <button class="logout-btn-sidebar" id="logoutBtn">
+          <i class="fas fa-sign-out-alt"></i>
+          <span>Logout</span>
+        </button>
+      </div>
     </div>
   </div>
-  
-  
+</div>
 
 <!-- OVERLAY -->
 <div class="overlay" id="overlay"></div>
@@ -135,14 +131,23 @@
     </button>
   </div>
 
-  <!-- PROFILE SECTION WITH ADMIN CONTROLS -->
+  <!-- PROFILE SECTION WITH KEBAB MENU -->
   <section class="sheikh-profile" id="sheikhProfile">
     <div class="profile-image-container">
       <img id="sheikhProfileImage" src="/assets/images/sheikh-placeholder.png" alt="Sheikh Mahadi">
-      <div class="profile-image-overlay" id="profileImageOverlay" style="display: none;">
-        <button id="changeProfileImageBtn" class="profile-image-btn">
-          <i class="fas fa-camera"></i> Change Photo
+      <!-- Three dots menu for admin -->
+      <div class="profile-menu" id="profileMenu" style="display: none;">
+        <button class="profile-menu-btn" id="profileMenuBtn">
+          <i class="fas fa-ellipsis-v"></i>
         </button>
+        <div class="profile-menu-dropdown" id="profileMenuDropdown">
+          <button id="uploadProfileImageBtn" class="profile-menu-item">
+            <i class="fas fa-upload"></i> Upload New Photo
+          </button>
+          <button id="removeProfileImageBtn" class="profile-menu-item danger">
+            <i class="fas fa-trash"></i> Remove Photo
+          </button>
+        </div>
       </div>
     </div>
     <div>
@@ -183,10 +188,10 @@
   </div>
 </div>
 
-<!-- PROFILE IMAGE MODAL -->
-<div id="profileImageModal" class="modal hidden">
+<!-- PROFILE IMAGE UPLOAD MODAL -->
+<div id="profileImageUploadModal" class="modal hidden">
   <div class="modal-content">
-    <h3><i class="fas fa-camera"></i> Update Sheikh Profile Image</h3>
+    <h3><i class="fas fa-camera"></i> Upload Sheikh Profile Image</h3>
     
     <div class="profile-preview-container">
       <img id="profileImagePreview" src="/assets/images/sheikh-placeholder.png" alt="Preview" class="profile-preview">
@@ -198,8 +203,21 @@
     </div>
 
     <div class="modal-actions">
-      <button id="saveProfileImageBtn" class="primary-btn"><i class="fas fa-save"></i> Save Image</button>
-      <button id="closeProfileModalBtn" class="ghost-btn"><i class="fas fa-times"></i> Cancel</button>
+      <button id="saveProfileImageBtn" class="primary-btn"><i class="fas fa-save"></i> Upload Image</button>
+      <button id="closeProfileUploadModalBtn" class="ghost-btn"><i class="fas fa-times"></i> Cancel</button>
+    </div>
+  </div>
+</div>
+
+<!-- CONFIRM REMOVE MODAL -->
+<div id="confirmRemoveModal" class="modal hidden">
+  <div class="modal-content delete-modal">
+    <i class="fas fa-exclamation-triangle" style="font-size: 48px; color: var(--danger); margin-bottom: 15px;"></i>
+    <h3>Remove Profile Image?</h3>
+    <p>Are you sure you want to remove the profile image? This will revert to the default placeholder.</p>
+    <div class="modal-actions">
+      <button id="confirmRemoveBtn" class="primary-btn" style="background: var(--danger);">Remove</button>
+      <button id="cancelRemoveBtn" class="ghost-btn">Cancel</button>
     </div>
   </div>
 </div>

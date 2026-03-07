@@ -1,7 +1,7 @@
 // ============================================
 // HARAZIMIYYA FORUM - SHEIKH HISTORY
 // Admin: Add, Edit, Delete Content (Text, Images, Videos)
-// Admin: Upload/Change Sheikh Profile Image
+// Admin: Upload/Remove Sheikh Profile Image via Kebab Menu
 // Members: View All Content
 // Features: Resume reading from last position
 // ============================================
@@ -17,8 +17,11 @@ let scrollTimer = null;
 let lastScrollPosition = 0;
 let hasResumeButtonShown = false;
 
+// Use a CDN placeholder to avoid 404
+const DEFAULT_PLACEHOLDER = 'https://placehold.co/150x150/0b5e3b/white?text=Sheikh+Mahadi';
+
 let sheikhProfile = {
-  image_url: '/assets/images/sheikh-placeholder.png',
+  image_url: DEFAULT_PLACEHOLDER,
   name: 'Sheikh Mahadi',
   title: 'Spiritual Leader of Harazimiyya Forum',
   quote: 'Knowledge without sincerity is a burden; sincerity without knowledge is blind.'
@@ -46,13 +49,23 @@ const sheikhProfileImage = document.getElementById("sheikhProfileImage");
 const sheikhName = document.getElementById("sheikhName");
 const sheikhTitle = document.getElementById("sheikhTitle");
 const sheikhQuote = document.getElementById("sheikhQuote");
-const profileImageOverlay = document.getElementById("profileImageOverlay");
-const changeProfileImageBtn = document.getElementById("changeProfileImageBtn");
-const profileImageModal = document.getElementById("profileImageModal");
-const closeProfileModalBtn = document.getElementById("closeProfileModalBtn");
+const profileMenu = document.getElementById("profileMenu");
+const profileMenuBtn = document.getElementById("profileMenuBtn");
+const profileMenuDropdown = document.getElementById("profileMenuDropdown");
+const uploadProfileImageBtn = document.getElementById("uploadProfileImageBtn");
+const removeProfileImageBtn = document.getElementById("removeProfileImageBtn");
+
+// Profile upload modal
+const profileImageUploadModal = document.getElementById("profileImageUploadModal");
+const closeProfileUploadModalBtn = document.getElementById("closeProfileUploadModalBtn");
 const profileImageFile = document.getElementById("profileImageFile");
 const profileImagePreview = document.getElementById("profileImagePreview");
 const saveProfileImageBtn = document.getElementById("saveProfileImageBtn");
+
+// Confirm remove modal
+const confirmRemoveModal = document.getElementById("confirmRemoveModal");
+const confirmRemoveBtn = document.getElementById("confirmRemoveBtn");
+const cancelRemoveBtn = document.getElementById("cancelRemoveBtn");
 
 // Resume elements
 const resumeContainer = document.getElementById("resumeButtonContainer");
@@ -250,24 +263,46 @@ function showResumeButton(scrollPosition) {
 // ================= LOAD SHEIKH PROFILE =================
 async function loadSheikhProfile() {
   try {
+    console.log("📋 Loading sheikh profile...");
+    
+    // Set default image first
+    if (sheikhProfileImage) {
+      sheikhProfileImage.src = DEFAULT_PLACEHOLDER;
+    }
+    
     // Try to get profile from database
     const { data, error } = await supabase
       .from('sheikh_profile')
       .select('*')
       .limit(1)
-      .single();
+      .maybeSingle();
 
-    if (error && error.code !== 'PGRST116') {
+    if (error) {
       console.error("Error loading profile:", error);
+      
+      // If table doesn't exist, show a message
+      if (error.code === '42P01') {
+        console.log("⚠️ sheikh_profile table doesn't exist yet");
+        showNotification("Profile table not set up. Please run SQL setup.", "warning");
+      } else if (error.code === '42501') {
+        console.log("⚠️ Permission denied. Check RLS policies.");
+        showNotification("Permission denied. Admin may need to fix RLS policies.", "warning");
+      }
+      return;
     }
 
     if (data) {
+      console.log("✅ Profile loaded from DB:", data);
       sheikhProfile = { ...sheikhProfile, ...data };
+    } else {
+      console.log("📝 No profile found in DB, using defaults");
+      // Try to create default profile
+      await saveSheikhProfile(sheikhProfile);
     }
 
     // Update UI
     if (sheikhProfileImage) {
-      sheikhProfileImage.src = sheikhProfile.image_url;
+      sheikhProfileImage.src = sheikhProfile.image_url || DEFAULT_PLACEHOLDER;
     }
     if (sheikhName) {
       sheikhName.textContent = sheikhProfile.name;
@@ -287,14 +322,32 @@ async function loadSheikhProfile() {
 // ================= SAVE SHEIKH PROFILE =================
 async function saveSheikhProfile(updates) {
   try {
+    console.log("📝 Saving sheikh profile...", updates);
+    
     sheikhProfile = { ...sheikhProfile, ...updates };
 
-    const { error } = await supabase
+    const { data, error } = await supabase
       .from('sheikh_profile')
-      .upsert([sheikhProfile]);
+      .upsert([sheikhProfile])
+      .select();
 
-    if (error) throw error;
+    if (error) {
+      console.error("Error saving profile:", error);
+      
+      // More detailed error message
+      if (error.code === '42P01') {
+        showNotification("Database table not set up. Please run SQL setup.", "error");
+      } else if (error.code === '42501') {
+        showNotification("Permission denied. You need admin rights.", "error");
+      } else {
+        showNotification("Error saving profile: " + error.message, "error");
+      }
+      return false;
+    }
 
+    console.log("✅ Profile saved successfully:", data);
+    showNotification("Profile updated successfully!", "success");
+    
     return true;
   } catch (err) {
     console.error("Error saving sheikh profile:", err);
@@ -307,6 +360,8 @@ async function uploadProfileImage(file) {
   try {
     if (!file) throw new Error("No file selected");
 
+    console.log("📤 Uploading profile image:", file.name);
+
     // Validate file size (5MB max for profile)
     if (file.size > 5 * 1024 * 1024) {
       throw new Error("Image too large. Maximum size is 5MB.");
@@ -317,33 +372,34 @@ async function uploadProfileImage(file) {
       throw new Error("Please select a valid image file.");
     }
 
-    // Upload to storage
+    // Create a unique filename
+    const timestamp = Date.now();
     const fileExt = file.name.split('.').pop();
-    const fileName = `sheikh-profile/profile.${fileExt}`;
+    const fileName = `sheikh-profile/${timestamp}_profile.${fileExt}`;
     
-    // Remove old image if exists
-    if (sheikhProfile.image_url && !sheikhProfile.image_url.includes('placeholder')) {
-      try {
-        const oldPath = sheikhProfile.image_url.split('/').pop();
-        await supabase.storage
-          .from('sheikh-media')
-          .remove([`sheikh-profile/${oldPath}`]);
-      } catch (e) {
-        console.log("No old image to remove");
-      }
-    }
+    console.log("📁 Uploading to path:", fileName);
 
     // Upload new image
     const { error: uploadError } = await supabase.storage
       .from('sheikh-media')
-      .upload(fileName, file, { upsert: true });
+      .upload(fileName, file, { 
+        cacheControl: '3600',
+        upsert: true 
+      });
 
-    if (uploadError) throw uploadError;
+    if (uploadError) {
+      console.error("Upload error:", uploadError);
+      throw uploadError;
+    }
+
+    console.log("✅ File uploaded successfully");
 
     // Get public URL
     const { data: { publicUrl } } = supabase.storage
       .from('sheikh-media')
       .getPublicUrl(fileName);
+
+    console.log("📸 Public URL:", publicUrl);
 
     return publicUrl;
   } catch (err) {
@@ -352,8 +408,191 @@ async function uploadProfileImage(file) {
   }
 }
 
+// ================= REMOVE PROFILE IMAGE =================
+async function removeProfileImage() {
+  try {
+    // Remove old image if exists (and not placeholder)
+    if (sheikhProfile.image_url && 
+        !sheikhProfile.image_url.includes('placehold.co') && 
+        !sheikhProfile.image_url.includes('placeholder')) {
+      try {
+        const urlParts = sheikhProfile.image_url.split('/');
+        const oldFileName = urlParts[urlParts.length - 1];
+        if (oldFileName) {
+          const oldPath = `sheikh-profile/${oldFileName}`;
+          await supabase.storage
+            .from('sheikh-media')
+            .remove([oldPath]);
+          console.log("🗑️ Old image removed:", oldPath);
+        }
+      } catch (e) {
+        console.log("Could not remove old image:", e);
+      }
+    }
+
+    // Update profile with placeholder
+    const success = await saveSheikhProfile({ image_url: DEFAULT_PLACEHOLDER });
+    
+    if (success) {
+      sheikhProfileImage.src = DEFAULT_PLACEHOLDER;
+      showNotification('✅ Profile image removed', 'success');
+    }
+  } catch (err) {
+    console.error("Error removing profile image:", err);
+    showNotification('Error removing image', 'error');
+  }
+}
+
+// ================= SETUP KEBAB MENU =================
+function setupKebabMenu() {
+  if (!isAdmin) {
+    if (profileMenu) profileMenu.style.display = 'none';
+    return;
+  }
+
+  // Show the menu for admin
+  if (profileMenu) {
+    profileMenu.style.display = 'block';
+  }
+
+  // Toggle dropdown on button click
+  if (profileMenuBtn) {
+    profileMenuBtn.addEventListener('click', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      profileMenuDropdown.classList.toggle('show');
+    });
+  }
+
+  // Close dropdown when clicking outside
+  document.addEventListener('click', (e) => {
+    if (!profileMenu?.contains(e.target)) {
+      profileMenuDropdown?.classList.remove('show');
+    }
+  });
+
+  // Upload button click
+  if (uploadProfileImageBtn) {
+    uploadProfileImageBtn.addEventListener('click', () => {
+      profileMenuDropdown.classList.remove('show');
+      profileImageUploadModal.classList.remove('hidden');
+      profileImagePreview.src = sheikhProfile.image_url || DEFAULT_PLACEHOLDER;
+    });
+  }
+
+  // Remove button click
+  if (removeProfileImageBtn) {
+    removeProfileImageBtn.addEventListener('click', () => {
+      profileMenuDropdown.classList.remove('show');
+      confirmRemoveModal.classList.remove('hidden');
+    });
+  }
+
+  // Close upload modal
+  if (closeProfileUploadModalBtn) {
+    closeProfileUploadModalBtn.addEventListener('click', () => {
+      profileImageUploadModal.classList.add('hidden');
+      profileImageFile.value = '';
+    });
+  }
+
+  // Image preview
+  if (profileImageFile) {
+    profileImageFile.addEventListener('change', (e) => {
+      const file = e.target.files[0];
+      if (file) {
+        const reader = new FileReader();
+        reader.onload = (e) => {
+          profileImagePreview.src = e.target.result;
+        };
+        reader.readAsDataURL(file);
+      }
+    });
+  }
+
+  // Save uploaded image
+  if (saveProfileImageBtn) {
+    saveProfileImageBtn.addEventListener('click', async () => {
+      const file = profileImageFile.files[0];
+      
+      if (!file) {
+        showNotification('Please select an image', 'error');
+        return;
+      }
+
+      saveProfileImageBtn.disabled = true;
+      saveProfileImageBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Uploading...';
+
+      try {
+        const imageUrl = await uploadProfileImage(file);
+        
+        // Remove old image before saving new one
+        if (sheikhProfile.image_url && 
+            !sheikhProfile.image_url.includes('placehold.co') && 
+            !sheikhProfile.image_url.includes('placeholder')) {
+          try {
+            const urlParts = sheikhProfile.image_url.split('/');
+            const oldFileName = urlParts[urlParts.length - 1];
+            if (oldFileName) {
+              const oldPath = `sheikh-profile/${oldFileName}`;
+              await supabase.storage
+                .from('sheikh-media')
+                .remove([oldPath]);
+            }
+          } catch (e) {
+            console.log("Could not remove old image:", e);
+          }
+        }
+
+        const success = await saveSheikhProfile({ image_url: imageUrl });
+
+        if (success) {
+          sheikhProfileImage.src = imageUrl;
+          profileImageUploadModal.classList.add('hidden');
+          showNotification('✅ Profile image updated successfully!', 'success');
+        } else {
+          showNotification('❌ Failed to update profile image', 'error');
+        }
+      } catch (err) {
+        showNotification('❌ Error: ' + err.message, 'error');
+      } finally {
+        saveProfileImageBtn.disabled = false;
+        saveProfileImageBtn.innerHTML = '<i class="fas fa-save"></i> Upload Image';
+        profileImageFile.value = '';
+      }
+    });
+  }
+
+  // Close confirm remove modal
+  if (cancelRemoveBtn) {
+    cancelRemoveBtn.addEventListener('click', () => {
+      confirmRemoveModal.classList.add('hidden');
+    });
+  }
+
+  // Confirm remove
+  if (confirmRemoveBtn) {
+    confirmRemoveBtn.addEventListener('click', async () => {
+      confirmRemoveModal.classList.add('hidden');
+      await removeProfileImage();
+    });
+  }
+
+  // Close modals when clicking outside
+  window.addEventListener('click', (e) => {
+    if (e.target === profileImageUploadModal) {
+      profileImageUploadModal.classList.add('hidden');
+    }
+    if (e.target === confirmRemoveModal) {
+      confirmRemoveModal.classList.add('hidden');
+    }
+  });
+}
+
 // ================= INITIALIZATION =================
 document.addEventListener("DOMContentLoaded", async () => {
+  console.log("🚀 Sheikh History page initializing...");
+  
   // Create UI elements
   createScrollProgressBar();
   createJumpToTopButton();
@@ -361,7 +600,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   await init();
   createDeleteModal();
   setupEventListeners();
-  setupProfileListeners();
+  setupKebabMenu();
   setupScrollTracking();
   await loadSheikhProfile();
 });
@@ -371,6 +610,7 @@ async function init() {
     const { data: { user }, error: userError } = await supabase.auth.getUser();
     
     if (userError || !user) {
+      console.log("No user found, redirecting to login");
       window.location.href = "../index.html";
       return;
     }
@@ -399,9 +639,6 @@ async function init() {
       if (addSectionBtn) {
         addSectionBtn.classList.remove("hidden");
       }
-      if (profileImageOverlay) {
-        profileImageOverlay.style.display = 'flex';
-      }
     }
 
     // Load content
@@ -418,82 +655,6 @@ async function init() {
   } catch (err) {
     console.error("Initialization error:", err);
   }
-}
-
-// ================= SETUP PROFILE LISTENERS =================
-function setupProfileListeners() {
-  if (!isAdmin) return;
-
-  // Change profile image button
-  if (changeProfileImageBtn) {
-    changeProfileImageBtn.onclick = () => {
-      profileImageModal.classList.remove('hidden');
-      profileImagePreview.src = sheikhProfile.image_url;
-    };
-  }
-
-  // Close profile modal
-  if (closeProfileModalBtn) {
-    closeProfileModalBtn.onclick = () => {
-      profileImageModal.classList.add('hidden');
-      profileImageFile.value = '';
-    };
-  }
-
-  // Profile image preview
-  if (profileImageFile) {
-    profileImageFile.onchange = (e) => {
-      const file = e.target.files[0];
-      if (file) {
-        const reader = new FileReader();
-        reader.onload = (e) => {
-          profileImagePreview.src = e.target.result;
-        };
-        reader.readAsDataURL(file);
-      }
-    };
-  }
-
-  // Save profile image
-  if (saveProfileImageBtn) {
-    saveProfileImageBtn.onclick = async () => {
-      const file = profileImageFile.files[0];
-      
-      if (!file) {
-        showNotification('Please select an image', 'error');
-        return;
-      }
-
-      saveProfileImageBtn.disabled = true;
-      saveProfileImageBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Uploading...';
-
-      try {
-        const imageUrl = await uploadProfileImage(file);
-        const success = await saveSheikhProfile({ image_url: imageUrl });
-
-        if (success) {
-          sheikhProfileImage.src = imageUrl;
-          profileImageModal.classList.add('hidden');
-          showNotification('Profile image updated successfully!', 'success');
-        } else {
-          showNotification('Failed to update profile image', 'error');
-        }
-      } catch (err) {
-        showNotification(err.message || 'Error uploading image', 'error');
-      } finally {
-        saveProfileImageBtn.disabled = false;
-        saveProfileImageBtn.innerHTML = '<i class="fas fa-save"></i> Save Image';
-        profileImageFile.value = '';
-      }
-    };
-  }
-
-  // Close modal when clicking outside
-  window.onclick = (e) => {
-    if (e.target === profileImageModal) {
-      profileImageModal.classList.add('hidden');
-    }
-  };
 }
 
 // ================= LOAD CONTENT =================
@@ -621,84 +782,92 @@ function createContentCard(item) {
 // ================= SETUP EVENT LISTENERS =================
 function setupEventListeners() {
   // Modal controls
-  addSectionBtn.onclick = openAddModal;
-  closeModalBtn.onclick = closeModal;
-  selectFileBtn.onclick = () => fileInput.click();
+  if (addSectionBtn) addSectionBtn.onclick = openAddModal;
+  if (closeModalBtn) closeModalBtn.onclick = closeModal;
+  if (selectFileBtn) selectFileBtn.onclick = () => fileInput.click();
   
-  fileInput.onchange = (e) => {
-    selectedFile = e.target.files[0];
-    if (selectedFile) {
-      // Show file info
-      const fileInfo = document.createElement('div');
-      fileInfo.className = 'file-info';
-      fileInfo.innerHTML = `
-        <i class="fas fa-check-circle" style="color: var(--success);"></i>
-        <span>Selected: ${selectedFile.name} (${(selectedFile.size / 1024).toFixed(2)} KB)</span>
-      `;
-      
-      // Remove existing file info
-      const existingInfo = document.querySelector('.file-info');
-      if (existingInfo) existingInfo.remove();
-      
-      selectFileBtn.parentNode.insertBefore(fileInfo, selectFileBtn.nextSibling);
-      
-      // Show preview for images
-      if (contentType.value === 'image' && selectedFile.type.startsWith('image/')) {
-        const reader = new FileReader();
-        reader.onload = (e) => {
-          const preview = document.createElement('img');
-          preview.src = e.target.result;
-          preview.className = 'preview-image';
-          
-          const existingPreview = document.querySelector('.preview-image');
-          if (existingPreview) existingPreview.remove();
-          
-          fileInfo.insertAdjacentElement('afterend', preview);
-        };
-        reader.readAsDataURL(selectedFile);
+  if (fileInput) {
+    fileInput.onchange = (e) => {
+      selectedFile = e.target.files[0];
+      if (selectedFile) {
+        // Show file info
+        const fileInfo = document.createElement('div');
+        fileInfo.className = 'file-info';
+        fileInfo.innerHTML = `
+          <i class="fas fa-check-circle" style="color: var(--success);"></i>
+          <span>Selected: ${selectedFile.name} (${(selectedFile.size / 1024).toFixed(2)} KB)</span>
+        `;
+        
+        // Remove existing file info
+        const existingInfo = document.querySelector('.file-info');
+        if (existingInfo) existingInfo.remove();
+        
+        selectFileBtn.parentNode.insertBefore(fileInfo, selectFileBtn.nextSibling);
+        
+        // Show preview for images
+        if (contentType.value === 'image' && selectedFile.type.startsWith('image/')) {
+          const reader = new FileReader();
+          reader.onload = (e) => {
+            const preview = document.createElement('img');
+            preview.src = e.target.result;
+            preview.className = 'preview-image';
+            
+            const existingPreview = document.querySelector('.preview-image');
+            if (existingPreview) existingPreview.remove();
+            
+            fileInfo.insertAdjacentElement('afterend', preview);
+          };
+          reader.readAsDataURL(selectedFile);
+        }
       }
-    }
-  };
+    };
+  }
   
   // Content type change
-  contentType.onchange = () => {
-    const isText = contentType.value === 'text';
-    contentText.style.display = isText ? 'block' : 'none';
-    selectFileBtn.style.display = isText ? 'none' : 'inline-block';
-    fileInput.value = '';
-    selectedFile = null;
-    
-    // Remove file info and preview
-    const fileInfo = document.querySelector('.file-info');
-    if (fileInfo) fileInfo.remove();
-    
-    const preview = document.querySelector('.preview-image');
-    if (preview) preview.remove();
-  };
+  if (contentType) {
+    contentType.onchange = () => {
+      const isText = contentType.value === 'text';
+      if (contentText) contentText.style.display = isText ? 'block' : 'none';
+      if (selectFileBtn) selectFileBtn.style.display = isText ? 'none' : 'inline-block';
+      if (fileInput) fileInput.value = '';
+      selectedFile = null;
+      
+      // Remove file info and preview
+      const fileInfo = document.querySelector('.file-info');
+      if (fileInfo) fileInfo.remove();
+      
+      const preview = document.querySelector('.preview-image');
+      if (preview) preview.remove();
+    };
+  }
   
   // Save content
-  saveContentBtn.onclick = saveContent;
+  if (saveContentBtn) saveContentBtn.onclick = saveContent;
   
   // Logout
-  logoutBtn.onclick = async () => {
-    await supabase.auth.signOut();
-    window.location.href = "../index.html";
-  };
+  if (logoutBtn) {
+    logoutBtn.onclick = async () => {
+      localStorage.removeItem('sheikhHistoryScroll');
+      localStorage.removeItem('sheikhHistoryTimestamp');
+      await supabase.auth.signOut();
+      window.location.href = "../index.html";
+    };
+  }
 }
 
 // ================= OPEN ADD MODAL =================
 function openAddModal() {
   document.querySelector('#uploadModal h3').textContent = 'Add Sheikh Content';
-  contentTitle.value = '';
-  contentText.value = '';
-  contentType.value = 'text';
+  if (contentTitle) contentTitle.value = '';
+  if (contentText) contentText.value = '';
+  if (contentType) contentType.value = 'text';
   selectedFile = null;
-  fileInput.value = '';
+  if (fileInput) fileInput.value = '';
   selectedContentId = null;
   
   // Reset UI
-  contentText.style.display = 'block';
-  selectFileBtn.style.display = 'none';
+  if (contentText) contentText.style.display = 'block';
+  if (selectFileBtn) selectFileBtn.style.display = 'none';
   
   const fileInfo = document.querySelector('.file-info');
   if (fileInfo) fileInfo.remove();
@@ -706,7 +875,7 @@ function openAddModal() {
   const preview = document.querySelector('.preview-image');
   if (preview) preview.remove();
   
-  uploadModal.classList.remove('hidden');
+  if (uploadModal) uploadModal.classList.remove('hidden');
 }
 
 // ================= EDIT CONTENT =================
@@ -715,18 +884,18 @@ window.editContent = function(id) {
   if (!item) return;
   
   document.querySelector('#uploadModal h3').textContent = 'Edit Content';
-  contentTitle.value = item.title || '';
-  contentText.value = item.content || '';
-  contentType.value = item.content_type;
+  if (contentTitle) contentTitle.value = item.title || '';
+  if (contentText) contentText.value = item.content || '';
+  if (contentType) contentType.value = item.content_type;
   selectedContentId = id;
   selectedFile = null;
   
   const isText = item.content_type === 'text';
-  contentText.style.display = isText ? 'block' : 'none';
-  selectFileBtn.style.display = isText ? 'none' : 'inline-block';
+  if (contentText) contentText.style.display = isText ? 'block' : 'none';
+  if (selectFileBtn) selectFileBtn.style.display = isText ? 'none' : 'inline-block';
   
   // Show existing file info for media
-  if (!isText && item.media_url) {
+  if (!isText && item.media_url && selectFileBtn) {
     const fileInfo = document.createElement('div');
     fileInfo.className = 'file-info';
     fileInfo.innerHTML = `
@@ -752,7 +921,7 @@ window.editContent = function(id) {
     }
   }
   
-  uploadModal.classList.remove('hidden');
+  if (uploadModal) uploadModal.classList.remove('hidden');
 };
 
 // ================= SAVE CONTENT =================
@@ -840,7 +1009,7 @@ async function saveContent() {
 // ================= OPEN DELETE MODAL =================
 window.openDeleteModal = function(id) {
   selectedContentId = id;
-  deleteModal.classList.remove('hidden');
+  if (deleteModal) deleteModal.classList.remove('hidden');
 };
 
 // ================= CONFIRM DELETE =================
@@ -871,7 +1040,7 @@ async function confirmDelete() {
       }
     }
 
-    deleteModal.classList.add('hidden');
+    if (deleteModal) deleteModal.classList.add('hidden');
     showNotification('Content deleted');
     await loadContent();
 
@@ -883,12 +1052,12 @@ async function confirmDelete() {
 
 // ================= CLOSE MODAL =================
 function closeModal() {
-  uploadModal.classList.add('hidden');
-  contentTitle.value = '';
-  contentText.value = '';
-  contentType.value = 'text';
+  if (uploadModal) uploadModal.classList.add('hidden');
+  if (contentTitle) contentTitle.value = '';
+  if (contentText) contentText.value = '';
+  if (contentType) contentType.value = 'text';
   selectedFile = null;
-  fileInput.value = '';
+  if (fileInput) fileInput.value = '';
   selectedContentId = null;
   
   // Remove file info and preview
@@ -898,41 +1067,6 @@ function closeModal() {
   const preview = document.querySelector('.preview-image');
   if (preview) preview.remove();
   
-  contentText.style.display = 'block';
-  selectFileBtn.style.display = 'none';
-}
-
-// Clear scroll position on logout
-logoutBtn.addEventListener('click', () => {
-  localStorage.removeItem('sheikhHistoryScroll');
-  localStorage.removeItem('sheikhHistoryTimestamp');
-});
-
-
-
-
-// ================= SETUP TOUCH HANDLERS FOR MOBILE =================
-function setupTouchHandlers() {
-  const profileContainer = document.querySelector('.profile-image-container');
-  const overlay = document.getElementById('profileImageOverlay');
-  
-  if (!profileContainer || !overlay || !isAdmin) return;
-  
-  // For touch devices, show overlay on tap
-  profileContainer.addEventListener('touchstart', (e) => {
-    e.preventDefault();
-    // Toggle overlay visibility
-    if (overlay.style.opacity === '1') {
-      overlay.style.opacity = '0';
-    } else {
-      overlay.style.opacity = '1';
-    }
-  });
-  
-  // Hide overlay when tapping outside
-  document.addEventListener('touchstart', (e) => {
-    if (!profileContainer.contains(e.target)) {
-      overlay.style.opacity = '0';
-    }
-  });
+  if (contentText) contentText.style.display = 'block';
+  if (selectFileBtn) selectFileBtn.style.display = 'none';
 }
