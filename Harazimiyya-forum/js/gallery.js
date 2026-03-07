@@ -13,6 +13,7 @@ let isAdmin = false;
 let allMedia = [];
 let selectedFile = null;
 let viewedMedia = new Set(); // Track which media user has viewed
+let currentLightbox = null; // Track current lightbox for back button
 
 // Smart scroll variables
 let showJumpToBottom = false;
@@ -218,10 +219,19 @@ function createDeleteModal() {
     document.getElementById('confirmDeleteBtn').onclick = confirmDelete;
 }
 
-// ================= CREATE LIGHTBOX =================
+// ================= CREATE LIGHTBOX WITH HISTORY API =================
 function createLightbox(src, type, mediaId) {
+    // If there's already a lightbox, remove it
+    if (currentLightbox) {
+        currentLightbox.remove();
+    }
+    
+    // Add a new history state for the lightbox
+    history.pushState({ lightbox: true, mediaId: mediaId }, '', window.location.href);
+    
     const lightbox = document.createElement('div');
     lightbox.className = 'lightbox-modal';
+    lightbox.setAttribute('data-media-id', mediaId);
     
     if (type === 'image') {
         lightbox.innerHTML = `
@@ -240,21 +250,48 @@ function createLightbox(src, type, mediaId) {
     }
     
     document.body.appendChild(lightbox);
+    currentLightbox = lightbox;
     
     // Mark as viewed when opened in lightbox
     if (mediaId) {
         markMediaAsViewed(mediaId);
     }
     
+    // Close button handler
     lightbox.querySelector('.lightbox-close').onclick = () => {
-        lightbox.remove();
+        closeLightbox();
     };
     
+    // Click outside to close
     lightbox.onclick = (e) => {
         if (e.target === lightbox) {
-            lightbox.remove();
+            closeLightbox();
         }
     };
+    
+    // Handle Android back button
+    const handlePopState = (e) => {
+        if (currentLightbox) {
+            e.preventDefault();
+            closeLightbox();
+            // Remove this event listener after handling
+            window.removeEventListener('popstate', handlePopState);
+        }
+    };
+    
+    window.addEventListener('popstate', handlePopState);
+}
+
+// ================= CLOSE LIGHTBOX =================
+function closeLightbox() {
+    if (currentLightbox) {
+        currentLightbox.remove();
+        currentLightbox = null;
+        // Go back in history to remove the lightbox state
+        if (history.state && history.state.lightbox) {
+            history.back();
+        }
+    }
 }
 
 // ================= INITIALIZATION =================
@@ -265,6 +302,14 @@ document.addEventListener("DOMContentLoaded", async () => {
     setupScrollListener();
     setupEventListeners();
     loadViewedMedia();
+    
+    // Handle initial page load and back button
+    window.addEventListener('popstate', (e) => {
+        // If there's a lightbox open when back is pressed, close it
+        if (currentLightbox) {
+            closeLightbox();
+        }
+    });
 });
 
 async function init() {
