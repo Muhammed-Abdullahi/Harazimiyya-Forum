@@ -11,13 +11,14 @@ document.addEventListener('DOMContentLoaded', function() {
         }
         
         initializeAdmin();
-        initializeSidebar();
+        initializeSidebar(); // This now uses the working code from home.js
         setupJumpToTopButton();
     }
     
     checkAdminAuth();
 });
 
+// ================= SIDEBAR SETUP - REPLACED WITH HOME.JS VERSION =================
 function initializeSidebar() {
     const sidebar = document.getElementById('sidebar');
     const openBtn = document.getElementById('openSidebar');
@@ -25,19 +26,23 @@ function initializeSidebar() {
     const overlay = document.getElementById('overlay');
     const mainContent = document.getElementById('mainContent');
     
+    if (!sidebar) return;
+    
     if (openBtn) {
-        openBtn.addEventListener('click', () => {
+        openBtn.addEventListener('click', (e) => {
+            e.preventDefault();
             sidebar.classList.add('active');
-            overlay.classList.add('active');
-            mainContent.classList.add('sidebar-open');
+            if (overlay) overlay.classList.add('active');
+            if (mainContent) mainContent.classList.add('sidebar-open');
         });
     }
     
     if (closeBtn) {
-        closeBtn.addEventListener('click', () => {
+        closeBtn.addEventListener('click', (e) => {
+            e.preventDefault();
             sidebar.classList.remove('active');
-            overlay.classList.remove('active');
-            mainContent.classList.remove('sidebar-open');
+            if (overlay) overlay.classList.remove('active');
+            if (mainContent) mainContent.classList.remove('sidebar-open');
         });
     }
     
@@ -45,7 +50,7 @@ function initializeSidebar() {
         overlay.addEventListener('click', () => {
             sidebar.classList.remove('active');
             overlay.classList.remove('active');
-            mainContent.classList.remove('sidebar-open');
+            if (mainContent) mainContent.classList.remove('sidebar-open');
         });
     }
 }
@@ -303,6 +308,7 @@ async function loadStats() {
     }
 }
 
+// ===== loadPendingUsers function - Clean design, no icons, single details icon =====
 async function loadPendingUsers() {
     try {
         console.log("🔍 Looking for members waiting for approval...");
@@ -321,9 +327,9 @@ async function loadPendingUsers() {
         if (!data || data.length === 0) {
             container.innerHTML = `
                 <div class="empty-state">
-                    <i class="fas fa-check-circle"></i>
-                    <h3>All Caught Up! 🕌</h3>
-                    <p>No pending approvals. May Allah bless your community.</p>
+                    <i class="fas fa-check-circle" style="color: var(--islamic-green);"></i>
+                    <h3 style="color: var(--islamic-green);">All Caught Up! 🕌</h3>
+                    <p style="color: var(--text-secondary);">No pending approvals. May Allah bless your community.</p>
                 </div>
             `;
             return;
@@ -339,27 +345,26 @@ async function loadPendingUsers() {
                 minute: '2-digit'
             });
             
+            // Clean card - only name, no icons
             html += `
                 <div class="user-card pending" data-user-id="${user.id}">
-                    <div style="display: flex; gap: 1rem; flex-wrap: wrap;">
-                        <div style="display: flex; gap: 1rem; flex: 1;">
-                            <div class="user-avatar pending">
-                                <i class="fas fa-user-clock"></i>
-                            </div>
-                            <div class="user-details">
-                                <h4>${user.full_name || 'Waiting for Name'}</h4>
-                                <!-- Email and other details removed - only name shows -->
+                    <div style="display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: 1rem;">
+                        <div class="user-details">
+                            <h4>${user.full_name || 'Pending Member'}</h4>
+                            <div class="user-meta">
+                                <span class="badge pending">⏳ Pending</span>
+                                <span class="badge">🕐 ${date}</span>
                             </div>
                         </div>
                         <div class="user-actions">
                             <button class="btn-islamic btn-approve" onclick="approveUser('${user.id}')">
-                                <i class="fas fa-check"></i> ✅ Approve
+                                <i class="fas fa-check"></i> Approve
                             </button>
                             <button class="btn-islamic btn-reject" onclick="rejectUser('${user.id}')">
-                                <i class="fas fa-times"></i> ❌ Decline
+                                <i class="fas fa-times"></i> Decline
                             </button>
-                            <button class="btn-islamic btn-view" onclick="viewUserDetails('${user.id}', '${user.full_name || ''}', '${user.email}', '${date}')">
-                                <i class="fas fa-eye"></i> 👁️ Details
+                            <button class="btn-details" onclick="viewUserDetails('${user.id}', '${user.full_name || ''}', '${user.email}', '${date}')" title="View Details">
+                                <i class="fas fa-info-circle"></i>
                             </button>
                         </div>
                     </div>
@@ -378,10 +383,10 @@ async function loadPendingUsers() {
         if (container) {
             container.innerHTML = `
                 <div class="empty-state error">
-                    <i class="fas fa-exclamation-triangle"></i>
+                    <i class="fas fa-exclamation-triangle" style="color: #ef4444;"></i>
                     <h3>Unable to Load Requests</h3>
                     <p>Please refresh the page or try again later.</p>
-                    <button class="btn-islamic btn-view" onclick="loadPendingUsers()">
+                    <button class="btn-islamic btn-approve" onclick="loadPendingUsers()">
                         <i class="fas fa-sync-alt"></i> Try Again
                     </button>
                 </div>
@@ -390,16 +395,7 @@ async function loadPendingUsers() {
     }
 }
 
-// View user details function - shows all info when clicked
-window.viewUserDetails = function(userId, name, email, date) {
-    showIslamicNotification(`
-        👤 Member Details:
-        • Name: ${name || 'Not provided'}
-        • Email: ${email}
-        • Requested: ${date}
-    `, 'info', 5000);
-};
-
+// ===== loadAllMembers function - Clean design, no icons, single details icon =====
 async function loadAllMembers() {
     try {
         console.log("👥 Loading all community members...");
@@ -417,9 +413,9 @@ async function loadAllMembers() {
         if (!data || data.length === 0) {
             container.innerHTML = `
                 <div class="empty-state">
-                    <i class="fas fa-users"></i>
-                    <h3>Community Starting Fresh 🌱</h3>
-                    <p>No members yet. Share your platform to grow your community.</p>
+                    <i class="fas fa-users" style="color: var(--islamic-green);"></i>
+                    <h3 style="color: var(--islamic-green);">Community Starting Fresh 🌱</h3>
+                    <p style="color: var(--text-secondary);">No members yet. Share your platform to grow your community.</p>
                 </div>
             `;
             return;
@@ -437,7 +433,7 @@ async function loadAllMembers() {
         if (container) {
             container.innerHTML = `
                 <div class="empty-state error">
-                    <i class="fas fa-exclamation-triangle"></i>
+                    <i class="fas fa-exclamation-triangle" style="color: #ef4444;"></i>
                     <h3>Unable to Load Members</h3>
                     <p>Please refresh the page to try again.</p>
                 </div>
@@ -446,6 +442,7 @@ async function loadAllMembers() {
     }
 }
 
+// ===== renderMembers function - Clean design, no icons, single details icon =====
 function renderMembers(members) {
     const container = document.getElementById('membersGrid');
     if (!container) return;
@@ -453,9 +450,9 @@ function renderMembers(members) {
     if (!members || members.length === 0) {
         container.innerHTML = `
             <div class="empty-state">
-                <i class="fas fa-users"></i>
-                <h3>No Members Found</h3>
-                <p>Try a different filter or search term</p>
+                <i class="fas fa-users" style="color: var(--islamic-green);"></i>
+                <h3 style="color: var(--islamic-green);">No Members Found</h3>
+                <p style="color: var(--text-secondary);">Try a different filter or search term</p>
             </div>
         `;
         return;
@@ -475,55 +472,48 @@ function renderMembers(members) {
         if (isPending) cardClass += ' pending';
         else if (isAdmin) cardClass += ' admin';
         
+        // Clean card - only name, no icons
         html += `
             <div class="${cardClass}" data-user-id="${user.id}">
-                <div style="display: flex; gap: 1rem; flex-wrap: wrap;">
-                    <div style="display: flex; gap: 1rem; flex: 1;">
-                        <div class="user-avatar ${isAdmin ? 'admin' : isPending ? 'pending' : ''}">
-                            ${isAdmin ? '👑' : isPending ? '⏳' : '✅'}
-                        </div>
-                        <div class="user-details">
-                            <h4>
-                                ${user.full_name || 'Unnamed Member'}
-                                ${isAdmin ? '<span class="badge admin">👑 Admin</span>' : ''}
-                            </h4>
-                            <div class="user-meta">
-                                <span class="badge ${isAdmin ? 'admin' : ''}">
-                                    ${isAdmin ? '👑' : '👤'} ${user.role || 'member'}
-                                </span>
-                                <span class="badge ${isPending ? 'pending' : 'approved'}">
-                                    ${isPending ? '⏳' : '✅'} ${user.is_approved ? 'Approved' : 'Pending'}
-                                </span>
-                                <span class="badge">
-                                    📅 Joined ${date}
-                                </span>
-                            </div>
+                <div style="display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: 1rem;">
+                    <div class="user-details">
+                        <h4>
+                            ${user.full_name || 'Unnamed Member'}
+                            ${isAdmin ? '<span class="badge admin">Admin</span>' : ''}
+                        </h4>
+                        <div class="user-meta">
+                            <span class="badge ${isPending ? 'pending' : 'approved'}">
+                                ${isPending ? '⏳ Pending' : '✅ Approved'}
+                            </span>
+                            <span class="badge">
+                                📅 Joined ${date}
+                            </span>
                         </div>
                     </div>
                     <div class="user-actions">
                         ${isPending ? `
                             <button class="btn-islamic btn-approve" onclick="approveUser('${user.id}')">
-                                <i class="fas fa-check"></i> ✅ Approve
+                                <i class="fas fa-check"></i> Approve
                             </button>
                             <button class="btn-islamic btn-reject" onclick="rejectUser('${user.id}')">
-                                <i class="fas fa-times"></i> ❌ Decline
+                                <i class="fas fa-times"></i> Decline
                             </button>
                         ` : `
                             ${!isAdmin ? `
                                 <button class="btn-islamic btn-admin" onclick="makeAdmin('${user.id}')">
-                                    <i class="fas fa-crown"></i> 👑 Make Admin
+                                    <i class="fas fa-crown"></i> Make Admin
                                 </button>
                             ` : `
                                 <button class="btn-islamic btn-remove-admin" onclick="removeAdmin('${user.id}')">
-                                    <i class="fas fa-user-minus"></i> ⬇️ Remove Admin
+                                    <i class="fas fa-user-minus"></i> Remove Admin
                                 </button>
                             `}
                             <button class="btn-islamic btn-revoke" onclick="revokeAccess('${user.id}')">
-                                <i class="fas fa-ban"></i> ⏳ Revoke Access
+                                <i class="fas fa-ban"></i> Revoke
                             </button>
                         `}
-                        <button class="btn-islamic btn-view" onclick="viewUserDetails('${user.id}', '${user.full_name || ''}', '${user.email}', '${date}')">
-                            <i class="fas fa-eye"></i> 👁️ Details
+                        <button class="btn-details" onclick="viewUserDetails('${user.id}', '${user.full_name || ''}', '${user.email}', '${date}')" title="View Details">
+                            <i class="fas fa-info-circle"></i>
                         </button>
                     </div>
                 </div>
@@ -532,6 +522,65 @@ function renderMembers(members) {
     });
     container.innerHTML = html;
 }
+
+// ===== viewUserDetails function - Clean popup with all info =====
+window.viewUserDetails = function(userId, name, email, date) {
+    // Create a nice popup notification with all details
+    const detailsPopup = document.createElement('div');
+    detailsPopup.style.cssText = `
+        position: fixed;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        background: white;
+        padding: 2rem;
+        border-radius: 20px;
+        box-shadow: 0 20px 40px rgba(11, 94, 59, 0.3);
+        z-index: 10000;
+        max-width: 90%;
+        width: 400px;
+        border: 2px solid var(--islamic-green);
+        animation: fadeIn 0.3s ease;
+    `;
+    
+    detailsPopup.innerHTML = `
+        <div style="text-align: center; margin-bottom: 1.5rem;">
+            <i class="fas fa-user-circle" style="font-size: 4rem; color: var(--islamic-green);"></i>
+            <h2 style="color: var(--islamic-green); margin: 1rem 0 0.5rem;">Member Details</h2>
+        </div>
+        <div style="border-top: 1px solid rgba(11, 94, 59, 0.1); padding-top: 1.5rem;">
+            <p style="margin: 0.8rem 0;"><strong style="color: var(--islamic-green);">Name:</strong> ${name || 'Not provided'}</p>
+            <p style="margin: 0.8rem 0;"><strong style="color: var(--islamic-green);">Email:</strong> ${email}</p>
+            <p style="margin: 0.8rem 0;"><strong style="color: var(--islamic-green);">Joined/Requested:</strong> ${date}</p>
+            <p style="margin: 0.8rem 0;"><strong style="color: var(--islamic-green);">User ID:</strong> <small>${userId}</small></p>
+        </div>
+        <div style="text-align: center; margin-top: 2rem;">
+            <button onclick="this.parentElement.parentElement.remove()" style="
+                background: var(--islamic-green);
+                color: white;
+                border: none;
+                padding: 0.8rem 2rem;
+                border-radius: 50px;
+                cursor: pointer;
+                font-size: 1rem;
+                font-weight: 600;
+                box-shadow: 0 4px 12px rgba(11, 94, 59, 0.3);
+            ">Close</button>
+        </div>
+    `;
+    
+    document.body.appendChild(detailsPopup);
+    
+    // Remove on outside click
+    setTimeout(() => {
+        document.addEventListener('click', function closePopup(e) {
+            if (!detailsPopup.contains(e.target)) {
+                detailsPopup.remove();
+                document.removeEventListener('click', closePopup);
+            }
+        });
+    }, 100);
+};
 
 // Filter function for stat cards and tabs
 window.filterMembers = function(filterType) {
@@ -613,6 +662,7 @@ function setupSearch() {
     });
 }
 
+// ===== loadRecentActivity function with View All button =====
 async function loadRecentActivity() {
     try {
         console.log("📝 Checking recent community activity...");
@@ -621,7 +671,7 @@ async function loadRecentActivity() {
             .from('profiles')
             .select('*')
             .order('created_at', { ascending: false })
-            .limit(10);
+            .limit(20); // Get more items for view all
         
         if (error) throw error;
         
@@ -631,15 +681,15 @@ async function loadRecentActivity() {
         if (!data || data.length === 0) {
             container.innerHTML = `
                 <div class="empty-state">
-                    <i class="fas fa-history"></i>
-                    <p>No recent activity to show</p>
+                    <i class="fas fa-history" style="color: var(--islamic-green);"></i>
+                    <p style="color: var(--text-secondary);">No recent activity to show</p>
                 </div>
             `;
             return;
         }
         
         let html = '';
-        data.forEach(user => {
+        data.forEach((user, index) => {
             const date = new Date(user.created_at).toLocaleString('en-US', {
                 year: 'numeric',
                 month: 'short',
@@ -651,8 +701,11 @@ async function loadRecentActivity() {
             const action = user.is_approved ? 'was approved and joined' : 'requested to join';
             const icon = user.is_approved ? '✅' : '🆕';
             
+            // Add hidden class for items after the first 5
+            const hiddenClass = index >= 5 ? 'hidden' : '';
+            
             html += `
-                <div class="timeline-item">
+                <div class="timeline-item ${hiddenClass}" data-index="${index}">
                     <div class="timeline-icon">
                         ${icon}
                     </div>
@@ -663,6 +716,16 @@ async function loadRecentActivity() {
                 </div>
             `;
         });
+        
+        // Add View All button if there are more than 5 items
+        if (data.length > 5) {
+            html += `
+                <button class="view-all-btn" id="viewAllActivityBtn" onclick="toggleAllActivity()">
+                    <i class="fas fa-chevron-down"></i> View All (${data.length - 5} more)
+                </button>
+            `;
+        }
+        
         container.innerHTML = html;
         
     } catch (err) {
@@ -670,8 +733,41 @@ async function loadRecentActivity() {
     }
 }
 
+// ===== Function to toggle all activity items =====
+window.toggleAllActivity = function() {
+    const hiddenItems = document.querySelectorAll('.timeline-item.hidden');
+    const viewBtn = document.getElementById('viewAllActivityBtn');
+    
+    if (hiddenItems.length > 0) {
+        // Show all hidden items
+        hiddenItems.forEach(item => {
+            item.classList.add('show');
+        });
+        
+        // Change button to "Show Less"
+        viewBtn.innerHTML = '<i class="fas fa-chevron-up"></i> Show Less';
+        
+        // Update onclick to hide them again
+        viewBtn.onclick = function() {
+            const allItems = document.querySelectorAll('.timeline-item');
+            allItems.forEach((item, index) => {
+                if (index >= 5) {
+                    item.classList.remove('show');
+                }
+            });
+            viewBtn.innerHTML = `<i class="fas fa-chevron-down"></i> View All (${allItems.length - 5} more)`;
+            viewBtn.onclick = toggleAllActivity;
+            
+            // Scroll back to activity section smoothly
+            document.getElementById('activitySection').scrollIntoView({ behavior: 'smooth' });
+        };
+        
+        showIslamicNotification(`📋 Showing all ${document.querySelectorAll('.timeline-item').length} activities`, 'info', 2000);
+    }
+};
+
 // ============================================
-// USER MANAGEMENT FUNCTIONS WITH FRIENDLY MESSAGES
+// USER MANAGEMENT FUNCTIONS
 // ============================================
 
 window.approveUser = async function(userId) {
@@ -719,7 +815,7 @@ window.approveUser = async function(userId) {
     }
 };
 
-// ================= FIXED REJECT USER - COMPLETE DELETION WITH POSTGRES FUNCTION =================
+// ================= REJECT USER - COMPLETE DELETION =================
 window.rejectUser = async function(userId) {
     if (!confirm('⚠️ Are you sure you want to decline this member? This will permanently delete their account and they can register again with the same email.')) return;
     
@@ -970,11 +1066,11 @@ style.textContent = `
     
     @keyframes slideOut {
         from {
-            transform: translateX(0);
+            transform: translateX(100%);
             opacity: 1;
         }
         to {
-            transform: translateX(100%);
+            transform: translateX(0);
             opacity: 0;
         }
     }

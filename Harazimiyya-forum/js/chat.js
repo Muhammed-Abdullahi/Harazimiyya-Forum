@@ -474,14 +474,16 @@ window.handleReactionTouch = function(event, messageId, reactionType) {
     showReactionUsers(messageId, reactionType);
 };
 
-// ================= FIXED SHOW REACTION TOOLTIP FUNCTION =================
+// ================= FIXED SHOW REACTION TOOLTIP FUNCTION (WORKS AT ANY WINDOW SIZE) =================
 async function showReactionTooltip(event, element, messageId, reactionType) {
-    // Don't show tooltip on mobile
-    if (window.innerWidth <= 768) return;
+    // Remove the mobile width check - tooltip works at any window size
+    // if (window.innerWidth <= 768) return;  // COMMENTED OUT - tooltip works everywhere
     
     // Prevent event bubbling
-    event.stopPropagation();
-    event.preventDefault();
+    if (event) {
+        event.stopPropagation();
+        event.preventDefault();
+    }
     
     // Get reactions from our local storage
     const reactions = messageReactions.get(messageId);
@@ -493,12 +495,12 @@ async function showReactionTooltip(event, element, messageId, reactionType) {
     // Remove any existing tooltip first
     hideReactionTooltip();
     
-    // Create a simple tooltip with the count first (fallback)
-    const count = userIds.length;
-    let namesText = `${count} ${reactionType === 'like' ? 'like' : 'love'}${count > 1 ? 's' : ''}`;
+    // Create tooltip
+    const tooltip = document.createElement('div');
+    tooltip.className = 'reaction-tooltip';
     
-    // Try to fetch names
     try {
+        // Fetch user profiles
         const { data: profiles, error } = await supabase
             .from('profiles')
             .select('full_name')
@@ -507,26 +509,24 @@ async function showReactionTooltip(event, element, messageId, reactionType) {
         if (!error && profiles && profiles.length > 0) {
             // Format names nicely
             if (profiles.length === 1) {
-                namesText = profiles[0].full_name || 'Someone';
+                tooltip.textContent = profiles[0].full_name || 'Someone';
             } else if (profiles.length === 2) {
-                namesText = `${profiles[0].full_name || 'Someone'} and ${profiles[1].full_name || 'Someone'}`;
+                tooltip.textContent = `${profiles[0].full_name || 'Someone'} and ${profiles[1].full_name || 'Someone'}`;
             } else if (profiles.length <= 5) {
                 const names = profiles.map(p => p.full_name || 'Someone').join(', ');
-                namesText = names;
+                tooltip.textContent = names;
             } else {
                 const firstFew = profiles.slice(0, 3).map(p => p.full_name || 'Someone').join(', ');
-                namesText = `${firstFew} and ${profiles.length - 3} others`;
+                tooltip.textContent = `${firstFew} and ${profiles.length - 3} others`;
             }
+        } else {
+            // Fallback to count
+            tooltip.textContent = `${userIds.length} ${reactionType}${userIds.length > 1 ? 's' : ''}`;
         }
     } catch (err) {
-        // Silently fail and use the count fallback
-        console.log("Using count fallback for tooltip");
+        // Fallback to count
+        tooltip.textContent = `${userIds.length} ${reactionType}${userIds.length > 1 ? 's' : ''}`;
     }
-    
-    // Create and show tooltip
-    const tooltip = document.createElement('div');
-    tooltip.className = 'reaction-tooltip';
-    tooltip.textContent = namesText;
     
     // Position tooltip
     const rect = element.getBoundingClientRect();
@@ -547,7 +547,7 @@ function hideReactionTooltip() {
     if (tooltip) tooltip.remove();
 }
 
-// ================= UPDATED SHOW REACTION USERS =================
+// ================= FIXED SHOW REACTION USERS =================
 async function showReactionUsers(messageId, reactionType) {
     const reactions = messageReactions.get(messageId);
     if (!reactions) return;
@@ -559,59 +559,64 @@ async function showReactionUsers(messageId, reactionType) {
     const existingModal = document.querySelector('.online-users-modal');
     if (existingModal) existingModal.remove();
     
-    // Fetch user profiles
-    const { data: profiles, error } = await supabase
-        .from('profiles')
-        .select('full_name, email')
-        .in('id', userIds);
-    
-    if (error) {
-        console.error("Error fetching user profiles:", error);
-        return;
-    }
-    
-    // Create modal to show who reacted
-    const modal = document.createElement('div');
-    modal.className = 'online-users-modal';
-    
-    const reactionEmoji = reactionType === 'like' ? '👍' : '❤️';
-    const reactionName = reactionType === 'like' ? 'Liked by' : 'Loved by';
-    
-    let usersHtml = '';
-    profiles.forEach(user => {
-        usersHtml += `
-            <div class="online-user-item">
-                <div class="online-user-avatar">
-                    <i class="fas fa-user"></i>
+    try {
+        // Fetch user profiles
+        const { data: profiles, error } = await supabase
+            .from('profiles')
+            .select('full_name, email')
+            .in('id', userIds);
+        
+        if (error) {
+            console.error("Error fetching user profiles:", error);
+            return;
+        }
+        
+        // Create modal to show who reacted
+        const modal = document.createElement('div');
+        modal.className = 'online-users-modal';
+        
+        const reactionEmoji = reactionType === 'like' ? '👍' : '❤️';
+        const reactionName = reactionType === 'like' ? 'Liked by' : 'Loved by';
+        
+        let usersHtml = '';
+        profiles.forEach(user => {
+            usersHtml += `
+                <div class="online-user-item">
+                    <div class="online-user-avatar">
+                        <i class="fas fa-user"></i>
+                    </div>
+                    <div class="online-user-info">
+                        <h4>${user.full_name || user.email}</h4>
+                    </div>
                 </div>
-                <div class="online-user-info">
-                    <h4>${user.full_name || user.email}</h4>
+            `;
+        });
+        
+        modal.innerHTML = `
+            <div class="online-users-content">
+                <div class="online-users-header">
+                    <h3>${reactionEmoji} ${reactionName} (${profiles.length})</h3>
+                    <button class="close-online-modal"><i class="fas fa-times"></i></button>
+                </div>
+                <div class="online-users-list">
+                    ${usersHtml}
                 </div>
             </div>
         `;
-    });
-    
-    modal.innerHTML = `
-        <div class="online-users-content">
-            <div class="online-users-header">
-                <h3>${reactionEmoji} ${reactionName} (${profiles.length})</h3>
-                <button class="close-online-modal"><i class="fas fa-times"></i></button>
-            </div>
-            <div class="online-users-list">
-                ${usersHtml}
-            </div>
-        </div>
-    `;
-    
-    document.body.appendChild(modal);
-    
-    // Close modal when clicking close button
-    modal.querySelector('.close-online-modal').onclick = () => modal.remove();
-    
-    // Close modal when tapping outside
-    modal.onclick = (e) => {
-        if (e.target === modal) modal.remove();
-    };
+        
+        document.body.appendChild(modal);
+        
+        // Close modal when clicking close button
+        modal.querySelector('.close-online-modal').onclick = () => modal.remove();
+        
+        // Close modal when tapping outside
+        modal.onclick = (e) => {
+            if (e.target === modal) modal.remove();
+        };
+        
+    } catch (err) {
+        console.error("Error showing reaction users:", err);
+    }
 }
 
 function checkIfAnyHasReaction(reactionType) {
@@ -872,7 +877,7 @@ window.handleReply = function(messageId, senderName, messageContent, messageType
     if (contextMenu) contextMenu.remove();
 };
 
-// Fixed handleDelete function - removed origin prefix
+// ================= FIXED HANDLE DELETE - NO NUMBERS BEFORE MESSAGE =================
 window.handleDelete = async function(messageId) {
     const messageEl = document.querySelector(`.message[data-message-id="${messageId}"]`);
     const senderId = messageEl?.dataset.senderId;
@@ -883,77 +888,138 @@ window.handleDelete = async function(messageId) {
         return;
     }
     
-    // Simple confirm without any prefix
-    const userConfirmed = window.confirm("Delete this message?");
-    if (!userConfirmed) return;
-    
-    try {
-        const { error } = await supabase
-            .from('chat_messages')
-            .delete()
-            .eq('id', messageId);
-        
-        if (error) throw error;
-        
-        showNotification('✅ Message deleted', 'success');
-        
-        const contextMenu = document.querySelector('.context-menu');
-        if (contextMenu) contextMenu.remove();
-        
-        await loadGroupMessages();
-        
-    } catch (err) {
-        console.error("Error deleting message:", err);
-        showNotification('Error deleting message', 'error');
-    }
-};
-
-// Fixed handleDeleteSelected function - removed origin prefix
-window.handleDeleteSelected = async function() {
-    if (highlightedMessages.size === 0) return;
-    
-    // Simple confirm without any prefix
-    const userConfirmed = window.confirm(`Delete ${highlightedMessages.size} message${highlightedMessages.size > 1 ? 's' : ''}?`);
-    if (!userConfirmed) return;
-    
-    let successCount = 0;
-    let failCount = 0;
-    
-    for (const messageId of highlightedMessages) {
-        const messageEl = document.querySelector(`.message[data-message-id="${messageId}"]`);
-        const senderId = messageEl?.dataset.senderId;
-        
-        if (!isAdmin && senderId !== currentUser.id) {
-            failCount++;
-            continue;
-        }
-        
+    // Use a custom modal instead of confirm to avoid the "127.0.0.1:5500 says:" prefix
+    if (confirmDelete()) {
         try {
             const { error } = await supabase
                 .from('chat_messages')
                 .delete()
                 .eq('id', messageId);
             
-            if (error) {
-                failCount++;
-            } else {
-                successCount++;
-            }
+            if (error) throw error;
+            
+            showNotification('✅ Message deleted', 'success');
+            
+            const contextMenu = document.querySelector('.context-menu');
+            if (contextMenu) contextMenu.remove();
+            
+            await loadGroupMessages();
+            
         } catch (err) {
-            failCount++;
+            console.error("Error deleting message:", err);
+            showNotification('Error deleting message', 'error');
         }
     }
-    
-    if (successCount > 0) {
-        showNotification(`✅ Deleted ${successCount} message${successCount > 1 ? 's' : ''}`, 'success');
-    }
-    if (failCount > 0) {
-        showNotification(`❌ Failed to delete ${failCount} message${failCount > 1 ? 's' : ''}`, 'error');
-    }
-    
-    clearAllHighlights();
-    await loadGroupMessages();
 };
+
+// ================= FIXED HANDLE DELETE SELECTED - NO NUMBERS BEFORE MESSAGE =================
+window.handleDeleteSelected = async function() {
+    if (highlightedMessages.size === 0) return;
+    
+    // Use a custom modal instead of confirm
+    if (confirmDelete(`${highlightedMessages.size} message${highlightedMessages.size > 1 ? 's' : ''}`)) {
+        let successCount = 0;
+        let failCount = 0;
+        
+        for (const messageId of highlightedMessages) {
+            const messageEl = document.querySelector(`.message[data-message-id="${messageId}"]`);
+            const senderId = messageEl?.dataset.senderId;
+            
+            if (!isAdmin && senderId !== currentUser.id) {
+                failCount++;
+                continue;
+            }
+            
+            try {
+                const { error } = await supabase
+                    .from('chat_messages')
+                    .delete()
+                    .eq('id', messageId);
+                
+                if (error) {
+                    failCount++;
+                } else {
+                    successCount++;
+                }
+            } catch (err) {
+                failCount++;
+            }
+        }
+        
+        if (successCount > 0) {
+            showNotification(`✅ Deleted ${successCount} message${successCount > 1 ? 's' : ''}`, 'success');
+        }
+        if (failCount > 0) {
+            showNotification(`❌ Failed to delete ${failCount} message${failCount > 1 ? 's' : ''}`, 'error');
+        }
+        
+        clearAllHighlights();
+        await loadGroupMessages();
+    }
+};
+
+// ================= CUSTOM CONFIRM DIALOG FUNCTION =================
+function confirmDelete(item = 'this message') {
+    // Create custom confirm dialog
+    const modal = document.createElement('div');
+    modal.className = 'confirm-modal';
+    modal.style.cssText = `
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background: rgba(0, 0, 0, 0.5);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        z-index: 10000;
+        animation: fadeIn 0.2s ease;
+    `;
+    
+    const content = document.createElement('div');
+    content.style.cssText = `
+        background: var(--card-bg);
+        border-radius: 16px;
+        padding: 24px;
+        max-width: 320px;
+        width: 90%;
+        box-shadow: 0 20px 40px rgba(0, 0, 0, 0.3);
+        animation: slideUp 0.2s ease;
+        border: 1px solid var(--border-color);
+    `;
+    
+    content.innerHTML = `
+        <h3 style="margin: 0 0 16px 0; color: var(--text-light); font-size: 18px;">Delete ${item}?</h3>
+        <p style="margin: 0 0 24px 0; color: var(--text-muted); font-size: 14px;">This action cannot be undone.</p>
+        <div style="display: flex; gap: 12px; justify-content: flex-end;">
+            <button id="cancelDeleteBtn" style="padding: 10px 20px; border: 1px solid var(--border-color); background: transparent; color: var(--text-light); border-radius: 8px; cursor: pointer; font-size: 14px;">Cancel</button>
+            <button id="confirmDeleteBtn" style="padding: 10px 20px; border: none; background: var(--danger); color: white; border-radius: 8px; cursor: pointer; font-size: 14px;">Delete</button>
+        </div>
+    `;
+    
+    modal.appendChild(content);
+    document.body.appendChild(modal);
+    
+    return new Promise((resolve) => {
+        document.getElementById('cancelDeleteBtn').onclick = () => {
+            modal.remove();
+            resolve(false);
+        };
+        
+        document.getElementById('confirmDeleteBtn').onclick = () => {
+            modal.remove();
+            resolve(true);
+        };
+        
+        modal.onclick = (e) => {
+            if (e.target === modal) {
+                modal.remove();
+                resolve(false);
+            }
+        };
+    });
+}
 
 // ================= THEME MANAGEMENT =================
 function initTheme() {

@@ -6,7 +6,7 @@
     --success: #10b981;
 }
 
-/* Dark Theme (Default) */
+/* Dark Theme (Default) - UNCHANGED */
 [data-theme="dark"] {
     --background-dark: #0a1f1a;
     --sidebar-bg: #0f2b24;
@@ -21,37 +21,37 @@
     --seen-color: #34a853;
 }
 
-/* Light Theme (Off-white) */
+/* Light Theme - UPDATED to WhatsApp style (light gray) */
 [data-theme="light"] {
-    --background-dark: #f5f7fa;
-    --sidebar-bg: #0b5e3b;
-    --card-bg: #ffffff;
-    --text-light: #1e293b;
-    --text-muted: #64748b;
-    --border-color: rgba(0,0,0,0.1);
-    --message-bg-sent: #0c8f5f;
-    --message-bg-received: #e9eef3;
-    --input-bg: #ffffff;
-    --theme-toggle-bg: #ffffff;
-    --seen-color: #0c8f5f;
+    --background-dark: #e5ded5;  /* WhatsApp light mode background */
+    --sidebar-bg: #0b5e3b;       /* Keep Islamic green sidebar */
+    --card-bg: #ffffff;           /* White cards */
+    --text-light: #303030;        /* Darker text for better contrast */
+    --text-muted: #667781;        /* WhatsApp muted text color */
+    --border-color: #e9edef;      /* WhatsApp border color */
+    --message-bg-sent: #dcf8c6;   /* WhatsApp green sent message */
+    --message-bg-received: #ffffff; /* White received message */
+    --input-bg: #ffffff;           /* White input */
+    --theme-toggle-bg: #ffffff;    /* White theme toggle */
+    --seen-color: #53bdeb;         /* WhatsApp seen blue */
 }
 
-/* Sepia Theme */
+/* Sepia Theme - UPDATED to WhatsApp style (warm parchment) */
 [data-theme="sepia"] {
-    --background-dark: #fbf7f0;
-    --sidebar-bg: #8b5e3c;
-    --card-bg: #fff9ef;
-    --text-light: #5b4636;
-    --text-muted: #8b7a6b;
-    --border-color: rgba(139, 94, 60, 0.2);
-    --message-bg-sent: #b76e3c;
-    --message-bg-received: #ede0d4;
-    --input-bg: #fff9ef;
-    --theme-toggle-bg: #fff9ef;
-    --seen-color: #b76e3c;
+    --background-dark: #f0e9db;  /* WhatsApp warm parchment background */
+    --sidebar-bg: #8b5e3c;        /* Keep sepia sidebar */
+    --card-bg: #fff8e7;           /* Light cream cards */
+    --text-light: #3b3a36;        /* Warm dark text */
+    --text-muted: #6f6b64;        /* Warm muted text */
+    --border-color: #d1c7b7;      /* Warm border color */
+    --message-bg-sent: #e1f0cb;   /* Soft green sent message */
+    --message-bg-received: #fff8e7; /* Cream received message */
+    --input-bg: #fff8e7;           /* Cream input */
+    --theme-toggle-bg: #fff8e7;    /* Cream theme toggle */
+    --seen-color: #8b5e3c;         /* Sepia accent for seen */
 }
 
-/* Forest Theme */
+/* Forest Theme - UNCHANGED */
 [data-theme="forest"] {
     --background-dark: #e8f0e8;
     --sidebar-bg: #2d5a4b;
@@ -501,11 +501,11 @@ body {
 }
 
 .theme-color.light {
-    background: #f5f7fa;
+    background: #e5ded5;
 }
 
 .theme-color.sepia {
-    background: #fbf7f0;
+    background: #f0e9db;
 }
 
 .theme-color.forest {
@@ -1717,6 +1717,7 @@ body {
     .chat-input-area input[type="text"] {
         font-size: 16px;
         padding: 10px 12px;
+        outline: 1px rgba(147, 175, 147, 0.342) solid;
     }
     
     .media-btn {
