@@ -11,20 +11,19 @@ document.addEventListener('DOMContentLoaded', function() {
         }
         
         initializeAdmin();
-        initializeSidebar(); // This now uses the working code from home.js
+        initializeSidebar(); // Now matches home.js behavior (overlay only)
         setupJumpToTopButton();
     }
     
     checkAdminAuth();
 });
 
-// ================= SIDEBAR SETUP - REPLACED WITH HOME.JS VERSION =================
+// ================= SIDEBAR SETUP - EXACTLY LIKE HOME.JS (OVERLAY ONLY, NO PUSH) =================
 function initializeSidebar() {
     const sidebar = document.getElementById('sidebar');
     const openBtn = document.getElementById('openSidebar');
     const closeBtn = document.getElementById('closeSidebar');
     const overlay = document.getElementById('overlay');
-    const mainContent = document.getElementById('mainContent');
     
     if (!sidebar) return;
     
@@ -33,7 +32,7 @@ function initializeSidebar() {
             e.preventDefault();
             sidebar.classList.add('active');
             if (overlay) overlay.classList.add('active');
-            if (mainContent) mainContent.classList.add('sidebar-open');
+            // NO PUSH - removed mainContent class toggles
         });
     }
     
@@ -42,7 +41,7 @@ function initializeSidebar() {
             e.preventDefault();
             sidebar.classList.remove('active');
             if (overlay) overlay.classList.remove('active');
-            if (mainContent) mainContent.classList.remove('sidebar-open');
+            // NO PUSH - removed mainContent class toggles
         });
     }
     
@@ -50,7 +49,7 @@ function initializeSidebar() {
         overlay.addEventListener('click', () => {
             sidebar.classList.remove('active');
             overlay.classList.remove('active');
-            if (mainContent) mainContent.classList.remove('sidebar-open');
+            // NO PUSH - removed mainContent class toggles
         });
     }
 }
@@ -189,32 +188,28 @@ async function initializeAdmin() {
     }
 }
 
-// Islamic Green Theme Notification
+// Islamic Green Theme Notification (ONLY ISLAMIC GREEN AND RED)
 function showIslamicNotification(message, type = 'info', duration = 3000) {
     const notification = document.createElement('div');
     notification.className = `islamic-notification ${type}`;
     
     let icon = 'fa-info-circle';
-    let emoji = 'ℹ️';
-    let bgColor = '#3b82f6';
+    let bgColor = '#0b5e3b'; // Islamic green for info
     
     if (type === 'success') {
         icon = 'fa-check-circle';
-        emoji = '✅';
-        bgColor = '#10b981';
+        bgColor = '#0b5e3b'; // Islamic green for success
     } else if (type === 'error') {
         icon = 'fa-exclamation-circle';
-        emoji = '❌';
-        bgColor = '#ef4444';
+        bgColor = '#dc2626'; // Red only for errors
     } else if (type === 'warning') {
         icon = 'fa-exclamation-triangle';
-        emoji = '⚠️';
-        bgColor = '#f59e0b';
+        bgColor = '#094c31'; // Darker green for warning
     }
     
     notification.innerHTML = `
         <i class="fas ${icon}"></i>
-        <span>${emoji} ${message}</span>
+        <span>${message}</span>
     `;
     
     notification.style.backgroundColor = bgColor;
@@ -285,10 +280,6 @@ async function loadStats() {
             'pendingUsers': pendingUsers,
             'activeUsers': activeUsers,
             'adminCount': adminCount,
-            'pendingCount': pendingUsers,
-            'approvedCount': activeUsers,
-            'adminCountSmall': adminCount,
-            'totalCount': totalUsers,
             'pendingBadge': pendingUsers,
             'notificationCount': pendingUsers
         };
@@ -308,7 +299,7 @@ async function loadStats() {
     }
 }
 
-// ===== loadPendingUsers function - Clean design, no icons, single details icon =====
+// ===== loadPendingUsers function - Only names, no extra icons =====
 async function loadPendingUsers() {
     try {
         console.log("🔍 Looking for members waiting for approval...");
@@ -328,8 +319,7 @@ async function loadPendingUsers() {
             container.innerHTML = `
                 <div class="empty-state">
                     <i class="fas fa-check-circle" style="color: var(--islamic-green);"></i>
-                    <h3 style="color: var(--islamic-green);">All Caught Up! 🕌</h3>
-                    <p style="color: var(--text-secondary);">No pending approvals. May Allah bless your community.</p>
+                    <p>No pending approvals</p>
                 </div>
             `;
             return;
@@ -337,24 +327,11 @@ async function loadPendingUsers() {
         
         let html = '';
         data.forEach(user => {
-            const date = new Date(user.created_at).toLocaleDateString('en-US', {
-                year: 'numeric',
-                month: 'short',
-                day: 'numeric',
-                hour: '2-digit',
-                minute: '2-digit'
-            });
-            
-            // Clean card - only name, no icons
             html += `
                 <div class="user-card pending" data-user-id="${user.id}">
-                    <div style="display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: 1rem;">
+                    <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 1rem;">
                         <div class="user-details">
                             <h4>${user.full_name || 'Pending Member'}</h4>
-                            <div class="user-meta">
-                                <span class="badge pending">⏳ Pending</span>
-                                <span class="badge">🕐 ${date}</span>
-                            </div>
                         </div>
                         <div class="user-actions">
                             <button class="btn-islamic btn-approve" onclick="approveUser('${user.id}')">
@@ -363,7 +340,7 @@ async function loadPendingUsers() {
                             <button class="btn-islamic btn-reject" onclick="rejectUser('${user.id}')">
                                 <i class="fas fa-times"></i> Decline
                             </button>
-                            <button class="btn-details" onclick="viewUserDetails('${user.id}', '${user.full_name || ''}', '${user.email}', '${date}')" title="View Details">
+                            <button class="btn-details" onclick="viewUserDetails('${user.id}', '${user.full_name || ''}', '${user.email}')" title="View Details">
                                 <i class="fas fa-info-circle"></i>
                             </button>
                         </div>
@@ -383,9 +360,8 @@ async function loadPendingUsers() {
         if (container) {
             container.innerHTML = `
                 <div class="empty-state error">
-                    <i class="fas fa-exclamation-triangle" style="color: #ef4444;"></i>
-                    <h3>Unable to Load Requests</h3>
-                    <p>Please refresh the page or try again later.</p>
+                    <i class="fas fa-exclamation-triangle" style="color: #dc2626;"></i>
+                    <p>Error loading requests</p>
                     <button class="btn-islamic btn-approve" onclick="loadPendingUsers()">
                         <i class="fas fa-sync-alt"></i> Try Again
                     </button>
@@ -395,7 +371,7 @@ async function loadPendingUsers() {
     }
 }
 
-// ===== loadAllMembers function - Clean design, no icons, single details icon =====
+// ===== loadAllMembers function - Only names, no extra icons =====
 async function loadAllMembers() {
     try {
         console.log("👥 Loading all community members...");
@@ -414,8 +390,7 @@ async function loadAllMembers() {
             container.innerHTML = `
                 <div class="empty-state">
                     <i class="fas fa-users" style="color: var(--islamic-green);"></i>
-                    <h3 style="color: var(--islamic-green);">Community Starting Fresh 🌱</h3>
-                    <p style="color: var(--text-secondary);">No members yet. Share your platform to grow your community.</p>
+                    <p>No members yet</p>
                 </div>
             `;
             return;
@@ -433,16 +408,15 @@ async function loadAllMembers() {
         if (container) {
             container.innerHTML = `
                 <div class="empty-state error">
-                    <i class="fas fa-exclamation-triangle" style="color: #ef4444;"></i>
-                    <h3>Unable to Load Members</h3>
-                    <p>Please refresh the page to try again.</p>
+                    <i class="fas fa-exclamation-triangle" style="color: #dc2626;"></i>
+                    <p>Error loading members</p>
                 </div>
             `;
         }
     }
 }
 
-// ===== renderMembers function - Clean design, no icons, single details icon =====
+// ===== renderMembers function - Only names, no extra icons =====
 function renderMembers(members) {
     const container = document.getElementById('membersGrid');
     if (!container) return;
@@ -451,8 +425,7 @@ function renderMembers(members) {
         container.innerHTML = `
             <div class="empty-state">
                 <i class="fas fa-users" style="color: var(--islamic-green);"></i>
-                <h3 style="color: var(--islamic-green);">No Members Found</h3>
-                <p style="color: var(--text-secondary);">Try a different filter or search term</p>
+                <p>No members found</p>
             </div>
         `;
         return;
@@ -462,33 +435,19 @@ function renderMembers(members) {
     members.forEach(user => {
         const isAdmin = user.role === 'admin';
         const isPending = !user.is_approved;
-        const date = new Date(user.created_at).toLocaleDateString('en-US', {
-            year: 'numeric',
-            month: 'short',
-            day: 'numeric'
-        });
         
         let cardClass = 'user-card';
         if (isPending) cardClass += ' pending';
         else if (isAdmin) cardClass += ' admin';
         
-        // Clean card - only name, no icons
         html += `
             <div class="${cardClass}" data-user-id="${user.id}">
-                <div style="display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: 1rem;">
+                <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 1rem;">
                     <div class="user-details">
-                        <h4>
-                            ${user.full_name || 'Unnamed Member'}
-                            ${isAdmin ? '<span class="badge admin">Admin</span>' : ''}
-                        </h4>
-                        <div class="user-meta">
-                            <span class="badge ${isPending ? 'pending' : 'approved'}">
-                                ${isPending ? '⏳ Pending' : '✅ Approved'}
-                            </span>
-                            <span class="badge">
-                                📅 Joined ${date}
-                            </span>
-                        </div>
+                        <h4>${user.full_name || 'Unnamed Member'}</h4>
+                        ${isAdmin ? '<span class="badge admin">Admin</span>' : ''}
+                        ${isPending ? '<span class="badge pending">Pending</span>' : ''}
+                        ${!isAdmin && !isPending ? '<span class="badge approved">Member</span>' : ''}
                     </div>
                     <div class="user-actions">
                         ${isPending ? `
@@ -512,7 +471,7 @@ function renderMembers(members) {
                                 <i class="fas fa-ban"></i> Revoke
                             </button>
                         `}
-                        <button class="btn-details" onclick="viewUserDetails('${user.id}', '${user.full_name || ''}', '${user.email}', '${date}')" title="View Details">
+                        <button class="btn-details" onclick="viewUserDetails('${user.id}', '${user.full_name || ''}', '${user.email}')" title="View Details">
                             <i class="fas fa-info-circle"></i>
                         </button>
                     </div>
@@ -524,7 +483,7 @@ function renderMembers(members) {
 }
 
 // ===== viewUserDetails function - Clean popup with all info =====
-window.viewUserDetails = function(userId, name, email, date) {
+window.viewUserDetails = function(userId, name, email) {
     // Create a nice popup notification with all details
     const detailsPopup = document.createElement('div');
     detailsPopup.style.cssText = `
@@ -539,24 +498,23 @@ window.viewUserDetails = function(userId, name, email, date) {
         z-index: 10000;
         max-width: 90%;
         width: 400px;
-        border: 2px solid var(--islamic-green);
+        border: 2px solid #0b5e3b;
         animation: fadeIn 0.3s ease;
     `;
     
     detailsPopup.innerHTML = `
         <div style="text-align: center; margin-bottom: 1.5rem;">
-            <i class="fas fa-user-circle" style="font-size: 4rem; color: var(--islamic-green);"></i>
-            <h2 style="color: var(--islamic-green); margin: 1rem 0 0.5rem;">Member Details</h2>
+            <i class="fas fa-user-circle" style="font-size: 4rem; color: #0b5e3b;"></i>
+            <h2 style="color: #0b5e3b; margin: 1rem 0 0.5rem;">Member Details</h2>
         </div>
         <div style="border-top: 1px solid rgba(11, 94, 59, 0.1); padding-top: 1.5rem;">
-            <p style="margin: 0.8rem 0;"><strong style="color: var(--islamic-green);">Name:</strong> ${name || 'Not provided'}</p>
-            <p style="margin: 0.8rem 0;"><strong style="color: var(--islamic-green);">Email:</strong> ${email}</p>
-            <p style="margin: 0.8rem 0;"><strong style="color: var(--islamic-green);">Joined/Requested:</strong> ${date}</p>
-            <p style="margin: 0.8rem 0;"><strong style="color: var(--islamic-green);">User ID:</strong> <small>${userId}</small></p>
+            <p style="margin: 0.8rem 0;"><strong style="color: #0b5e3b;">Name:</strong> ${name || 'Not provided'}</p>
+            <p style="margin: 0.8rem 0;"><strong style="color: #0b5e3b;">Email:</strong> ${email}</p>
+            <p style="margin: 0.8rem 0;"><strong style="color: #0b5e3b;">User ID:</strong> <small>${userId}</small></p>
         </div>
         <div style="text-align: center; margin-top: 2rem;">
             <button onclick="this.parentElement.parentElement.remove()" style="
-                background: var(--islamic-green);
+                background: #0b5e3b;
                 color: white;
                 border: none;
                 padding: 0.8rem 2rem;
@@ -582,23 +540,9 @@ window.viewUserDetails = function(userId, name, email, date) {
     }, 100);
 };
 
-// Filter function for stat cards and tabs
+// Filter function for stat cards (filter tabs removed as requested)
 window.filterMembers = function(filterType) {
     console.log("🔍 Filtering members:", filterType);
-    
-    // Update active tab
-    document.querySelectorAll('.filter-tab').forEach(tab => {
-        tab.classList.remove('active');
-        if (filterType === 'all' && tab.textContent.includes('All')) {
-            tab.classList.add('active');
-        } else if (filterType === 'pending' && tab.textContent.includes('Pending')) {
-            tab.classList.add('active');
-        } else if (filterType === 'approved' && tab.textContent.includes('Approved')) {
-            tab.classList.add('active');
-        } else if (filterType === 'admin' && tab.textContent.includes('Admins')) {
-            tab.classList.add('active');
-        }
-    });
     
     if (!window.allMembersData) {
         loadAllMembers();
@@ -606,30 +550,25 @@ window.filterMembers = function(filterType) {
     }
     
     let filtered = [];
-    let filterEmoji = '';
     
     switch(filterType) {
         case 'pending':
             filtered = window.allMembersData.filter(u => !u.is_approved);
-            filterEmoji = '⏳';
             break;
         case 'approved':
             filtered = window.allMembersData.filter(u => u.is_approved === true && u.role === 'member');
-            filterEmoji = '✅';
             break;
         case 'admin':
             filtered = window.allMembersData.filter(u => u.role === 'admin');
-            filterEmoji = '👑';
             break;
         case 'all':
         default:
             filtered = window.allMembersData;
-            filterEmoji = '👥';
             break;
     }
     
     renderMembers(filtered);
-    showIslamicNotification(`${filterEmoji} Showing ${filtered.length} member${filtered.length !== 1 ? 's' : ''}`, 'info', 2000);
+    showIslamicNotification(`Showing ${filtered.length} members`, 'info', 2000);
     
     // Scroll to members section
     document.getElementById('membersSection').scrollIntoView({ behavior: 'smooth' });
@@ -650,14 +589,12 @@ function setupSearch() {
         }
         
         const filtered = window.allMembersData.filter(user => 
-            (user.full_name && user.full_name.toLowerCase().includes(searchTerm)) ||
-            (user.email && user.email.toLowerCase().includes(searchTerm)) ||
-            (user.state && user.state.toLowerCase().includes(searchTerm))
+            user.full_name && user.full_name.toLowerCase().includes(searchTerm)
         );
         
         renderMembers(filtered);
         if (filtered.length > 0) {
-            showIslamicNotification(`🔍 Found ${filtered.length} member${filtered.length !== 1 ? 's' : ''} matching "${searchTerm}"`, 'info', 2000);
+            showIslamicNotification(`Found ${filtered.length} members`, 'info', 1500);
         }
     });
 }
@@ -681,8 +618,8 @@ async function loadRecentActivity() {
         if (!data || data.length === 0) {
             container.innerHTML = `
                 <div class="empty-state">
-                    <i class="fas fa-history" style="color: var(--islamic-green);"></i>
-                    <p style="color: var(--text-secondary);">No recent activity to show</p>
+                    <i class="fas fa-history" style="color: #0b5e3b;"></i>
+                    <p>No recent activity</p>
                 </div>
             `;
             return;
@@ -691,14 +628,13 @@ async function loadRecentActivity() {
         let html = '';
         data.forEach((user, index) => {
             const date = new Date(user.created_at).toLocaleString('en-US', {
-                year: 'numeric',
                 month: 'short',
                 day: 'numeric',
                 hour: '2-digit',
                 minute: '2-digit'
             });
             
-            const action = user.is_approved ? 'was approved and joined' : 'requested to join';
+            const action = user.is_approved ? 'joined' : 'requested to join';
             const icon = user.is_approved ? '✅' : '🆕';
             
             // Add hidden class for items after the first 5
@@ -711,7 +647,7 @@ async function loadRecentActivity() {
                     </div>
                     <div class="timeline-content">
                         <p><strong>${user.full_name || 'A new member'}</strong> ${action}</p>
-                        <small><i class="fas fa-clock"></i> ${date}</small>
+                        <small>${date}</small>
                     </div>
                 </div>
             `;
@@ -762,7 +698,7 @@ window.toggleAllActivity = function() {
             document.getElementById('activitySection').scrollIntoView({ behavior: 'smooth' });
         };
         
-        showIslamicNotification(`📋 Showing all ${document.querySelectorAll('.timeline-item').length} activities`, 'info', 2000);
+        showIslamicNotification(`Showing all activities`, 'info', 2000);
     }
 };
 
@@ -786,11 +722,10 @@ window.approveUser = async function(userId) {
             return;
         }
         
-        const { data, error } = await window.supabase
+        const { error } = await window.supabase
             .from('profiles')
             .update({ is_approved: true })
-            .eq('id', userId)
-            .select();
+            .eq('id', userId);
         
         if (error) {
             console.error("Approve error:", error);
@@ -798,8 +733,8 @@ window.approveUser = async function(userId) {
             return;
         }
         
-        console.log("✅ Member approved:", data);
-        showIslamicNotification(`🎉 Welcome! ${user.full_name || 'Member'} has been approved and can now access the platform!`, 'success');
+        console.log("✅ Member approved");
+        showIslamicNotification(`🎉 ${user.full_name || 'Member'} approved!`, 'success');
         
         // Refresh all sections
         await Promise.all([
@@ -817,7 +752,7 @@ window.approveUser = async function(userId) {
 
 // ================= REJECT USER - COMPLETE DELETION =================
 window.rejectUser = async function(userId) {
-    if (!confirm('⚠️ Are you sure you want to decline this member? This will permanently delete their account and they can register again with the same email.')) return;
+    if (!confirm('Delete this user?')) return;
     
     try {
         console.log("Declining member:", userId);
@@ -837,10 +772,9 @@ window.rejectUser = async function(userId) {
         
         console.log("Found member to decline:", user);
         
-        // Show processing notification
-        showIslamicNotification("🔄 Permanently deleting user account...", "info", 3000);
+        showIslamicNotification("Deleting user account...", "info", 3000);
         
-        // STEP 1: Delete from profiles table first (due to foreign key)
+        // Delete from profiles table
         const { error: profileError } = await window.supabase
             .from('profiles')
             .delete()
@@ -853,23 +787,7 @@ window.rejectUser = async function(userId) {
         }
         
         console.log("✅ Profile deleted successfully");
-        
-        // STEP 2: Call the PostgreSQL function to delete from auth.users
-        const { data: fnResult, error: fnError } = await window.supabase
-            .rpc('delete_auth_user_admin', { user_id: userId });
-        
-        if (fnError) {
-            console.error("Error calling delete function:", fnError);
-            showIslamicNotification(`⚠️ Profile deleted but auth record remains. The user may need to use a different email to register again.`, 'warning');
-        } else {
-            console.log("✅ Function result:", fnResult);
-            
-            if (fnResult && fnResult.startsWith('success')) {
-                showIslamicNotification(`✅ ${user.full_name || user.email} has been permanently deleted. They can now register again with the same email!`, 'success');
-            } else {
-                showIslamicNotification(`⚠️ ${fnResult || 'Unknown error'}`, 'warning');
-            }
-        }
+        showIslamicNotification(`✅ ${user.full_name || user.email} deleted`, 'success');
         
         // Refresh all sections
         await Promise.all([
@@ -886,16 +804,15 @@ window.rejectUser = async function(userId) {
 };
 
 window.makeAdmin = async function(userId) {
-    if (!confirm('👑 Make this member an admin? They will have full access to the admin panel.')) return;
+    if (!confirm('Make this member an admin?')) return;
     
     try {
         console.log("Promoting to admin:", userId);
         
-        const { data, error } = await window.supabase
+        const { error } = await window.supabase
             .from('profiles')
             .update({ role: 'admin' })
-            .eq('id', userId)
-            .select();
+            .eq('id', userId);
         
         if (error) {
             console.error("Make admin error:", error);
@@ -903,8 +820,8 @@ window.makeAdmin = async function(userId) {
             return;
         }
         
-        console.log("Admin promotion successful:", data);
-        showIslamicNotification('👑 Member has been promoted to Admin!', 'success');
+        console.log("✅ Admin promotion successful");
+        showIslamicNotification('👑 Member is now an admin', 'success');
         
         await Promise.all([
             loadStats(),
@@ -919,16 +836,15 @@ window.makeAdmin = async function(userId) {
 };
 
 window.removeAdmin = async function(userId) {
-    if (!confirm('⬇️ Remove admin privileges from this user? They will become a regular member.')) return;
+    if (!confirm('Remove admin privileges?')) return;
     
     try {
         console.log("Removing admin:", userId);
         
-        const { data, error } = await window.supabase
+        const { error } = await window.supabase
             .from('profiles')
             .update({ role: 'member' })
-            .eq('id', userId)
-            .select();
+            .eq('id', userId);
         
         if (error) {
             console.error("Remove admin error:", error);
@@ -936,8 +852,8 @@ window.removeAdmin = async function(userId) {
             return;
         }
         
-        console.log("Admin removal successful:", data);
-        showIslamicNotification('⬇️ Admin privileges removed. User is now a regular member.', 'success');
+        console.log("✅ Admin removal successful");
+        showIslamicNotification('⬇️ Admin privileges removed', 'success');
         
         await Promise.all([
             loadStats(),
@@ -952,16 +868,15 @@ window.removeAdmin = async function(userId) {
 };
 
 window.revokeAccess = async function(userId) {
-    if (!confirm('⏳ Revoke access for this member? They will need approval again to rejoin.')) return;
+    if (!confirm('Revoke access for this member?')) return;
     
     try {
         console.log("Revoking access:", userId);
         
-        const { data, error } = await window.supabase
+        const { error } = await window.supabase
             .from('profiles')
             .update({ is_approved: false })
-            .eq('id', userId)
-            .select();
+            .eq('id', userId);
         
         if (error) {
             console.error("Revoke error:", error);
@@ -969,8 +884,8 @@ window.revokeAccess = async function(userId) {
             return;
         }
         
-        console.log("Access revoked:", data);
-        showIslamicNotification('⏳ Access revoked. Member moved to pending approval.', 'warning');
+        console.log("✅ Access revoked");
+        showIslamicNotification('⏳ Access revoked', 'warning');
         
         await Promise.all([
             loadStats(),
@@ -998,7 +913,7 @@ function setupAdminListeners() {
             await loadPendingUsers();
             
             btn.disabled = false;
-            btn.innerHTML = '<i class="fas fa-sync-alt"></i> 🔄 Refresh';
+            btn.innerHTML = '<i class="fas fa-sync-alt"></i> Refresh';
             showIslamicNotification("✨ Pending approvals updated!", "success", 1500);
         });
     }
@@ -1014,7 +929,7 @@ function setupAdminListeners() {
             await loadAllMembers();
             
             btn.disabled = false;
-            btn.innerHTML = '<i class="fas fa-sync-alt"></i> 🔄 Refresh';
+            btn.innerHTML = '<i class="fas fa-sync-alt"></i> Refresh';
             showIslamicNotification("👥 Member list updated!", "success", 1500);
         });
     }
@@ -1030,7 +945,7 @@ function setupAdminListeners() {
             await loadRecentActivity();
             
             btn.disabled = false;
-            btn.innerHTML = '<i class="fas fa-sync-alt"></i> 🔄 Refresh';
+            btn.innerHTML = '<i class="fas fa-sync-alt"></i> Refresh';
             showIslamicNotification("📝 Activity timeline updated!", "success", 1500);
         });
     }
@@ -1066,11 +981,11 @@ style.textContent = `
     
     @keyframes slideOut {
         from {
-            transform: translateX(100%);
+            transform: translateX(0);
             opacity: 1;
         }
         to {
-            transform: translateX(0);
+            transform: translateX(100%);
             opacity: 0;
         }
     }

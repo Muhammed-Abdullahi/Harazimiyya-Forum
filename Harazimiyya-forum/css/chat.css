@@ -23,13 +23,13 @@
 
 /* Light Theme - UPDATED to WhatsApp style (light gray) */
 [data-theme="light"] {
-    --background-dark: #e5ded5;  /* WhatsApp light mode background */
+    --background-dark: #6dcc4734;  /* WhatsApp light mode background */
     --sidebar-bg: #0b5e3b;       /* Keep Islamic green sidebar */
     --card-bg: #ffffff;           /* White cards */
     --text-light: #303030;        /* Darker text for better contrast */
     --text-muted: #667781;        /* WhatsApp muted text color */
     --border-color: #e9edef;      /* WhatsApp border color */
-    --message-bg-sent: #dcf8c6;   /* WhatsApp green sent message */
+    --message-bg-sent: #a4cc47a6;   /* WhatsApp green sent message */
     --message-bg-received: #ffffff; /* White received message */
     --input-bg: #ffffff;           /* White input */
     --theme-toggle-bg: #ffffff;    /* White theme toggle */
@@ -38,14 +38,14 @@
 
 /* Sepia Theme - UPDATED to WhatsApp style (warm parchment) */
 [data-theme="sepia"] {
-    --background-dark: #f0e9db;  /* WhatsApp warm parchment background */
-    --sidebar-bg: #8b5e3c;        /* Keep sepia sidebar */
+    --background-dark: #275e3569;  /* WhatsApp warm parchment background */
+    --sidebar-bg: #275e3569;        /* Keep sepia sidebar */
     --card-bg: #fff8e7;           /* Light cream cards */
     --text-light: #3b3a36;        /* Warm dark text */
     --text-muted: #6f6b64;        /* Warm muted text */
     --border-color: #d1c7b7;      /* Warm border color */
-    --message-bg-sent: #e1f0cb;   /* Soft green sent message */
-    --message-bg-received: #fff8e7; /* Cream received message */
+    --message-bg-sent: #a4f130b2;   /* Soft green sent message */
+    --message-bg-received: hsl(36, 100%, 99%); /* Cream received message */
     --input-bg: #fff8e7;           /* Cream input */
     --theme-toggle-bg: #fff8e7;    /* Cream theme toggle */
     --seen-color: #8b5e3c;         /* Sepia accent for seen */
