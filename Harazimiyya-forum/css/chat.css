@@ -6,7 +6,7 @@
     --success: #10b981;
 }
 
-/* Dark Theme (Default) - UNCHANGED */
+/* Dark Theme (Default) - COMPLETELY UNCHANGED */
 [data-theme="dark"] {
     --background-dark: #0a1f1a;
     --sidebar-bg: #0f2b24;
@@ -19,39 +19,45 @@
     --input-bg: #1a2f28;
     --theme-toggle-bg: #12332b;
     --seen-color: #34a853;
+    --icon-color: white; /* Icons stay white in dark mode */
+    --media-icon-color: white;
 }
 
-/* Light Theme - UPDATED to WhatsApp style (light gray) */
+/* Light Theme - ALL ICONS BLACK */
 [data-theme="light"] {
-    --background-dark: #6dcc4734;  /* WhatsApp light mode background */
-    --sidebar-bg: #0b5e3b;       /* Keep Islamic green sidebar */
-    --card-bg: #ffffff;           /* White cards */
-    --text-light: #303030;        /* Darker text for better contrast */
-    --text-muted: #667781;        /* WhatsApp muted text color */
-    --border-color: #e9edef;      /* WhatsApp border color */
-    --message-bg-sent: #a4cc47a6;   /* WhatsApp green sent message */
-    --message-bg-received: #ffffff; /* White received message */
-    --input-bg: #ffffff;           /* White input */
-    --theme-toggle-bg: #ffffff;    /* White theme toggle */
-    --seen-color: #53bdeb;         /* WhatsApp seen blue */
+    --background-dark: #e5ded5;
+    --sidebar-bg: #0b5e3b;
+    --card-bg: #ffffff;
+    --text-light: #303030;
+    --text-muted: #667781;
+    --border-color: #e9edef;
+    --message-bg-sent: #dcf8c6;
+    --message-bg-received: #ffffff;
+    --input-bg: #ffffff;
+    --theme-toggle-bg: #ffffff;
+    --seen-color: #34b7f1;
+    --icon-color: #000000; /* Black icons */
+    --media-icon-color: #000000; /* Black media icons */
 }
 
-/* Sepia Theme - UPDATED to WhatsApp style (warm parchment) */
+/* Sepia Theme - ALL ICONS BLACK */
 [data-theme="sepia"] {
-    --background-dark: #275e3569;  /* WhatsApp warm parchment background */
-    --sidebar-bg: #275e3569;        /* Keep sepia sidebar */
-    --card-bg: #fff8e7;           /* Light cream cards */
-    --text-light: #3b3a36;        /* Warm dark text */
-    --text-muted: #6f6b64;        /* Warm muted text */
-    --border-color: #d1c7b7;      /* Warm border color */
-    --message-bg-sent: #a4f130b2;   /* Soft green sent message */
-    --message-bg-received: hsl(36, 100%, 99%); /* Cream received message */
-    --input-bg: #fff8e7;           /* Cream input */
-    --theme-toggle-bg: #fff8e7;    /* Cream theme toggle */
-    --seen-color: #8b5e3c;         /* Sepia accent for seen */
+    --background-dark: #f0e9db;
+    --sidebar-bg: #8b5e3c;
+    --card-bg: #fff9ef;
+    --text-light: #5b4636;
+    --text-muted: #8b7a6b;
+    --border-color: #d4c5b5;
+    --message-bg-sent: #e6d5b8;
+    --message-bg-received: #fff9ef;
+    --input-bg: #fff9ef;
+    --theme-toggle-bg: #fff9ef;
+    --seen-color: #8b5e3c;
+    --icon-color: #000000; /* Black icons */
+    --media-icon-color: #000000; /* Black media icons */
 }
 
-/* Forest Theme - UNCHANGED */
+/* Forest Theme - ALL ICONS BLACK */
 [data-theme="forest"] {
     --background-dark: #e8f0e8;
     --sidebar-bg: #2d5a4b;
@@ -64,6 +70,8 @@
     --input-bg: #f0f7f0;
     --theme-toggle-bg: #f0f7f0;
     --seen-color: #2d5a4b;
+    --icon-color: #000000; /* Black icons */
+    --media-icon-color: #000000; /* Black media icons */
 }
 
 /* Make everything scale properly */
@@ -930,7 +938,7 @@ body {
     margin: 5px 0;
 }
 
-/* Three dots menu for native options */
+/* Three dots menu for native options - ICON COLOR NOW USES THEME VARIABLE */
 .message-options {
     position: relative;
     opacity: 0;
@@ -956,7 +964,7 @@ body {
     justify-content: center;
     border-radius: 50%;
     background: rgba(255,255,255,0.1);
-    color: var(--text-light);
+    color: var(--icon-color); /* Uses theme variable (black in light/sepia/forest, white in dark) */
 }
 
 .options-menu summary:hover {
@@ -1166,7 +1174,7 @@ body {
     cursor: pointer;
 }
 
-/* Uniform audio player styles */
+/* Uniform audio player styles - PLAY BUTTON, VOLUME ICON NOW BLACK IN LIGHT/SEPIA/FOREST */
 .message audio {
     width: 280px;
     height: 40px;
@@ -1176,7 +1184,7 @@ body {
     margin: 5px 0;
 }
 
-/* Force audio controls to be visible */
+/* Force audio controls to be visible with BLACK icons in light/sepia/forest */
 .message audio::-webkit-media-controls-panel {
     background: var(--card-bg) !important;
     display: flex !important;
@@ -1184,6 +1192,7 @@ body {
 
 .message audio::-webkit-media-controls-play-button {
     display: flex !important;
+    filter: var(--media-icon-filter, none); /* No filter in dark mode */
 }
 
 .message audio::-webkit-media-controls-timeline {
@@ -1202,12 +1211,29 @@ body {
 
 .message audio::-webkit-media-controls-mute-button {
     display: flex !important;
+    filter: var(--media-icon-filter, none);
 }
 
 /* For Firefox */
 .message audio {
     background-color: var(--card-bg);
-    color-scheme: dark;
+    color-scheme: var(--media-color-scheme, dark);
+}
+
+/* Media icon filters for each theme */
+[data-theme="light"] .message audio {
+    --media-icon-filter: brightness(0); /* Makes icons black */
+    --media-color-scheme: light;
+}
+
+[data-theme="sepia"] .message audio {
+    --media-icon-filter: brightness(0); /* Makes icons black */
+    --media-color-scheme: light;
+}
+
+[data-theme="forest"] .message audio {
+    --media-icon-filter: brightness(0); /* Makes icons black */
+    --media-color-scheme: light;
 }
 
 .empty-chat {
@@ -1258,13 +1284,14 @@ body {
     border-left: 3px solid var(--primary-color);
 }
 
+/* Media buttons - ICONS NOW USE THEME VARIABLE */
 .media-btn {
     width: 44px;
     height: 44px;
     border-radius: 50%;
     border: none;
     background: var(--input-bg);
-    color: var(--text-light);
+    color: var(--icon-color); /* Uses theme variable (black in light/sepia/forest, white in dark) */
     cursor: pointer;
     display: flex;
     align-items: center;
@@ -1286,13 +1313,14 @@ body {
     transform: scale(0.95);
 }
 
+/* Send button - ICON NOW USES THEME VARIABLE */
 .send-btn {
     padding: 0 20px;
     height: 44px;
     border: none;
     border-radius: 25px;
     background: var(--primary-color);
-    color: white;
+    color: var(--icon-color); /* Uses theme variable (black in light/sepia/forest, white in dark) */
     cursor: pointer;
     font-weight: 600;
     transition: all 0.3s;
