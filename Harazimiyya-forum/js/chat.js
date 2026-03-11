@@ -16,7 +16,7 @@ let messagesSubscription = null;
 let presenceSubscription = null;
 let typingSubscription = null;
 let onlineUsers = new Set();
-let typingUsers = new Map(); // userId -> timeout
+let typingUsers = new Map();
 let mediaRecorder = null;
 let audioChunks = [];
 let recordingTimer = null;
@@ -29,25 +29,25 @@ let selectedMemberId = null;
 let messageReadTimer = null;
 let currentChatPartner = null;
 let replyingTo = null;
-let pendingReply = null; // Store reply permanently until sent
+let pendingReply = null;
 let touchStartX = 0;
 let touchCurrentX = 0;
 let currentSwipeElement = null;
-let swipeThreshold = 80; // Minimum swipe distance to trigger reply
-let allMembers = []; // Store all members for search
+let swipeThreshold = 80;
+let allMembers = [];
 let typingTimeout = null;
 let isTyping = false;
 
 // Context menu and highlighting variables
-let highlightedMessages = new Set(); // Set of highlighted message IDs
+let highlightedMessages = new Set();
 let contextMenuActive = false;
 let longPressTimer = null;
-let longPressThreshold = 500; // 500ms for long press
+let longPressThreshold = 500;
 let lastTapTime = 0;
-let doubleTapThreshold = 300; // 300ms for double tap
+let doubleTapThreshold = 300;
 
 // Message reactions storage
-let messageReactions = new Map(); // messageId -> { likes: [userIds], loves: [userIds] }
+let messageReactions = new Map();
 
 // Recording operation flag
 let isRecordingOperation = false;
@@ -61,8 +61,18 @@ let firstUnreadMessageId = null;
 const themes = ['dark', 'light', 'sepia', 'forest'];
 let currentTheme = localStorage.getItem('chatTheme') || 'dark';
 
+// ===== NEW: Detect if device is mobile/touch device =====
+let isTouchDevice = false;
+
 document.addEventListener('DOMContentLoaded', function() {
     console.log("DOM loaded, initializing chat...");
+    
+    // Detect if this is a touch device (mobile/tablet)
+    isTouchDevice = ('ontouchstart' in window) || 
+                    (navigator.maxTouchPoints > 0) || 
+                    (navigator.msMaxTouchPoints > 0);
+    
+    console.log("📱 Touch device detected:", isTouchDevice);
     
     function initializeChat() {
         if (!window.supabase) {
@@ -77,17 +87,17 @@ document.addEventListener('DOMContentLoaded', function() {
         setupThemeToggle();
         
         // Load reactions from database
-        setTimeout(() => {
+        setTimeout(function() {
             loadReactions();
         }, 2000);
         
         // Check for pending reply
-        setTimeout(() => {
+        setTimeout(function() {
             checkPendingReply();
         }, 3000);
         
         // Create jump to bottom button on page load
-        setTimeout(() => {
+        setTimeout(function() {
             createJumpToBottomButton();
         }, 1000);
         
@@ -95,7 +105,7 @@ document.addEventListener('DOMContentLoaded', function() {
         setupClickOutsideHandler();
         
         // Setup reaction touch handlers for mobile
-        setTimeout(() => {
+        setTimeout(function() {
             setupReactionTouchHandlers();
         }, 3000);
     }
@@ -105,13 +115,13 @@ document.addEventListener('DOMContentLoaded', function() {
 
 // ================= REACTION TOUCH HANDLER FOR MOBILE =================
 function setupReactionTouchHandlers() {
-    document.addEventListener('touchstart', (e) => {
+    document.addEventListener('touchstart', function(e) {
         // Check if touching a reaction
-        const reaction = e.target.closest('.reaction');
+        var reaction = e.target.closest('.reaction');
         if (!reaction) {
             // If touching outside reaction, hide any open tooltip/modal
             hideReactionTooltip();
-            const existingModal = document.querySelector('.online-users-modal');
+            var existingModal = document.querySelector('.online-users-modal');
             if (existingModal) existingModal.remove();
             return;
         }
@@ -120,8 +130,8 @@ function setupReactionTouchHandlers() {
         e.preventDefault();
         
         // Get reaction data
-        const messageId = reaction.dataset.messageId;
-        const reactionType = reaction.dataset.reactionType;
+        var messageId = reaction.dataset.messageId;
+        var reactionType = reaction.dataset.reactionType;
         
         // Show who reacted
         showReactionUsers(messageId, reactionType);
@@ -133,7 +143,7 @@ async function loadReactions() {
     try {
         console.log("🔄 Loading reactions from database...");
         
-        const { data: reactions, error } = await supabase
+        var { data: reactions, error } = await supabase
             .from('message_reactions')
             .select('*');
         
@@ -141,7 +151,7 @@ async function loadReactions() {
             console.error("❌ Error loading reactions:", error);
             
             // Check if table exists
-            if (error.code === '42P01') { // Undefined table error code
+            if (error.code === '42P01') {
                 console.warn("⚠️ message_reactions table doesn't exist. Please create it in Supabase.");
                 showNotification("Please create the message_reactions table in Supabase", "error", 5000);
             }
@@ -152,12 +162,12 @@ async function loadReactions() {
         messageReactions.clear();
         
         // Organize reactions by message
-        reactions.forEach(reaction => {
+        reactions.forEach(function(reaction) {
             if (!messageReactions.has(reaction.message_id)) {
                 messageReactions.set(reaction.message_id, { likes: [], loves: [] });
             }
             
-            const msgReactions = messageReactions.get(reaction.message_id);
+            var msgReactions = messageReactions.get(reaction.message_id);
             if (reaction.reaction_type === 'like') {
                 msgReactions.likes.push(reaction.user_id);
             } else if (reaction.reaction_type === 'love') {
@@ -168,7 +178,7 @@ async function loadReactions() {
         console.log("✅ Reactions loaded from database:", messageReactions);
         
         // Update all message displays
-        messageReactions.forEach((_, messageId) => {
+        messageReactions.forEach(function(_, messageId) {
             updateMessageReactions(messageId);
         });
         
@@ -179,10 +189,10 @@ async function loadReactions() {
 
 // ================= CHECK PENDING REPLY =================
 function checkPendingReply() {
-    const pendingReplyData = sessionStorage.getItem('replyingTo');
+    var pendingReplyData = sessionStorage.getItem('replyingTo');
     if (pendingReplyData) {
         try {
-            const replyData = JSON.parse(pendingReplyData);
+            var replyData = JSON.parse(pendingReplyData);
             // Store in both replyingTo and pendingReply
             replyingTo = { id: replyData.id, name: replyData.name };
             pendingReply = { id: replyData.id, name: replyData.name, content: replyData.content, type: replyData.type };
@@ -197,7 +207,7 @@ function checkPendingReply() {
 
 // ================= CLICK OUTSIDE HANDLER =================
 function setupClickOutsideHandler() {
-    document.addEventListener('click', (e) => {
+    document.addEventListener('click', function(e) {
         // Don't clear if clicking on context menu or action bar
         if (e.target.closest('.context-menu') || e.target.closest('.action-bar')) {
             return;
@@ -215,7 +225,7 @@ function setupClickOutsideHandler() {
 
 // ================= HIGHLIGHT MANAGEMENT =================
 function toggleMessageHighlight(messageId) {
-    const messageEl = document.querySelector(`.message[data-message-id="${messageId}"]`);
+    var messageEl = document.querySelector('.message[data-message-id="' + messageId + '"]');
     if (!messageEl) return;
     
     if (highlightedMessages.has(messageId)) {
@@ -236,8 +246,8 @@ function clearAllHighlights() {
     if (highlightedMessages.size === 0) return;
     
     // Remove highlight class from all messages
-    highlightedMessages.forEach(messageId => {
-        const messageEl = document.querySelector(`.message[data-message-id="${messageId}"]`);
+    highlightedMessages.forEach(function(messageId) {
+        var messageEl = document.querySelector('.message[data-message-id="' + messageId + '"]');
         if (messageEl) {
             messageEl.classList.remove('highlighted');
         }
@@ -246,26 +256,26 @@ function clearAllHighlights() {
     highlightedMessages.clear();
     
     // Remove action bar
-    const actionBar = document.querySelector('.action-bar');
+    var actionBar = document.querySelector('.action-bar');
     if (actionBar) actionBar.remove();
     
     // Remove context menu
-    const contextMenu = document.querySelector('.context-menu');
+    var contextMenu = document.querySelector('.context-menu');
     if (contextMenu) contextMenu.remove();
 }
 
 function updateActionBar() {
-    const count = highlightedMessages.size;
+    var count = highlightedMessages.size;
     
     if (count === 0) {
         // Remove action bar if no highlights
-        const actionBar = document.querySelector('.action-bar');
+        var actionBar = document.querySelector('.action-bar');
         if (actionBar) actionBar.remove();
         return;
     }
     
     // Check if we're on mobile or desktop
-    const isMobile = window.innerWidth <= 768;
+    var isMobile = window.innerWidth <= 768;
     
     if (isMobile) {
         // Show mobile action bar
@@ -275,47 +285,47 @@ function updateActionBar() {
 
 function showMobileActionBar(count) {
     // Remove existing action bar
-    const existingBar = document.querySelector('.action-bar');
+    var existingBar = document.querySelector('.action-bar');
     if (existingBar) existingBar.remove();
     
-    const actionBar = document.createElement('div');
+    var actionBar = document.createElement('div');
     actionBar.className = 'action-bar';
     
     // Check if any selected message has reactions
-    const hasLikes = checkIfAnyHasReaction('like');
-    const hasLoves = checkIfAnyHasReaction('love');
+    var hasLikes = checkIfAnyHasReaction('like');
+    var hasLoves = checkIfAnyHasReaction('love');
     
-    actionBar.innerHTML = `
-        <div class="selection-counter">${count}</div>
-        <button class="like-btn ${hasLikes ? 'active' : ''}" onclick="handleBulkReaction('like')" title="Like">
-            <i class="fas fa-thumbs-up"></i>
-            <span>Like</span>
-        </button>
-        <button class="love-btn ${hasLoves ? 'active' : ''}" onclick="handleBulkReaction('love')" title="Love">
-            <i class="fas fa-heart"></i>
-            <span>Love</span>
-        </button>
-        <button class="delete-btn" onclick="handleDeleteSelected()" title="Delete">
-            <i class="fas fa-trash"></i>
-            <span>Delete</span>
-        </button>
-    `;
+    actionBar.innerHTML = '\
+        <div class="selection-counter">' + count + '</div>\
+        <button class="like-btn ' + (hasLikes ? 'active' : '') + '" onclick="handleBulkReaction(\'like\')" title="Like">\
+            <i class="fas fa-thumbs-up"></i>\
+            <span>Like</span>\
+        </button>\
+        <button class="love-btn ' + (hasLoves ? 'active' : '') + '" onclick="handleBulkReaction(\'love\')" title="Love">\
+            <i class="fas fa-heart"></i>\
+            <span>Love</span>\
+        </button>\
+        <button class="delete-btn" onclick="handleDeleteSelected()" title="Delete">\
+            <i class="fas fa-trash"></i>\
+            <span>Delete</span>\
+        </button>\
+    ';
     
     document.body.appendChild(actionBar);
 }
 
 // ================= REACTION FUNCTIONS =================
 async function toggleReaction(messageId, reactionType) {
-    console.log(`🔄 Toggling ${reactionType} for message:`, messageId);
+    console.log("🔄 Toggling " + reactionType + " for message:", messageId);
     
-    const messageEl = document.querySelector(`.message[data-message-id="${messageId}"]`);
+    var messageEl = document.querySelector('.message[data-message-id="' + messageId + '"]');
     if (!messageEl) {
         console.error("❌ Message element not found");
         return;
     }
     
     // Show loading state
-    const reactionBtn = document.querySelector(`.reaction.${reactionType}-reaction[data-message-id="${messageId}"]`);
+    var reactionBtn = document.querySelector('.reaction.' + reactionType + '-reaction[data-message-id="' + messageId + '"]');
     if (reactionBtn) reactionBtn.classList.add('loading');
     
     try {
@@ -324,18 +334,18 @@ async function toggleReaction(messageId, reactionType) {
             messageReactions.set(messageId, { likes: [], loves: [] });
         }
         
-        const reactions = messageReactions.get(messageId);
-        const userReactionArray = reactionType === 'like' ? reactions.likes : reactions.loves;
-        const otherReactionArray = reactionType === 'like' ? reactions.loves : reactions.likes;
+        var reactions = messageReactions.get(messageId);
+        var userReactionArray = reactionType === 'like' ? reactions.likes : reactions.loves;
+        var otherReactionArray = reactionType === 'like' ? reactions.loves : reactions.likes;
         
         // Check if user already reacted with this type
-        const userIndex = userReactionArray.indexOf(currentUser.id);
-        const hasReaction = userIndex !== -1;
+        var userIndex = userReactionArray.indexOf(currentUser.id);
+        var hasReaction = userIndex !== -1;
         
         if (hasReaction) {
             // Remove reaction from database
-            console.log(`🗑️ Removing ${reactionType} reaction`);
-            const { error } = await supabase
+            console.log("🗑️ Removing " + reactionType + " reaction");
+            var { error } = await supabase
                 .from('message_reactions')
                 .delete()
                 .eq('message_id', messageId)
@@ -349,17 +359,17 @@ async function toggleReaction(messageId, reactionType) {
             
             // Remove from local array
             userReactionArray.splice(userIndex, 1);
-            console.log(`✅ ${reactionType} reaction removed`);
+            console.log("✅ " + reactionType + " reaction removed");
             
         } else {
             // Check if user has the other reaction type and remove it first
-            const otherIndex = otherReactionArray.indexOf(currentUser.id);
+            var otherIndex = otherReactionArray.indexOf(currentUser.id);
             if (otherIndex !== -1) {
                 // Remove other reaction from database
-                const otherType = reactionType === 'like' ? 'love' : 'like';
-                console.log(`🔄 Removing conflicting ${otherType} reaction`);
+                var otherType = reactionType === 'like' ? 'love' : 'like';
+                console.log("🔄 Removing conflicting " + otherType + " reaction");
                 
-                const { error: otherError } = await supabase
+                var { error: otherError } = await supabase
                     .from('message_reactions')
                     .delete()
                     .eq('message_id', messageId)
@@ -375,8 +385,8 @@ async function toggleReaction(messageId, reactionType) {
             }
             
             // Add new reaction to database
-            console.log(`➕ Adding ${reactionType} reaction`);
-            const { error } = await supabase
+            console.log("➕ Adding " + reactionType + " reaction");
+            var { error } = await supabase
                 .from('message_reactions')
                 .insert([{
                     message_id: messageId,
@@ -391,7 +401,7 @@ async function toggleReaction(messageId, reactionType) {
             
             // Add to local array
             userReactionArray.push(currentUser.id);
-            console.log(`✅ ${reactionType} reaction added`);
+            console.log("✅ " + reactionType + " reaction added");
         }
         
         // Update message display
@@ -399,13 +409,13 @@ async function toggleReaction(messageId, reactionType) {
         
         // Show notification
         if (hasReaction) {
-            showNotification(`Removed ${reactionType === 'like' ? '👍' : '❤️'} reaction`, 'success', 1500);
+            showNotification('Removed ' + (reactionType === 'like' ? '👍' : '❤️') + ' reaction', 'success', 1500);
         } else {
-            showNotification(`Added ${reactionType === 'like' ? '👍' : '❤️'} reaction`, 'success', 1500);
+            showNotification('Added ' + (reactionType === 'like' ? '👍' : '❤️') + ' reaction', 'success', 1500);
         }
         
     } catch (err) {
-        console.error(`❌ Error toggling ${reactionType}:`, err);
+        console.error("❌ Error toggling " + reactionType + ":", err);
         showNotification('Failed to update reaction. Check console for details.', 'error');
     } finally {
         if (reactionBtn) reactionBtn.classList.remove('loading');
@@ -413,53 +423,53 @@ async function toggleReaction(messageId, reactionType) {
 }
 
 function updateMessageReactions(messageId) {
-    const messageEl = document.querySelector(`.message[data-message-id="${messageId}"]`);
+    var messageEl = document.querySelector('.message[data-message-id="' + messageId + '"]');
     if (!messageEl) return;
     
-    const reactions = messageReactions.get(messageId);
+    var reactions = messageReactions.get(messageId);
     if (!reactions) return;
     
     // Remove existing reaction display
-    const existingReactions = messageEl.querySelector('.message-reactions');
+    var existingReactions = messageEl.querySelector('.message-reactions');
     if (existingReactions) existingReactions.remove();
     
     // Create reaction display if there are any reactions
     if (reactions.likes.length > 0 || reactions.loves.length > 0) {
-        const reactionsDiv = document.createElement('div');
+        var reactionsDiv = document.createElement('div');
         reactionsDiv.className = 'message-reactions';
         
-        let html = '';
+        var html = '';
         
         if (reactions.likes.length > 0) {
-            const userLiked = reactions.likes.includes(currentUser.id);
-            html += `
-                <div class="reaction like-reaction ${userLiked ? 'user-reacted' : ''}" 
-                     data-message-id="${messageId}" 
-                     data-reaction-type="like"
-                     onclick="toggleReaction('${messageId}', 'like')"
-                     ontouchstart="handleReactionTouch(event, '${messageId}', 'like')"
-                     onmouseenter="showReactionTooltip(event, this, '${messageId}', 'like')"
-                     onmouseleave="hideReactionTooltip()">
-                    <i class="fas fa-thumbs-up"></i>
-                    <span class="reaction-count">${reactions.likes.length}</span>
-                </div>
-            `;
+            var userLiked = reactions.likes.includes(currentUser.id);
+            html += '\
+                <div class="reaction like-reaction ' + (userLiked ? 'user-reacted' : '') + '" \
+                     data-message-id="' + messageId + '" \
+                     data-reaction-type="like" \
+                     onclick="toggleReaction(\'' + messageId + '\', \'like\')" \
+                     ontouchstart="handleReactionTouch(event, \'' + messageId + '\', \'like\')" \
+                     onmouseenter="showReactionTooltip(event, this, \'' + messageId + '\', \'like\')" \
+                     onmouseleave="hideReactionTooltip()">\
+                    <i class="fas fa-thumbs-up"></i>\
+                    <span class="reaction-count">' + reactions.likes.length + '</span>\
+                </div>\
+            ';
         }
         
         if (reactions.loves.length > 0) {
-            const userLoved = reactions.loves.includes(currentUser.id);
-            html += `
-                <div class="reaction love-reaction ${userLoved ? 'user-reacted' : ''}" 
-                     data-message-id="${messageId}" 
-                     data-reaction-type="love"
-                     onclick="toggleReaction('${messageId}', 'love')"
-                     ontouchstart="handleReactionTouch(event, '${messageId}', 'love')"
-                     onmouseenter="showReactionTooltip(event, this, '${messageId}', 'love')"
-                     onmouseleave="hideReactionTooltip()">
-                    <i class="fas fa-heart"></i>
-                    <span class="reaction-count">${reactions.loves.length}</span>
-                </div>
-            `;
+            var userLoved = reactions.loves.includes(currentUser.id);
+            html += '\
+                <div class="reaction love-reaction ' + (userLoved ? 'user-reacted' : '') + '" \
+                     data-message-id="' + messageId + '" \
+                     data-reaction-type="love" \
+                     onclick="toggleReaction(\'' + messageId + '\', \'love\')" \
+                     ontouchstart="handleReactionTouch(event, \'' + messageId + '\', \'love\')" \
+                     onmouseenter="showReactionTooltip(event, this, \'' + messageId + '\', \'love\')" \
+                     onmouseleave="hideReactionTooltip()">\
+                    <i class="fas fa-heart"></i>\
+                    <span class="reaction-count">' + reactions.loves.length + '</span>\
+                </div>\
+            ';
         }
         
         reactionsDiv.innerHTML = html;
@@ -474,11 +484,8 @@ window.handleReactionTouch = function(event, messageId, reactionType) {
     showReactionUsers(messageId, reactionType);
 };
 
-// ================= FIXED SHOW REACTION TOOLTIP FUNCTION (WORKS AT ANY WINDOW SIZE) =================
+// ================= FIXED SHOW REACTION TOOLTIP FUNCTION =================
 async function showReactionTooltip(event, element, messageId, reactionType) {
-    // Remove the mobile width check - tooltip works at any window size
-    // if (window.innerWidth <= 768) return;  // COMMENTED OUT - tooltip works everywhere
-    
     // Prevent event bubbling
     if (event) {
         event.stopPropagation();
@@ -486,22 +493,22 @@ async function showReactionTooltip(event, element, messageId, reactionType) {
     }
     
     // Get reactions from our local storage
-    const reactions = messageReactions.get(messageId);
+    var reactions = messageReactions.get(messageId);
     if (!reactions) return;
     
-    const userIds = reactionType === 'like' ? reactions.likes : reactions.loves;
+    var userIds = reactionType === 'like' ? reactions.likes : reactions.loves;
     if (!userIds || userIds.length === 0) return;
     
     // Remove any existing tooltip first
     hideReactionTooltip();
     
     // Create tooltip
-    const tooltip = document.createElement('div');
+    var tooltip = document.createElement('div');
     tooltip.className = 'reaction-tooltip';
     
     try {
         // Fetch user profiles
-        const { data: profiles, error } = await supabase
+        var { data: profiles, error } = await supabase
             .from('profiles')
             .select('full_name')
             .in('id', userIds);
@@ -511,57 +518,57 @@ async function showReactionTooltip(event, element, messageId, reactionType) {
             if (profiles.length === 1) {
                 tooltip.textContent = profiles[0].full_name || 'Someone';
             } else if (profiles.length === 2) {
-                tooltip.textContent = `${profiles[0].full_name || 'Someone'} and ${profiles[1].full_name || 'Someone'}`;
+                tooltip.textContent = (profiles[0].full_name || 'Someone') + ' and ' + (profiles[1].full_name || 'Someone');
             } else if (profiles.length <= 5) {
-                const names = profiles.map(p => p.full_name || 'Someone').join(', ');
+                var names = profiles.map(function(p) { return p.full_name || 'Someone'; }).join(', ');
                 tooltip.textContent = names;
             } else {
-                const firstFew = profiles.slice(0, 3).map(p => p.full_name || 'Someone').join(', ');
-                tooltip.textContent = `${firstFew} and ${profiles.length - 3} others`;
+                var firstFew = profiles.slice(0, 3).map(function(p) { return p.full_name || 'Someone'; }).join(', ');
+                tooltip.textContent = firstFew + ' and ' + (profiles.length - 3) + ' others';
             }
         } else {
             // Fallback to count
-            tooltip.textContent = `${userIds.length} ${reactionType}${userIds.length > 1 ? 's' : ''}`;
+            tooltip.textContent = userIds.length + ' ' + reactionType + (userIds.length > 1 ? 's' : '');
         }
     } catch (err) {
         // Fallback to count
-        tooltip.textContent = `${userIds.length} ${reactionType}${userIds.length > 1 ? 's' : ''}`;
+        tooltip.textContent = userIds.length + ' ' + reactionType + (userIds.length > 1 ? 's' : '');
     }
     
     // Position tooltip
-    const rect = element.getBoundingClientRect();
-    tooltip.style.left = `${rect.left + rect.width / 2}px`;
-    tooltip.style.top = `${rect.top - 40}px`;
+    var rect = element.getBoundingClientRect();
+    tooltip.style.left = (rect.left + rect.width / 2) + 'px';
+    tooltip.style.top = (rect.top - 40) + 'px';
     tooltip.style.transform = 'translateX(-50%)';
     
     document.body.appendChild(tooltip);
     
     // Auto hide after 2 seconds
-    setTimeout(() => {
+    setTimeout(function() {
         hideReactionTooltip();
     }, 2000);
 }
 
 function hideReactionTooltip() {
-    const tooltip = document.querySelector('.reaction-tooltip');
+    var tooltip = document.querySelector('.reaction-tooltip');
     if (tooltip) tooltip.remove();
 }
 
 // ================= FIXED SHOW REACTION USERS =================
 async function showReactionUsers(messageId, reactionType) {
-    const reactions = messageReactions.get(messageId);
+    var reactions = messageReactions.get(messageId);
     if (!reactions) return;
     
-    const userIds = reactionType === 'like' ? reactions.likes : reactions.loves;
+    var userIds = reactionType === 'like' ? reactions.likes : reactions.loves;
     if (userIds.length === 0) return;
     
     // Remove any existing modal
-    const existingModal = document.querySelector('.online-users-modal');
+    var existingModal = document.querySelector('.online-users-modal');
     if (existingModal) existingModal.remove();
     
     try {
         // Fetch user profiles
-        const { data: profiles, error } = await supabase
+        var { data: profiles, error } = await supabase
             .from('profiles')
             .select('full_name, email')
             .in('id', userIds);
@@ -572,45 +579,45 @@ async function showReactionUsers(messageId, reactionType) {
         }
         
         // Create modal to show who reacted
-        const modal = document.createElement('div');
+        var modal = document.createElement('div');
         modal.className = 'online-users-modal';
         
-        const reactionEmoji = reactionType === 'like' ? '👍' : '❤️';
-        const reactionName = reactionType === 'like' ? 'Liked by' : 'Loved by';
+        var reactionEmoji = reactionType === 'like' ? '👍' : '❤️';
+        var reactionName = reactionType === 'like' ? 'Liked by' : 'Loved by';
         
-        let usersHtml = '';
-        profiles.forEach(user => {
-            usersHtml += `
-                <div class="online-user-item">
-                    <div class="online-user-avatar">
-                        <i class="fas fa-user"></i>
-                    </div>
-                    <div class="online-user-info">
-                        <h4>${user.full_name || user.email}</h4>
-                    </div>
-                </div>
-            `;
+        var usersHtml = '';
+        profiles.forEach(function(user) {
+            usersHtml += '\
+                <div class="online-user-item">\
+                    <div class="online-user-avatar">\
+                        <i class="fas fa-user"></i>\
+                    </div>\
+                    <div class="online-user-info">\
+                        <h4>' + (user.full_name || user.email) + '</h4>\
+                    </div>\
+                </div>\
+            ';
         });
         
-        modal.innerHTML = `
-            <div class="online-users-content">
-                <div class="online-users-header">
-                    <h3>${reactionEmoji} ${reactionName} (${profiles.length})</h3>
-                    <button class="close-online-modal"><i class="fas fa-times"></i></button>
-                </div>
-                <div class="online-users-list">
-                    ${usersHtml}
-                </div>
-            </div>
-        `;
+        modal.innerHTML = '\
+            <div class="online-users-content">\
+                <div class="online-users-header">\
+                    <h3>' + reactionEmoji + ' ' + reactionName + ' (' + profiles.length + ')</h3>\
+                    <button class="close-online-modal"><i class="fas fa-times"></i></button>\
+                </div>\
+                <div class="online-users-list">\
+                    ' + usersHtml + '\
+                </div>\
+            </div>\
+        ';
         
         document.body.appendChild(modal);
         
         // Close modal when clicking close button
-        modal.querySelector('.close-online-modal').onclick = () => modal.remove();
+        modal.querySelector('.close-online-modal').onclick = function() { modal.remove(); };
         
         // Close modal when tapping outside
-        modal.onclick = (e) => {
+        modal.onclick = function(e) {
             if (e.target === modal) modal.remove();
         };
         
@@ -620,65 +627,67 @@ async function showReactionUsers(messageId, reactionType) {
 }
 
 function checkIfAnyHasReaction(reactionType) {
-    for (const messageId of highlightedMessages) {
-        const reactions = messageReactions.get(messageId);
+    var hasReaction = false;
+    highlightedMessages.forEach(function(messageId) {
+        var reactions = messageReactions.get(messageId);
         if (reactions && (reactionType === 'like' ? reactions.likes : reactions.loves).includes(currentUser.id)) {
-            return true;
+            hasReaction = true;
         }
-    }
-    return false;
+    });
+    return hasReaction;
 }
 
 window.handleBulkReaction = function(reactionType) {
-    highlightedMessages.forEach(messageId => {
+    highlightedMessages.forEach(function(messageId) {
         toggleReaction(messageId, reactionType);
     });
-    showNotification(`${reactionType === 'like' ? '👍' : '❤️'} Added to ${highlightedMessages.size} message${highlightedMessages.size > 1 ? 's' : ''}`, 'success');
+    showNotification((reactionType === 'like' ? '👍' : '❤️') + ' Added to ' + highlightedMessages.size + ' message' + (highlightedMessages.size > 1 ? 's' : ''), 'success');
     clearAllHighlights();
 };
 
 // ================= DESKTOP CONTEXT MENU =================
 function showContextMenu(x, y, messageId, senderName, messageContent, messageType) {
     // Remove existing context menu
-    const existingMenu = document.querySelector('.context-menu');
+    var existingMenu = document.querySelector('.context-menu');
     if (existingMenu) existingMenu.remove();
     
-    const messageEl = document.querySelector(`.message[data-message-id="${messageId}"]`);
-    const canDelete = isAdmin || messageEl?.dataset.senderId === currentUser.id;
+    var messageEl = document.querySelector('.message[data-message-id="' + messageId + '"]');
+    var canDelete = isAdmin || (messageEl && messageEl.dataset.senderId === currentUser.id);
     
-    const contextMenu = document.createElement('div');
+    var contextMenu = document.createElement('div');
     contextMenu.className = 'context-menu desktop';
-    contextMenu.style.left = `${x}px`;
-    contextMenu.style.top = `${y}px`;
+    contextMenu.style.left = x + 'px';
+    contextMenu.style.top = y + 'px';
     
     // Escape quotes in message content for safe HTML
-    const escapedContent = messageContent.replace(/'/g, "\\'").replace(/"/g, '&quot;');
+    var escapedContent = messageContent.replace(/'/g, "\\'").replace(/"/g, '&quot;');
+    var escapedSenderName = senderName.replace(/'/g, "\\'");
     
-    let menuHtml = `
-        <button onclick="handleReply('${messageId}', '${senderName.replace(/'/g, "\\'")}', '${escapedContent}', '${messageType}')">
-            <i class="fas fa-reply"></i> Reply
-        </button>
-        <button onclick="toggleReaction('${messageId}', 'like')">
-            <i class="fas fa-thumbs-up"></i> Like
-        </button>
-        <button onclick="toggleReaction('${messageId}', 'love')">
-            <i class="fas fa-heart"></i> Love
-        </button>
-    `;
+    var menuHtml = '\
+        <button onclick="handleReply(\'' + messageId + '\', \'' + escapedSenderName + '\', \'' + escapedContent + '\', \'' + messageType + '\')">\
+            <i class="fas fa-reply"></i> Reply\
+        </button>\
+        <button onclick="toggleReaction(\'' + messageId + '\', \'like\')">\
+            <i class="fas fa-thumbs-up"></i> Like\
+        </button>\
+        <button onclick="toggleReaction(\'' + messageId + '\', \'love\')">\
+            <i class="fas fa-heart"></i> Love\
+        </button>\
+    ';
     
     if (canDelete) {
-        menuHtml += `
-            <button onclick="handleDelete('${messageId}')" style="color: var(--danger);">
-                <i class="fas fa-trash"></i> Delete
-            </button>
-        `;
+        menuHtml += '\
+            <button onclick="handleDelete(\'' + messageId + '\')" style="color: var(--danger);">\
+                <i class="fas fa-trash"></i> Delete\
+            </button>\
+        ';
     }
     
     contextMenu.innerHTML = menuHtml;
     document.body.appendChild(contextMenu);
     
     // Remove menu when clicking outside
-    setTimeout(() => {
+    setTimeout(function() {
         document.addEventListener('click', function removeMenu(e) {
             if (!contextMenu.contains(e.target)) {
                 contextMenu.remove();
@@ -690,9 +699,9 @@ function showContextMenu(x, y, messageId, senderName, messageContent, messageTyp
 
 // ================= MESSAGE EVENT HANDLERS =================
 function setupMessageEventListeners() {
-    const messages = document.querySelectorAll('.message');
+    var messages = document.querySelectorAll('.message');
     
-    messages.forEach(msg => {
+    messages.forEach(function(msg) {
         // Remove existing listeners
         msg.removeEventListener('touchstart', handleTouchStart);
         msg.removeEventListener('touchend', handleTouchEnd);
@@ -717,7 +726,7 @@ function handleTouchStart(e) {
     // Don't start if in recording operation
     if (isRecordingOperation) return;
     
-    const touch = e.touches[0];
+    var touch = e.touches[0];
     touchStartX = touch.clientX;
     currentSwipeElement = this;
     
@@ -725,16 +734,16 @@ function handleTouchStart(e) {
     if (longPressTimer) clearTimeout(longPressTimer);
     
     // Start long press timer
-    longPressTimer = setTimeout(() => {
-        handleLongPress(this);
+    longPressTimer = setTimeout(function() {
+        handleLongPress(currentSwipeElement);
     }, longPressThreshold);
 }
 
 function handleTouchMove(e) {
     if (!currentSwipeElement) return;
     
-    const touch = e.touches[0];
-    const diffX = touch.clientX - touchStartX;
+    var touch = e.touches[0];
+    var diffX = touch.clientX - touchStartX;
     
     // If user starts swiping, cancel long press
     if (Math.abs(diffX) > 20) {
@@ -747,17 +756,17 @@ function handleTouchMove(e) {
     // Handle swipe to reply (only if not in highlight mode)
     if (highlightedMessages.size === 0 && diffX > 0 && diffX < 150) {
         e.preventDefault();
-        currentSwipeElement.style.transform = `translateX(${diffX}px)`;
+        currentSwipeElement.style.transform = 'translateX(' + diffX + 'px)';
         
         // Show swipe indicator
-        let indicator = document.querySelector('.swipe-reply-indicator');
+        var indicator = document.querySelector('.swipe-reply-indicator');
         if (!indicator) {
             indicator = document.createElement('div');
             indicator.className = 'swipe-reply-indicator';
             indicator.innerHTML = '<i class="fas fa-reply"></i> Reply';
             currentSwipeElement.appendChild(indicator);
         }
-        indicator.style.right = `${-diffX - 70}px`;
+        indicator.style.right = (-diffX - 70) + 'px';
         indicator.style.opacity = Math.min(diffX / 50, 1);
     }
 }
@@ -770,14 +779,16 @@ function handleTouchEnd(e) {
     
     if (!currentSwipeElement) return;
     
-    const diffX = e.changedTouches[0].clientX - touchStartX;
+    var diffX = e.changedTouches[0].clientX - touchStartX;
     
     // Handle swipe to reply
     if (highlightedMessages.size === 0 && diffX > swipeThreshold) {
-        const messageId = currentSwipeElement.dataset.messageId;
-        const senderName = currentSwipeElement.querySelector('small')?.textContent.split('•')[0].trim() || 'User';
-        const messageContent = currentSwipeElement.querySelector('.message-content p')?.textContent || '';
-        let messageType = 'text';
+        var messageId = currentSwipeElement.dataset.messageId;
+        var senderNameElement = currentSwipeElement.querySelector('small');
+        var senderName = senderNameElement ? senderNameElement.textContent.split('•')[0].trim() : 'User';
+        var messageContentElement = currentSwipeElement.querySelector('.message-content p');
+        var messageContent = messageContentElement ? messageContentElement.textContent : '';
+        var messageType = 'text';
         
         if (currentSwipeElement.querySelector('img')) messageType = 'image';
         else if (currentSwipeElement.querySelector('video')) messageType = 'video';
@@ -790,7 +801,7 @@ function handleTouchEnd(e) {
     currentSwipeElement.style.transform = '';
     
     // Remove swipe indicator
-    const indicator = document.querySelector('.swipe-reply-indicator');
+    var indicator = document.querySelector('.swipe-reply-indicator');
     if (indicator) indicator.remove();
     
     currentSwipeElement = null;
@@ -805,7 +816,7 @@ function handleTouchCancel() {
     
     if (currentSwipeElement) {
         currentSwipeElement.style.transform = '';
-        const indicator = document.querySelector('.swipe-reply-indicator');
+        var indicator = document.querySelector('.swipe-reply-indicator');
         if (indicator) indicator.remove();
         currentSwipeElement = null;
     }
@@ -814,7 +825,7 @@ function handleTouchCancel() {
 function handleLongPress(messageEl) {
     if (isRecordingOperation) return;
     
-    const messageId = messageEl.dataset.messageId;
+    var messageId = messageEl.dataset.messageId;
     
     // On mobile, toggle highlight
     toggleMessageHighlight(messageId);
@@ -827,8 +838,8 @@ function handleLongPress(messageEl) {
 
 function handleMessageClick(e) {
     // Check for double tap
-    const currentTime = new Date().getTime();
-    const tapLength = currentTime - lastTapTime;
+    var currentTime = new Date().getTime();
+    var tapLength = currentTime - lastTapTime;
     
     if (tapLength < doubleTapThreshold && tapLength > 0) {
         // Double tap detected
@@ -841,18 +852,20 @@ function handleMessageClick(e) {
 
 function handleMessageDoubleClick(e) {
     e.preventDefault();
-    const messageId = this.dataset.messageId;
+    var messageId = this.dataset.messageId;
     toggleMessageHighlight(messageId);
 }
 
 function handleMessageRightClick(e) {
     e.preventDefault();
     
-    const messageEl = this;
-    const messageId = messageEl.dataset.messageId;
-    const senderName = messageEl.querySelector('small')?.textContent.split('•')[0].trim() || 'User';
-    const messageContent = messageEl.querySelector('.message-content p')?.textContent || '';
-    let messageType = 'text';
+    var messageEl = this;
+    var messageId = messageEl.dataset.messageId;
+    var senderNameElement = messageEl.querySelector('small');
+    var senderName = senderNameElement ? senderNameElement.textContent.split('•')[0].trim() : 'User';
+    var messageContentElement = messageEl.querySelector('.message-content p');
+    var messageContent = messageContentElement ? messageContentElement.textContent : '';
+    var messageType = 'text';
     
     if (messageEl.querySelector('img')) messageType = 'image';
     else if (messageEl.querySelector('video')) messageType = 'video';
@@ -873,14 +886,14 @@ window.handleReply = function(messageId, senderName, messageContent, messageType
     window.showReplyInput(messageId, senderName, messageContent, messageType);
     
     // Remove context menu
-    const contextMenu = document.querySelector('.context-menu');
+    var contextMenu = document.querySelector('.context-menu');
     if (contextMenu) contextMenu.remove();
 };
 
-// ================= FIXED HANDLE DELETE - NO NUMBERS BEFORE MESSAGE =================
+// ================= FIXED HANDLE DELETE =================
 window.handleDelete = async function(messageId) {
-    const messageEl = document.querySelector(`.message[data-message-id="${messageId}"]`);
-    const senderId = messageEl?.dataset.senderId;
+    var messageEl = document.querySelector('.message[data-message-id="' + messageId + '"]');
+    var senderId = messageEl ? messageEl.dataset.senderId : null;
     
     // Check if user can delete
     if (!isAdmin && senderId !== currentUser.id) {
@@ -888,10 +901,10 @@ window.handleDelete = async function(messageId) {
         return;
     }
     
-    // Use a custom modal instead of confirm to avoid the "127.0.0.1:5500 says:" prefix
-    if (confirmDelete()) {
+    // Use a custom modal instead of confirm
+    if (await confirmDelete()) {
         try {
-            const { error } = await supabase
+            var { error } = await supabase
                 .from('chat_messages')
                 .delete()
                 .eq('id', messageId);
@@ -900,7 +913,7 @@ window.handleDelete = async function(messageId) {
             
             showNotification('✅ Message deleted', 'success');
             
-            const contextMenu = document.querySelector('.context-menu');
+            var contextMenu = document.querySelector('.context-menu');
             if (contextMenu) contextMenu.remove();
             
             await loadGroupMessages();
@@ -912,18 +925,21 @@ window.handleDelete = async function(messageId) {
     }
 };
 
-// ================= FIXED HANDLE DELETE SELECTED - NO NUMBERS BEFORE MESSAGE =================
+// ================= FIXED HANDLE DELETE SELECTED =================
 window.handleDeleteSelected = async function() {
     if (highlightedMessages.size === 0) return;
     
     // Use a custom modal instead of confirm
-    if (confirmDelete(`${highlightedMessages.size} message${highlightedMessages.size > 1 ? 's' : ''}`)) {
-        let successCount = 0;
-        let failCount = 0;
+    if (await confirmDelete(highlightedMessages.size + ' message' + (highlightedMessages.size > 1 ? 's' : ''))) {
+        var successCount = 0;
+        var failCount = 0;
         
-        for (const messageId of highlightedMessages) {
-            const messageEl = document.querySelector(`.message[data-message-id="${messageId}"]`);
-            const senderId = messageEl?.dataset.senderId;
+        var messageIds = Array.from(highlightedMessages);
+        
+        for (var i = 0; i < messageIds.length; i++) {
+            var messageId = messageIds[i];
+            var messageEl = document.querySelector('.message[data-message-id="' + messageId + '"]');
+            var senderId = messageEl ? messageEl.dataset.senderId : null;
             
             if (!isAdmin && senderId !== currentUser.id) {
                 failCount++;
@@ -931,7 +947,7 @@ window.handleDeleteSelected = async function() {
             }
             
             try {
-                const { error } = await supabase
+                var { error } = await supabase
                     .from('chat_messages')
                     .delete()
                     .eq('id', messageId);
@@ -947,10 +963,10 @@ window.handleDeleteSelected = async function() {
         }
         
         if (successCount > 0) {
-            showNotification(`✅ Deleted ${successCount} message${successCount > 1 ? 's' : ''}`, 'success');
+            showNotification('✅ Deleted ' + successCount + ' message' + (successCount > 1 ? 's' : ''), 'success');
         }
         if (failCount > 0) {
-            showNotification(`❌ Failed to delete ${failCount} message${failCount > 1 ? 's' : ''}`, 'error');
+            showNotification('❌ Failed to delete ' + failCount + ' message' + (failCount > 1 ? 's' : ''), 'error');
         }
         
         clearAllHighlights();
@@ -959,60 +975,62 @@ window.handleDeleteSelected = async function() {
 };
 
 // ================= CUSTOM CONFIRM DIALOG FUNCTION =================
-function confirmDelete(item = 'this message') {
+function confirmDelete(item) {
+    if (!item) item = 'this message';
+    
     // Create custom confirm dialog
-    const modal = document.createElement('div');
-    modal.className = 'confirm-modal';
-    modal.style.cssText = `
-        position: fixed;
-        top: 0;
-        left: 0;
-        width: 100%;
-        height: 100%;
-        background: rgba(0, 0, 0, 0.5);
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        z-index: 10000;
-        animation: fadeIn 0.2s ease;
-    `;
-    
-    const content = document.createElement('div');
-    content.style.cssText = `
-        background: var(--card-bg);
-        border-radius: 16px;
-        padding: 24px;
-        max-width: 320px;
-        width: 90%;
-        box-shadow: 0 20px 40px rgba(0, 0, 0, 0.3);
-        animation: slideUp 0.2s ease;
-        border: 1px solid var(--border-color);
-    `;
-    
-    content.innerHTML = `
-        <h3 style="margin: 0 0 16px 0; color: var(--text-light); font-size: 18px;">Delete ${item}?</h3>
-        <p style="margin: 0 0 24px 0; color: var(--text-muted); font-size: 14px;">This action cannot be undone.</p>
-        <div style="display: flex; gap: 12px; justify-content: flex-end;">
-            <button id="cancelDeleteBtn" style="padding: 10px 20px; border: 1px solid var(--border-color); background: transparent; color: var(--text-light); border-radius: 8px; cursor: pointer; font-size: 14px;">Cancel</button>
-            <button id="confirmDeleteBtn" style="padding: 10px 20px; border: none; background: var(--danger); color: white; border-radius: 8px; cursor: pointer; font-size: 14px;">Delete</button>
-        </div>
-    `;
-    
-    modal.appendChild(content);
-    document.body.appendChild(modal);
-    
-    return new Promise((resolve) => {
-        document.getElementById('cancelDeleteBtn').onclick = () => {
+    return new Promise(function(resolve) {
+        var modal = document.createElement('div');
+        modal.className = 'confirm-modal';
+        modal.style.cssText = '\
+            position: fixed;\
+            top: 0;\
+            left: 0;\
+            width: 100%;\
+            height: 100%;\
+            background: rgba(0, 0, 0, 0.5);\
+            display: flex;\
+            align-items: center;\
+            justify-content: center;\
+            z-index: 10000;\
+            animation: fadeIn 0.2s ease;\
+        ';
+        
+        var content = document.createElement('div');
+        content.style.cssText = '\
+            background: var(--card-bg);\
+            border-radius: 16px;\
+            padding: 24px;\
+            max-width: 320px;\
+            width: 90%;\
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.3);\
+            animation: slideUp 0.2s ease;\
+            border: 1px solid var(--border-color);\
+        ';
+        
+        content.innerHTML = '\
+            <h3 style="margin: 0 0 16px 0; color: var(--text-light); font-size: 18px;">Delete ' + item + '?</h3>\
+            <p style="margin: 0 0 24px 0; color: var(--text-muted); font-size: 14px;">This action cannot be undone.</p>\
+            <div style="display: flex; gap: 12px; justify-content: flex-end;">\
+                <button id="cancelDeleteBtn" style="padding: 10px 20px; border: 1px solid var(--border-color); background: transparent; color: var(--text-light); border-radius: 8px; cursor: pointer; font-size: 14px;">Cancel</button>\
+                <button id="confirmDeleteBtn" style="padding: 10px 20px; border: none; background: var(--danger); color: white; border-radius: 8px; cursor: pointer; font-size: 14px;">Delete</button>\
+            </div>\
+        ';
+        
+        modal.appendChild(content);
+        document.body.appendChild(modal);
+        
+        document.getElementById('cancelDeleteBtn').onclick = function() {
             modal.remove();
             resolve(false);
         };
         
-        document.getElementById('confirmDeleteBtn').onclick = () => {
+        document.getElementById('confirmDeleteBtn').onclick = function() {
             modal.remove();
             resolve(true);
         };
         
-        modal.onclick = (e) => {
+        modal.onclick = function(e) {
             if (e.target === modal) {
                 modal.remove();
                 resolve(false);
@@ -1033,75 +1051,83 @@ function setTheme(theme) {
     localStorage.setItem('chatTheme', theme);
     updateThemeCheckmark();
     
-    showNotification(`🎨 Theme changed to ${theme.charAt(0).toUpperCase() + theme.slice(1)}`, 'success', 2000);
+    showNotification('🎨 Theme changed to ' + theme.charAt(0).toUpperCase() + theme.slice(1), 'success', 2000);
 }
 
 function updateThemeCheckmark() {
-    document.querySelectorAll('.theme-option .fa-check').forEach(el => el.remove());
+    document.querySelectorAll('.theme-option .fa-check').forEach(function(el) { el.remove(); });
     
-    const activeOption = document.querySelector(`.theme-option[data-theme="${currentTheme}"]`);
+    var activeOption = document.querySelector('.theme-option[data-theme="' + currentTheme + '"]');
     if (activeOption) {
-        const checkIcon = document.createElement('i');
+        var checkIcon = document.createElement('i');
         checkIcon.className = 'fas fa-check';
         activeOption.appendChild(checkIcon);
     }
 }
 
 function setupThemeToggle() {
-    const themeToggle = document.getElementById('themeToggle');
-    const themeDropdown = document.getElementById('themeDropdown');
+    var themeToggle = document.getElementById('themeToggle');
+    var themeDropdown = document.getElementById('themeDropdown');
     
     if (!themeToggle || !themeDropdown) return;
     
-    themeToggle.addEventListener('click', (e) => {
+    themeToggle.addEventListener('click', function(e) {
         e.stopPropagation();
         themeDropdown.classList.toggle('show');
     });
     
-    document.querySelectorAll('.theme-option').forEach(option => {
-        option.addEventListener('click', (e) => {
+    document.querySelectorAll('.theme-option').forEach(function(option) {
+        option.addEventListener('click', function(e) {
             e.stopPropagation();
-            const theme = option.dataset.theme;
+            var theme = option.dataset.theme;
             setTheme(theme);
             themeDropdown.classList.remove('show');
         });
     });
     
-    document.addEventListener('click', () => {
+    document.addEventListener('click', function() {
         themeDropdown.classList.remove('show');
     });
 }
 
 // ================= NOTIFICATION FUNCTION =================
-function showNotification(message, type = 'success', duration = 3000) {
-    const existingNotification = document.querySelector('.notification');
+function showNotification(message, type, duration) {
+    if (!type) type = 'success';
+    if (!duration) duration = 3000;
+    
+    var existingNotification = document.querySelector('.notification');
     if (existingNotification) existingNotification.remove();
     
-    const notification = document.createElement('div');
-    notification.className = `notification ${type}`;
-    notification.innerHTML = `
-        <i class="fas ${type === 'success' ? 'fa-check-circle' : type === 'error' ? 'fa-exclamation-circle' : 'fa-info-circle'}"></i>
-        <span>${message}</span>
-    `;
+    var notification = document.createElement('div');
+    notification.className = 'notification ' + type;
+    
+    var iconClass = 'fa-check-circle';
+    if (type === 'error') iconClass = 'fa-exclamation-circle';
+    else if (type === 'info') iconClass = 'fa-info-circle';
+    
+    notification.innerHTML = '\
+        <i class="fas ' + iconClass + '"></i>\
+        <span>' + message + '</span>\
+    ';
     document.body.appendChild(notification);
     
-    setTimeout(() => {
+    setTimeout(function() {
         notification.remove();
     }, duration);
 }
 
 // ================= JUMP TO BOTTOM BUTTON FUNCTIONS =================
 function createJumpToBottomButton() {
-    const existingBtn = document.getElementById('jumpToBottomBtn');
+    var existingBtn = document.getElementById('jumpToBottomBtn');
     if (existingBtn) existingBtn.remove();
     
-    const button = document.createElement('button');
+    var button = document.createElement('button');
     button.id = 'jumpToBottomBtn';
     button.className = 'jump-to-bottom-btn';
     button.innerHTML = '<i class="fas fa-arrow-down"></i>';
     button.title = 'Jump to latest message';
     
-    button.addEventListener('click', () => {
+    button.addEventListener('click', function() {
         scrollToBottom();
         button.style.display = 'none';
     });
@@ -1110,7 +1136,7 @@ function createJumpToBottomButton() {
 }
 
 function scrollToBottom() {
-    const messagesContainer = document.getElementById('messages');
+    var messagesContainer = document.getElementById('messages');
     if (messagesContainer) {
         messagesContainer.scrollTop = messagesContainer.scrollHeight;
     }
@@ -1118,9 +1144,10 @@ function scrollToBottom() {
 
 // ================= SMART SCROLL POSITIONING =================
 function findFirstUnreadMessage() {
-    const messages = document.querySelectorAll('.message.received');
-    for (let msg of messages) {
-        const timeSpan = msg.querySelector('.time');
+    var messages = document.querySelectorAll('.message.received');
+    for (var i = 0; i < messages.length; i++) {
+        var msg = messages[i];
+        var timeSpan = msg.querySelector('.time');
         if (timeSpan && timeSpan.innerHTML.includes(' ✓') && !timeSpan.innerHTML.includes('✓✓')) {
             return msg.dataset.messageId;
         }
@@ -1129,13 +1156,13 @@ function findFirstUnreadMessage() {
 }
 
 function scrollToFirstUnread() {
-    const firstUnreadId = findFirstUnreadMessage();
+    var firstUnreadId = findFirstUnreadMessage();
     if (firstUnreadId) {
-        const messageElement = document.querySelector(`.message[data-message-id="${firstUnreadId}"]`);
+        var messageElement = document.querySelector('.message[data-message-id="' + firstUnreadId + '"]');
         if (messageElement) {
             messageElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
             messageElement.style.backgroundColor = 'rgba(12, 143, 95, 0.2)';
-            setTimeout(() => {
+            setTimeout(function() {
                 messageElement.style.backgroundColor = '';
             }, 2000);
         }
@@ -1146,43 +1173,49 @@ function scrollToFirstUnread() {
 
 // ================= SIDEBAR SETUP =================
 function setupSidebar() {
-    const sidebar = document.getElementById('sidebar');
-    const openBtn = document.getElementById('openSidebar');
-    const closeBtn = document.getElementById('closeSidebar');
-    const overlay = document.getElementById('overlay');
+    var sidebar = document.getElementById('sidebar');
+    var openBtn = document.getElementById('openSidebar');
+    var closeBtn = document.getElementById('closeSidebar');
+    var overlay = document.getElementById('overlay');
     
     if (!sidebar) return;
     
-    openBtn?.addEventListener('click', () => {
-        sidebar.classList.add('active');
-        overlay?.classList.add('active');
-    });
+    if (openBtn) {
+        openBtn.addEventListener('click', function() {
+            sidebar.classList.add('active');
+            if (overlay) overlay.classList.add('active');
+        });
+    }
     
-    closeBtn?.addEventListener('click', () => {
-        sidebar.classList.remove('active');
-        overlay?.classList.remove('active');
-    });
+    if (closeBtn) {
+        closeBtn.addEventListener('click', function() {
+            sidebar.classList.remove('active');
+            if (overlay) overlay.classList.remove('active');
+        });
+    }
     
-    overlay?.addEventListener('click', () => {
-        sidebar.classList.remove('active');
-        overlay.classList.remove('active');
-    });
+    if (overlay) {
+        overlay.addEventListener('click', function() {
+            sidebar.classList.remove('active');
+            overlay.classList.remove('active');
+        });
+    }
 }
 
 // ================= ONLINE COUNTER =================
 async function setupPresenceTracking() {
     try {
-        const channel = supabase.channel('online-users', {
+        var channel = supabase.channel('online-users', {
             config: { presence: { key: currentUser.id } }
         });
 
         channel
-            .on('presence', { event: 'sync' }, () => {
-                const presenceState = channel.presenceState();
+            .on('presence', { event: 'sync' }, function() {
+                var presenceState = channel.presenceState();
                 onlineUsers.clear();
                 
-                Object.values(presenceState).forEach(users => {
-                    users.forEach(user => {
+                Object.values(presenceState).forEach(function(users) {
+                    users.forEach(function(user) {
                         if (user.user_id !== currentUser.id) {
                             onlineUsers.add(user.user_id);
                         }
@@ -1192,22 +1225,22 @@ async function setupPresenceTracking() {
                 updateOnlineCount();
                 updateTypingDisplay();
             })
-            .on('presence', { event: 'join' }, ({ key, newPresences }) => {
-                newPresences.forEach(p => { 
+            .on('presence', { event: 'join' }, function({ key, newPresences }) {
+                newPresences.forEach(function(p) { 
                     if (p.user_id !== currentUser.id) onlineUsers.add(p.user_id);
                 });
                 updateOnlineCount();
                 updateTypingDisplay();
             })
-            .on('presence', { event: 'leave' }, ({ key, leftPresences }) => {
-                leftPresences.forEach(p => { 
+            .on('presence', { event: 'leave' }, function({ key, leftPresences }) {
+                leftPresences.forEach(function(p) { 
                     if (p.user_id !== currentUser.id) onlineUsers.delete(p.user_id);
                 });
                 updateOnlineCount();
                 updateTypingDisplay();
             });
 
-        await channel.subscribe(async (status) => {
+        await channel.subscribe(async function(status) {
             if (status === 'SUBSCRIBED') {
                 await channel.track({ user_id: currentUser.id, online_at: new Date().toISOString() });
             }
@@ -1225,14 +1258,15 @@ async function setupPresenceTracking() {
 function setupTypingListener() {
     if (!presenceSubscription) return;
     
-    presenceSubscription.on('broadcast', { event: 'typing' }, (payload) => {
-        const { userId, typing } = payload.payload;
+    presenceSubscription.on('broadcast', { event: 'typing' }, function(payload) {
+        var userId = payload.payload.userId;
+        var typing = payload.payload.typing;
         
         if (userId === currentUser.id) return;
         
         if (typing) {
             if (!typingUsers.has(userId)) {
-                typingUsers.set(userId, setTimeout(() => {
+                typingUsers.set(userId, setTimeout(function() {
                     typingUsers.delete(userId);
                     updateTypingDisplay();
                 }, 3000));
@@ -1247,16 +1281,16 @@ function setupTypingListener() {
         updateTypingDisplay();
     });
     
-    const messageInput = document.getElementById('messageInput');
+    var messageInput = document.getElementById('messageInput');
     if (messageInput) {
-        messageInput.addEventListener('input', () => {
+        messageInput.addEventListener('input', function() {
             if (!isTyping) {
                 isTyping = true;
                 broadcastTypingStatus(true);
             }
             
             clearTimeout(typingTimeout);
-            typingTimeout = setTimeout(() => {
+            typingTimeout = setTimeout(function() {
                 isTyping = false;
                 broadcastTypingStatus(false);
             }, 1000);
@@ -1271,7 +1305,7 @@ async function broadcastTypingStatus(typing) {
         await presenceSubscription.send({
             type: 'broadcast',
             event: 'typing',
-            payload: { userId: currentUser.id, typing }
+            payload: { userId: currentUser.id, typing: typing }
         });
     } catch (err) {
         console.error("Error broadcasting typing status:", err);
@@ -1279,19 +1313,19 @@ async function broadcastTypingStatus(typing) {
 }
 
 async function updateTypingDisplay() {
-    const typingIndicator = document.getElementById('typingIndicator');
-    const typingAvatars = document.getElementById('typingAvatars');
+    var typingIndicator = document.getElementById('typingIndicator');
+    var typingAvatars = document.getElementById('typingAvatars');
     
     if (!typingIndicator || !typingAvatars) return;
     
-    const typingUserIds = Array.from(typingUsers.keys());
+    var typingUserIds = Array.from(typingUsers.keys());
     
     if (typingUserIds.length === 0) {
         typingIndicator.classList.add('hidden');
         return;
     }
     
-    const { data: profiles } = await supabase
+    var { data: profiles } = await supabase
         .from('profiles')
         .select('id, full_name')
         .in('id', typingUserIds);
@@ -1302,18 +1336,18 @@ async function updateTypingDisplay() {
     }
     
     typingAvatars.innerHTML = '';
-    profiles.slice(0, 3).forEach((profile) => {
-        const avatar = document.createElement('div');
+    profiles.slice(0, 3).forEach(function(profile) {
+        var avatar = document.createElement('div');
         avatar.className = 'typing-avatar';
-        avatar.textContent = profile.full_name?.charAt(0).toUpperCase() || '?';
+        avatar.textContent = profile.full_name ? profile.full_name.charAt(0).toUpperCase() : '?';
         avatar.title = profile.full_name || 'Someone';
         typingAvatars.appendChild(avatar);
     });
     
     if (profiles.length > 3) {
-        const moreAvatar = document.createElement('div');
+        var moreAvatar = document.createElement('div');
         moreAvatar.className = 'typing-avatar';
-        moreAvatar.textContent = `+${profiles.length - 3}`;
+        moreAvatar.textContent = '+' + (profiles.length - 3);
         typingAvatars.appendChild(moreAvatar);
     }
     
@@ -1323,56 +1357,56 @@ async function updateTypingDisplay() {
 // ================= SHOW ONLINE USERS MODAL =================
 async function showOnlineUsers() {
     try {
-        const onlineUserIds = Array.from(onlineUsers);
+        var onlineUserIds = Array.from(onlineUsers);
         
-        const { data: profiles, error } = await supabase
+        var { data: profiles, error } = await supabase
             .from('profiles')
             .select('id, full_name, email, role, state')
             .in('id', onlineUserIds);
         
         if (error) throw error;
         
-        const modal = document.createElement('div');
+        var modal = document.createElement('div');
         modal.className = 'online-users-modal';
         
-        let usersHtml = '';
-        profiles.forEach(user => {
-            const crown = user.role === 'admin' ? ' 👑' : '';
-            const userState = user.state ? ` • ${user.state}` : '';
+        var usersHtml = '';
+        profiles.forEach(function(user) {
+            var crown = user.role === 'admin' ? ' 👑' : '';
+            var userState = user.state ? ' • ' + user.state : '';
             
-            usersHtml += `
-                <div class="online-user-item">
-                    <div class="online-user-avatar">
-                        <i class="fas fa-user"></i>
-                    </div>
-                    <div class="online-user-info">
-                        <h4>${user.full_name || user.email}${crown}</h4>
-                        <p><i class="fas fa-circle"></i> Online now${userState}</p>
-                    </div>
-                    <span class="online-status-dot"></span>
-                </div>
-            `;
+            usersHtml += '\
+                <div class="online-user-item">\
+                    <div class="online-user-avatar">\
+                        <i class="fas fa-user"></i>\
+                    </div>\
+                    <div class="online-user-info">\
+                        <h4>' + (user.full_name || user.email) + crown + '</h4>\
+                        <p><i class="fas fa-circle"></i> Online now' + userState + '</p>\
+                    </div>\
+                    <span class="online-status-dot"></span>\
+                </div>\
+            ';
         });
         
-        modal.innerHTML = `
-            <div class="online-users-content">
-                <div class="online-users-header">
-                    <h3><i class="fas fa-users"></i> Online Members (${profiles.length})</h3>
-                    <button class="close-online-modal"><i class="fas fa-times"></i></button>
-                </div>
-                <div class="online-users-list">
-                    ${usersHtml}
-                </div>
-                <div class="online-users-footer">
-                    <i class="fas fa-globe"></i> Total online: ${profiles.length}
-                </div>
-            </div>
-        `;
+        modal.innerHTML = '\
+            <div class="online-users-content">\
+                <div class="online-users-header">\
+                    <h3><i class="fas fa-users"></i> Online Members (' + profiles.length + ')</h3>\
+                    <button class="close-online-modal"><i class="fas fa-times"></i></button>\
+                </div>\
+                <div class="online-users-list">\
+                    ' + usersHtml + '\
+                </div>\
+                <div class="online-users-footer">\
+                    <i class="fas fa-globe"></i> Total online: ' + profiles.length + '\
+                </div>\
+            </div>\
+        ';
         
         document.body.appendChild(modal);
         
-        modal.querySelector('.close-online-modal').onclick = () => modal.remove();
-        modal.onclick = (e) => {
+        modal.querySelector('.close-online-modal').onclick = function() { modal.remove(); };
+        modal.onclick = function(e) {
             if (e.target === modal) modal.remove();
         };
         
@@ -1383,10 +1417,10 @@ async function showOnlineUsers() {
 }
 
 function updateOnlineCount() {
-    const onlineCountEl = document.getElementById('onlineCount');
+    var onlineCountEl = document.getElementById('onlineCount');
     if (onlineCountEl) {
-        const count = onlineUsers.size;
-        onlineCountEl.innerHTML = `<i class="fas fa-circle" style="font-size: 8px; color: #10b981;"></i> ${count} online`;
+        var count = onlineUsers.size;
+        onlineCountEl.innerHTML = '<i class="fas fa-circle" style="font-size: 8px; color: #10b981;"></i> ' + count + ' online';
         onlineCountEl.style.cursor = 'pointer';
         onlineCountEl.onclick = showOnlineUsers;
     }
@@ -1395,7 +1429,7 @@ function updateOnlineCount() {
 // ================= MAIN CHAT FUNCTIONS =================
 async function loadChatData() {
     try {
-        const { data: { user }, error: userError } = await supabase.auth.getUser();
+        var { data: { user }, error: userError } = await supabase.auth.getUser();
         if (userError || !user) {
             window.location.href = '../index.html';
             return;
@@ -1417,9 +1451,9 @@ async function loadChatData() {
     }
 }
 
-// ================= SETUP CLICK OUTSIDE TO CANCEL REPLY - ULTIMATE FIX =================
+// ================= SETUP CLICK OUTSIDE TO CANCEL REPLY =================
 function setupClickOutsideCancel() {
-    document.addEventListener('click', (e) => {
+    document.addEventListener('click', function(e) {
         // Don't cancel if we have highlights
         if (highlightedMessages.size > 0) return;
         
@@ -1430,10 +1464,10 @@ function setupClickOutsideCancel() {
         if (!replyingTo && !pendingReply) return;
         
         // Get the clicked element
-        const clickedElement = e.target;
+        var clickedElement = e.target;
         
         // Check if click is on ANY interactive element related to replying
-        const isReplyElement = 
+        var isReplyElement = 
             clickedElement.closest('.reply-indicator') || // Reply indicator
             clickedElement.closest('#messageInput') || // Text input
             clickedElement.closest('.media-btn') || // Any media button
@@ -1452,8 +1486,9 @@ function setupClickOutsideCancel() {
         }
         
         // Check if click is on the reply button in context menu
-        const isReplyButton = clickedElement.closest('button') && 
-                             clickedElement.closest('button').innerHTML.includes('fa-reply');
+        var isReplyButton = clickedElement.closest('button') && 
+                           clickedElement.closest('button').innerHTML && 
+                           clickedElement.closest('button').innerHTML.includes('fa-reply');
         
         if (isReplyButton) {
             console.log("📝 Click on reply button - preserving reply");
@@ -1463,15 +1498,15 @@ function setupClickOutsideCancel() {
         // If we get here, it's a click outside - cancel the reply
         console.log("📝 Click outside - cancelling reply");
         cancelReply();
-    }, true); // Use capture phase to catch events early
+    }, true);
 }
 
-// ================= CREATE REPLY INDICATOR WITH ANIMATION - FIXED (NO DUPLICATE ICON) =================
+// ================= CREATE REPLY INDICATOR WITH ANIMATION =================
 function createReplyIndicator(senderName, messageContent, messageType) {
-    const existingIndicator = document.getElementById('replyIndicator');
+    var existingIndicator = document.getElementById('replyIndicator');
     if (existingIndicator) existingIndicator.remove();
     
-    let previewText = '';
+    var previewText = '';
     
     if (messageType === 'text') {
         previewText = messageContent.length > 50 ? messageContent.substring(0, 50) + '...' : messageContent;
@@ -1483,24 +1518,24 @@ function createReplyIndicator(senderName, messageContent, messageType) {
         previewText = '🎵 Voice message';
     }
     
-    const indicator = document.createElement('div');
+    var indicator = document.createElement('div');
     indicator.id = 'replyIndicator';
     indicator.className = 'reply-indicator';
-    indicator.innerHTML = `
-        <div class="reply-indicator-content">
-            <i class="fas fa-reply reply-indicator-icon"></i>
-            <div class="reply-indicator-text">
-                <span>Replying to ${senderName}</span>
-                <p>${previewText}</p>
-            </div>
-        </div>
-        <button class="reply-indicator-close" id="cancelReplyBtn">
-            <i class="fas fa-times"></i>
-        </button>
-    `;
+    indicator.innerHTML = '\
+        <div class="reply-indicator-content">\
+            <i class="fas fa-reply reply-indicator-icon"></i>\
+            <div class="reply-indicator-text">\
+                <span>Replying to ' + senderName + '</span>\
+                <p>' + previewText + '</p>\
+            </div>\
+        </div>\
+        <button class="reply-indicator-close" id="cancelReplyBtn">\
+            <i class="fas fa-times"></i>\
+        </button>\
+    ';
     
     // Insert indicator above messages
-    const messagesContainer = document.getElementById('messages');
+    var messagesContainer = document.getElementById('messages');
     messagesContainer.parentNode.insertBefore(indicator, messagesContainer);
     
     // Store reply info in both replyingTo and pendingReply for persistence
@@ -1518,12 +1553,12 @@ function createReplyIndicator(senderName, messageContent, messageType) {
     }
     
     // Add click handler for cancel button with stopPropagation
-    document.getElementById('cancelReplyBtn').addEventListener('click', (e) => {
+    document.getElementById('cancelReplyBtn').addEventListener('click', function(e) {
         e.stopPropagation();
         cancelReply();
     });
     
-    const messageInput = document.getElementById('messageInput');
+    var messageInput = document.getElementById('messageInput');
     if (messageInput) {
         messageInput.classList.add('replying');
         messageInput.focus();
@@ -1537,10 +1572,10 @@ function createReplyIndicator(senderName, messageContent, messageType) {
 
 function cancelReply() {
     console.log("❌ Cancelling reply, clearing pendingReply:", pendingReply);
-    const indicator = document.getElementById('replyIndicator');
+    var indicator = document.getElementById('replyIndicator');
     if (indicator) indicator.remove();
     
-    const messageInput = document.getElementById('messageInput');
+    var messageInput = document.getElementById('messageInput');
     if (messageInput) {
         messageInput.classList.remove('replying');
         messageInput.style.animation = 'none';
@@ -1555,16 +1590,16 @@ function cancelReply() {
 
 // ================= UPDATE MESSAGE STATUS =================
 function updateMessageStatus(messageId, status) {
-    const messageEl = document.querySelector(`.message[data-message-id="${messageId}"]`);
+    var messageEl = document.querySelector('.message[data-message-id="' + messageId + '"]');
     if (!messageEl) return;
     
-    const timeSpan = messageEl.querySelector('.time');
+    var timeSpan = messageEl.querySelector('.time');
     if (!timeSpan) return;
     
-    const existingStatus = timeSpan.querySelector('.message-status');
+    var existingStatus = timeSpan.querySelector('.message-status');
     if (existingStatus) existingStatus.remove();
     
-    const statusSpan = document.createElement('span');
+    var statusSpan = document.createElement('span');
     statusSpan.className = 'message-status';
     
     if (status === 'sent') {
@@ -1583,7 +1618,7 @@ function updateMessageStatus(messageId, status) {
 
 async function loadUserProfile(userId) {
     try {
-        const { data, error } = await supabase
+        var { data, error } = await supabase
             .from('profiles')
             .select('*')
             .eq('id', userId)
@@ -1594,10 +1629,10 @@ async function loadUserProfile(userId) {
         isAdmin = data.role === 'admin';
         console.log("User role:", data.role, "isAdmin:", isAdmin);
         
-        const userNameEl = document.getElementById('userName');
+        var userNameEl = document.getElementById('userName');
         if (userNameEl) userNameEl.textContent = data.full_name || 'Member';
         
-        const container = document.getElementById('memberSelectorContainer');
+        var container = document.getElementById('memberSelectorContainer');
         if (container) {
             if (isAdmin) {
                 container.style.display = 'block';
@@ -1617,7 +1652,7 @@ async function loadUserProfile(userId) {
 // ================= SEARCHABLE MEMBER DROPDOWN =================
 async function loadMembers() {
     try {
-        const { data, error } = await supabase
+        var { data, error } = await supabase
             .from('profiles')
             .select('id, full_name, email, state')
             .eq('is_approved', true)
@@ -1634,98 +1669,98 @@ async function loadMembers() {
 }
 
 function createSearchableMemberDropdown() {
-    const container = document.getElementById('memberSelectorContainer');
+    var container = document.getElementById('memberSelectorContainer');
     if (!container) return;
     
-    container.innerHTML = `
-        <div class="member-search-container">
-            <div class="member-search-input-wrapper">
-                <i class="fas fa-search member-search-icon"></i>
-                <input type="text" class="member-search-input" id="memberSearchInput" 
-                       placeholder="Search members... (type to search)" autocomplete="off">
-                <button class="member-search-clear" id="memberSearchClear">
-                    <i class="fas fa-times"></i>
-                </button>
-            </div>
-            <div class="member-search-results" id="memberSearchResults"></div>
-        </div>
-    `;
+    container.innerHTML = '\
+        <div class="member-search-container">\
+            <div class="member-search-input-wrapper">\
+                <i class="fas fa-search member-search-icon"></i>\
+                <input type="text" class="member-search-input" id="memberSearchInput" \
+                       placeholder="Search members... (type to search)" autocomplete="off">\
+                <button class="member-search-clear" id="memberSearchClear">\
+                    <i class="fas fa-times"></i>\
+                </button>\
+            </div>\
+            <div class="member-search-results" id="memberSearchResults"></div>\
+        </div>\
+    ';
     
-    const searchInput = document.getElementById('memberSearchInput');
-    const searchResults = document.getElementById('memberSearchResults');
-    const clearBtn = document.getElementById('memberSearchClear');
+    var searchInput = document.getElementById('memberSearchInput');
+    var searchResults = document.getElementById('memberSearchResults');
+    var clearBtn = document.getElementById('memberSearchClear');
     
     function searchMembers(query) {
         query = query.toLowerCase().trim();
         
         if (!query) {
-            searchResults.innerHTML = `
-                <div class="member-search-result-item" data-id="">
-                    <div class="member-result-avatar"><i class="fas fa-users"></i></div>
-                    <div class="member-result-info">
-                        <div class="member-result-name">👥 Group Chat</div>
-                        <div class="member-result-email">All members</div>
-                    </div>
-                    <span class="member-result-badge">group</span>
-                </div>
-                <div class="member-search-footer">Type to search members...</div>
-            `;
+            searchResults.innerHTML = '\
+                <div class="member-search-result-item" data-id="">\
+                    <div class="member-result-avatar"><i class="fas fa-users"></i></div>\
+                    <div class="member-result-info">\
+                        <div class="member-result-name">👥 Group Chat</div>\
+                        <div class="member-result-email">All members</div>\
+                    </div>\
+                    <span class="member-result-badge">group</span>\
+                </div>\
+                <div class="member-search-footer">Type to search members...</div>\
+            ';
             return;
         }
         
-        const filtered = allMembers.filter(member => 
-            (member.full_name && member.full_name.toLowerCase().includes(query)) ||
-            (member.email && member.email.toLowerCase().includes(query)) ||
-            (member.state && member.state.toLowerCase().includes(query))
-        );
-        
-        if (filtered.length === 0) {
-            searchResults.innerHTML = `
-                <div class="member-search-result-item" data-id="">
-                    <div class="member-result-avatar"><i class="fas fa-users"></i></div>
-                    <div class="member-result-info">
-                        <div class="member-result-name">👥 Group Chat</div>
-                        <div class="member-result-email">All members</div>
-                    </div>
-                    <span class="member-result-badge">group</span>
-                </div>
-                <div class="no-results-item">
-                    <i class="fas fa-user-slash"></i> No members found matching "${query}"
-                </div>
-            `;
-            return;
-        }
-        
-        let resultsHtml = `
-            <div class="member-search-result-item" data-id="">
-                <div class="member-result-avatar"><i class="fas fa-users"></i></div>
-                <div class="member-result-info">
-                    <div class="member-result-name">👥 Group Chat</div>
-                    <div class="member-result-email">All members</div>
-                </div>
-                <span class="member-result-badge">group</span>
-            </div>
-        `;
-        
-        filtered.forEach(member => {
-            resultsHtml += `
-                <div class="member-search-result-item" data-id="${member.id}">
-                    <div class="member-result-avatar"><i class="fas fa-user"></i></div>
-                    <div class="member-result-info">
-                        <div class="member-result-name">${member.full_name || 'Unnamed'}</div>
-                        <div class="member-result-email">${member.email}</div>
-                    </div>
-                    ${member.state ? `<span class="member-result-badge">${member.state}</span>` : ''}
-                </div>
-            `;
+        var filtered = allMembers.filter(function(member) {
+            return (member.full_name && member.full_name.toLowerCase().includes(query)) ||
+                   (member.email && member.email.toLowerCase().includes(query)) ||
+                   (member.state && member.state.toLowerCase().includes(query));
         });
         
-        resultsHtml += `<div class="member-search-footer">Found ${filtered.length} member${filtered.length !== 1 ? 's' : ''}</div>`;
+        if (filtered.length === 0) {
+            searchResults.innerHTML = '\
+                <div class="member-search-result-item" data-id="">\
+                    <div class="member-result-avatar"><i class="fas fa-users"></i></div>\
+                    <div class="member-result-info">\
+                        <div class="member-result-name">👥 Group Chat</div>\
+                        <div class="member-result-email">All members</div>\
+                    </div>\
+                    <span class="member-result-badge">group</span>\
+                </div>\
+                <div class="no-results-item">\
+                    <i class="fas fa-user-slash"></i> No members found matching "' + query + '"\
+                </div>\
+            ';
+            return;
+        }
+        
+        var resultsHtml = '\
+            <div class="member-search-result-item" data-id="">\
+                <div class="member-result-avatar"><i class="fas fa-users"></i></div>\
+                <div class="member-result-info">\
+                    <div class="member-result-name">👥 Group Chat</div>\
+                    <div class="member-result-email">All members</div>\
+                </div>\
+                <span class="member-result-badge">group</span>\
+            </div>\
+        ';
+        
+        filtered.forEach(function(member) {
+            resultsHtml += '\
+                <div class="member-search-result-item" data-id="' + member.id + '">\
+                    <div class="member-result-avatar"><i class="fas fa-user"></i></div>\
+                    <div class="member-result-info">\
+                        <div class="member-result-name">' + (member.full_name || 'Unnamed') + '</div>\
+                        <div class="member-result-email">' + member.email + '</div>\
+                    </div>' +
+                    (member.state ? '<span class="member-result-badge">' + member.state + '</span>' : '') + '\
+                </div>\
+            ';
+        });
+        
+        resultsHtml += '<div class="member-search-footer">Found ' + filtered.length + ' member' + (filtered.length !== 1 ? 's' : '') + '</div>';
         searchResults.innerHTML = resultsHtml;
     }
     
-    searchInput.addEventListener('input', (e) => {
-        const query = e.target.value;
+    searchInput.addEventListener('input', function(e) {
+        var query = e.target.value;
         searchMembers(query);
         searchResults.classList.add('show');
         
@@ -1736,23 +1771,24 @@ function createSearchableMemberDropdown() {
         }
     });
     
-    searchInput.addEventListener('focus', () => {
+    searchInput.addEventListener('focus', function() {
         searchMembers(searchInput.value);
         searchResults.classList.add('show');
     });
     
-    document.addEventListener('click', (e) => {
+    document.addEventListener('click', function(e) {
         if (!container.contains(e.target)) {
             searchResults.classList.remove('show');
         }
     });
     
-    searchResults.addEventListener('click', (e) => {
-        const resultItem = e.target.closest('.member-search-result-item');
+    searchResults.addEventListener('click', function(e) {
+        var resultItem = e.target.closest('.member-search-result-item');
         if (!resultItem) return;
         
-        const memberId = resultItem.dataset.id;
-        const memberName = resultItem.querySelector('.member-result-name')?.textContent || '';
+        var memberId = resultItem.dataset.id;
+        var memberNameElement = resultItem.querySelector('.member-result-name');
+        var memberName = memberNameElement ? memberNameElement.textContent : '';
         
         if (memberId === '') {
             selectedMemberId = null;
@@ -1763,7 +1799,7 @@ function createSearchableMemberDropdown() {
             selectedMemberId = memberId;
             currentChatPartner = memberId;
             searchInput.value = memberName.replace('👥 ', '').replace('👤 ', '');
-            searchInput.placeholder = `💬 Chatting with ${memberName}`;
+            searchInput.placeholder = '💬 Chatting with ' + memberName;
         }
         
         searchResults.classList.remove('show');
@@ -1772,7 +1808,7 @@ function createSearchableMemberDropdown() {
         loadGroupMessages();
     });
     
-    clearBtn.addEventListener('click', () => {
+    clearBtn.addEventListener('click', function() {
         searchInput.value = '';
         searchInput.placeholder = 'Search members... (type to search)';
         selectedMemberId = null;
@@ -1784,10 +1820,10 @@ function createSearchableMemberDropdown() {
         loadGroupMessages();
     });
     
-    searchInput.addEventListener('keypress', (e) => {
+    searchInput.addEventListener('keypress', function(e) {
         if (e.key === 'Enter') {
             e.preventDefault();
-            const firstResult = searchResults.querySelector('.member-search-result-item');
+            var firstResult = searchResults.querySelector('.member-search-result-item');
             if (firstResult) {
                 firstResult.click();
             }
@@ -1818,73 +1854,73 @@ function getMessagePreview(msg) {
 // ================= LOAD MESSAGES WITH PROPER PARENT SENDER INFO =================
 async function loadGroupMessages() {
     try {
-        const messagesContainer = document.getElementById('messages');
+        var messagesContainer = document.getElementById('messages');
         if (!messagesContainer) return;
         
-        messagesContainer.innerHTML = `<div class="loading-spinner"><i class="fas fa-spinner fa-spin"></i> Loading messages...</div>`;
+        messagesContainer.innerHTML = '<div class="loading-spinner"><i class="fas fa-spinner fa-spin"></i> Loading messages...</div>';
         
-        let query;
+        var query;
         
         if (isAdmin && currentChatPartner) {
             // Admin viewing private chat with specific member
             console.log("📨 Loading private messages between admin and member:", currentChatPartner);
             query = supabase
                 .from('chat_messages')
-                .select(`
-                    *,
-                    sender:sender_id(id, full_name, email, role),
-                    parent:parent_id(
-                        id,
-                        content,
-                        message_type,
-                        file_url,
-                        created_at,
-                        sender:sender_id(id, full_name, email, role)
-                    )
-                `)
-                .or(`and(sender_id.eq.${currentUser.id},receiver_id.eq.${currentChatPartner}),and(sender_id.eq.${currentChatPartner},receiver_id.eq.${currentUser.id})`)
+                .select('\
+                    *,\
+                    sender:sender_id(id, full_name, email, role),\
+                    parent:parent_id(\
+                        id,\
+                        content,\
+                        message_type,\
+                        file_url,\
+                        created_at,\
+                        sender:sender_id(id, full_name, email, role)\
+                    )\
+                ')
+                .or('and(sender_id.eq.' + currentUser.id + ',receiver_id.eq.' + currentChatPartner + '),and(sender_id.eq.' + currentChatPartner + ',receiver_id.eq.' + currentUser.id + ')')
                 .order('created_at', { ascending: true });
         } else if (!isAdmin) {
             // Regular member - show group messages AND their private messages
             console.log("📨 Loading messages for regular member");
             query = supabase
                 .from('chat_messages')
-                .select(`
-                    *,
-                    sender:sender_id(id, full_name, email, role),
-                    parent:parent_id(
-                        id,
-                        content,
-                        message_type,
-                        file_url,
-                        created_at,
-                        sender:sender_id(id, full_name, email, role)
-                    )
-                `)
-                .or(`receiver_id.is.null,and(sender_id.eq.${currentUser.id}),and(receiver_id.eq.${currentUser.id})`)
+                .select('\
+                    *,\
+                    sender:sender_id(id, full_name, email, role),\
+                    parent:parent_id(\
+                        id,\
+                        content,\
+                        message_type,\
+                        file_url,\
+                        created_at,\
+                        sender:sender_id(id, full_name, email, role)\
+                    )\
+                ')
+                .or('receiver_id.is.null,and(sender_id.eq.' + currentUser.id + '),and(receiver_id.eq.' + currentUser.id + ')')
                 .order('created_at', { ascending: true });
         } else {
             // Admin viewing group chat (default)
             console.log("📨 Loading group messages for admin");
             query = supabase
                 .from('chat_messages')
-                .select(`
-                    *,
-                    sender:sender_id(id, full_name, email, role),
-                    parent:parent_id(
-                        id,
-                        content,
-                        message_type,
-                        file_url,
-                        created_at,
-                        sender:sender_id(id, full_name, email, role)
-                    )
-                `)
+                .select('\
+                    *,\
+                    sender:sender_id(id, full_name, email, role),\
+                    parent:parent_id(\
+                        id,\
+                        content,\
+                        message_type,\
+                        file_url,\
+                        created_at,\
+                        sender:sender_id(id, full_name, email, role)\
+                    )\
+                ')
                 .is('receiver_id', null)
                 .order('created_at', { ascending: true });
         }
         
-        const { data: messages, error } = await query;
+        var { data: messages, error } = await query;
         
         if (error) {
             console.error("Error loading messages:", error);
@@ -1895,10 +1931,10 @@ async function loadGroupMessages() {
         
         if (!messages || messages.length === 0) {
             if (isAdmin && currentChatPartner) {
-                const member = allMembers.find(m => m.id === currentChatPartner);
-                messagesContainer.innerHTML = `<div class="empty-chat"><i class="fas fa-comments"></i><h3>No messages yet</h3><p>Start a private conversation with ${member?.full_name || 'this member'}!</p></div>`;
+                var member = allMembers.find(function(m) { return m.id === currentChatPartner; });
+                messagesContainer.innerHTML = '<div class="empty-chat"><i class="fas fa-comments"></i><h3>No messages yet</h3><p>Start a private conversation with ' + (member ? member.full_name : 'this member') + '!</p></div>';
             } else {
-                messagesContainer.innerHTML = `<div class="empty-chat"><i class="fas fa-comments"></i><h3>No messages yet</h3><p>Be the first to send a message!</p></div>`;
+                messagesContainer.innerHTML = '<div class="empty-chat"><i class="fas fa-comments"></i><h3>No messages yet</h3><p>Be the first to send a message!</p></div>';
             }
             return;
         }
@@ -1909,8 +1945,8 @@ async function loadGroupMessages() {
         await loadReactions();
         
         // Smart scroll positioning after messages load
-        setTimeout(() => {
-            const firstUnreadId = findFirstUnreadMessage();
+        setTimeout(function() {
+            var firstUnreadId = findFirstUnreadMessage();
             if (firstUnreadId) {
                 scrollToFirstUnread();
             } else {
@@ -1919,30 +1955,30 @@ async function loadGroupMessages() {
         }, 500);
         
         // Mark messages as read after loading
-        setTimeout(() => {
+        setTimeout(function() {
             markAllVisibleMessagesAsRead();
         }, 1000);
         
     } catch (err) {
         console.error("Error loading messages:", err);
-        const messagesContainer = document.getElementById('messages');
+        var messagesContainer = document.getElementById('messages');
         if (messagesContainer) {
-            messagesContainer.innerHTML = `<div class="empty-chat"><i class="fas fa-exclamation-triangle"></i><h3>Error loading messages</h3><p>Please refresh the page</p></div>`;
+            messagesContainer.innerHTML = '<div class="empty-chat"><i class="fas fa-exclamation-triangle"></i><h3>Error loading messages</h3><p>Please refresh the page</p></div>';
         }
     }
 }
 
 // ================= MARK MESSAGES AS READ =================
 function setupScrollListener() {
-    const messagesContainer = document.getElementById('messages');
+    var messagesContainer = document.getElementById('messages');
     if (!messagesContainer) return;
     
-    messagesContainer.addEventListener('scroll', () => {
+    messagesContainer.addEventListener('scroll', function() {
         if (messageReadTimer) clearTimeout(messageReadTimer);
         messageReadTimer = setTimeout(markAllVisibleMessagesAsRead, 500);
         
-        const isNearBottom = messagesContainer.scrollHeight - messagesContainer.scrollTop - messagesContainer.clientHeight < 100;
-        const jumpBtn = document.getElementById('jumpToBottomBtn');
+        var isNearBottom = messagesContainer.scrollHeight - messagesContainer.scrollTop - messagesContainer.clientHeight < 100;
+        var jumpBtn = document.getElementById('jumpToBottomBtn');
         
         if (jumpBtn) {
             if (!isNearBottom) {
@@ -1955,18 +1991,18 @@ function setupScrollListener() {
 }
 
 async function markAllVisibleMessagesAsRead() {
-    const messageElements = document.querySelectorAll('.message');
+    var messageElements = document.querySelectorAll('.message');
     if (messageElements.length === 0) return;
     
-    const unreadMessageIds = [];
+    var unreadMessageIds = [];
     
-    messageElements.forEach(el => {
-        const rect = el.getBoundingClientRect();
-        const isVisible = rect.top < window.innerHeight && rect.bottom > 0;
+    messageElements.forEach(function(el) {
+        var rect = el.getBoundingClientRect();
+        var isVisible = rect.top < window.innerHeight && rect.bottom > 0;
         
         if (isVisible) {
-            const messageId = el.dataset.messageId;
-            const timeSpan = el.querySelector('.time');
+            var messageId = el.dataset.messageId;
+            var timeSpan = el.querySelector('.time');
             
             if (el.classList.contains('received')) {
                 if (timeSpan && !timeSpan.innerHTML.includes('✓✓')) {
@@ -1978,17 +2014,17 @@ async function markAllVisibleMessagesAsRead() {
     
     if (unreadMessageIds.length === 0) return;
     
-    const { error } = await supabase
+    var { error } = await supabase
         .from('chat_messages')
         .update({ read_at: new Date().toISOString() })
         .in('id', unreadMessageIds)
         .is('read_at', null);
     
     if (!error) {
-        unreadMessageIds.forEach(id => {
-            const msgEl = document.querySelector(`.message[data-message-id="${id}"]`);
+        unreadMessageIds.forEach(function(id) {
+            var msgEl = document.querySelector('.message[data-message-id="' + id + '"]');
             if (msgEl && msgEl.classList.contains('received')) {
-                const timeSpan = msgEl.querySelector('.time');
+                var timeSpan = msgEl.querySelector('.time');
                 if (timeSpan && !timeSpan.innerHTML.includes('✓✓')) {
                     timeSpan.innerHTML = timeSpan.innerHTML.replace('✓', '✓✓');
                 }
@@ -2000,11 +2036,11 @@ async function markAllVisibleMessagesAsRead() {
 
 // ================= SCROLL TO MESSAGE =================
 window.scrollToMessage = function(messageId) {
-    const messageElement = document.querySelector(`.message[data-message-id="${messageId}"]`);
+    var messageElement = document.querySelector('.message[data-message-id="' + messageId + '"]');
     if (messageElement) {
         messageElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
         messageElement.style.backgroundColor = 'rgba(12, 143, 95, 0.3)';
-        setTimeout(() => {
+        setTimeout(function() {
             messageElement.style.backgroundColor = '';
         }, 2000);
     }
@@ -2030,49 +2066,48 @@ window.showReplyInput = function(parentId, senderName, messageContent, messageTy
 
 // ================= RENDER MESSAGES =================
 function renderMessages(messages) {
-    const container = document.getElementById('messages');
+    var container = document.getElementById('messages');
     if (!container) return;
     
-    let html = '';
-    let lastDate = '';
+    var html = '';
+    var lastDate = '';
     
-    messages.forEach(msg => {
-        const isSent = msg.sender_id === currentUser.id;
-        const isGroup = !msg.receiver_id;
-        const isPrivate = msg.receiver_id && (msg.receiver_id === currentUser.id || msg.sender_id === currentUser.id);
+    messages.forEach(function(msg) {
+        var isSent = msg.sender_id === currentUser.id;
+        var isGroup = !msg.receiver_id;
+        var isPrivate = msg.receiver_id && (msg.receiver_id === currentUser.id || msg.sender_id === currentUser.id);
         
-        const date = new Date(msg.created_at);
-        const today = new Date();
-        const yesterday = new Date(today);
+        var date = new Date(msg.created_at);
+        var today = new Date();
+        var yesterday = new Date(today);
         yesterday.setDate(yesterday.getDate() - 1);
         
-        let dateStr;
+        var dateStr;
         if (date.toDateString() === today.toDateString()) dateStr = 'Today';
         else if (date.toDateString() === yesterday.toDateString()) dateStr = 'Yesterday';
         else dateStr = date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
         
         if (lastDate !== dateStr) {
-            html += `<div class="date-separator"><span>${dateStr}</span></div>`;
+            html += '<div class="date-separator"><span>' + dateStr + '</span></div>';
             lastDate = dateStr;
         }
         
-        const timeStr = date.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
-        const senderName = msg.sender?.full_name || msg.sender?.email || 'Unknown';
-        const isAdminSender = msg.sender?.role === 'admin';
-        const crown = isAdminSender ? ' 👑' : '';
+        var timeStr = date.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+        var senderName = msg.sender ? (msg.sender.full_name || msg.sender.email || 'Unknown') : 'Unknown';
+        var isAdminSender = msg.sender && msg.sender.role === 'admin';
+        var crown = isAdminSender ? ' 👑' : '';
         
-        let messageTypeLabel = '';
+        var messageTypeLabel = '';
         if (isGroup) messageTypeLabel = 'Group';
         else if (isPrivate) messageTypeLabel = 'Private';
         
-        const isRead = msg.read_at !== null;
-        let status = 'sent';
+        var status = 'sent';
         if (msg.read_at) {
             status = 'seen';
         }
         
         // Status indicator
-        let statusIndicator = '';
+        var statusIndicator = '';
         if (isSent) {
             if (status === 'seen') {
                 statusIndicator = '<span class="message-status" style="color: #3498db;"> ✓✓</span>';
@@ -2083,51 +2118,51 @@ function renderMessages(messages) {
         
         // FOR SENT MESSAGES
         if (isSent) {
-            html += `
-                <div class="message sent" data-message-id="${msg.id}" data-sender="${senderName}" data-sender-id="${msg.sender_id}">
-                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 5px;">
-                        <small style="font-weight: bold;">You ${messageTypeLabel ? '• ' + messageTypeLabel : ''}</small>
-                    </div>
-                    
-                    ${renderQuotedMessage(msg.parent)}
-                    
-                    <div class="message-content-wrapper">
-                        <div class="message-content">${renderMessageContent(msg)}</div>
-                    </div>
-                    
-                    <span class="time">${timeStr}${statusIndicator}</span>
-                </div>
-            `;
+            html += '\
+                <div class="message sent" data-message-id="' + msg.id + '" data-sender="' + senderName + '" data-sender-id="' + msg.sender_id + '">\
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 5px;">\
+                        <small style="font-weight: bold;">You ' + (messageTypeLabel ? '• ' + messageTypeLabel : '') + '</small>\
+                    </div>\
+                    \
+                    ' + renderQuotedMessage(msg.parent) + '\
+                    \
+                    <div class="message-content-wrapper">\
+                        <div class="message-content">' + renderMessageContent(msg) + '</div>\
+                    </div>\
+                    \
+                    <span class="time">' + timeStr + statusIndicator + '</span>\
+                </div>\
+            ';
         } 
         // FOR RECEIVED MESSAGES
         else {
-            html += `
-                <div class="message received" data-message-id="${msg.id}" data-sender="${senderName}" data-sender-id="${msg.sender_id}">
-                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 5px;">
-                        <small style="font-weight: bold;">${senderName}${crown} ${messageTypeLabel ? '• ' + messageTypeLabel : ''}</small>
-                    </div>
-                    
-                    ${renderQuotedMessage(msg.parent)}
-                    
-                    <div class="message-content-wrapper">
-                        <div class="message-content">${renderMessageContent(msg)}</div>
-                    </div>
-                    
-                    <span class="time">${timeStr}</span>
-                </div>
-            `;
+            html += '\
+                <div class="message received" data-message-id="' + msg.id + '" data-sender="' + senderName + '" data-sender-id="' + msg.sender_id + '">\
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 5px;">\
+                        <small style="font-weight: bold;">' + senderName + crown + ' ' + (messageTypeLabel ? '• ' + messageTypeLabel : '') + '</small>\
+                    </div>\
+                    \
+                    ' + renderQuotedMessage(msg.parent) + '\
+                    \
+                    <div class="message-content-wrapper">\
+                        <div class="message-content">' + renderMessageContent(msg) + '</div>\
+                    </div>\
+                    \
+                    <span class="time">' + timeStr + '</span>\
+                </div>\
+            ';
         }
     });
     
     container.innerHTML = html;
     
     // Re-render reactions after messages are loaded
-    messageReactions.forEach((reactions, messageId) => {
+    messageReactions.forEach(function(reactions, messageId) {
         updateMessageReactions(messageId);
     });
     
     // Setup message event listeners
-    setTimeout(() => {
+    setTimeout(function() {
         setupMessageEventListeners();
     }, 100);
 }
@@ -2139,37 +2174,37 @@ function renderQuotedMessage(parentMsg) {
     console.log("📝 Rendering quoted message:", parentMsg);
     
     // Get sender name from the parent message's sender object
-    const senderName = parentMsg.sender?.full_name || parentMsg.sender?.email || 'Unknown';
-    let contentPreview = getMessagePreview(parentMsg);
+    var senderName = parentMsg.sender ? (parentMsg.sender.full_name || parentMsg.sender.email || 'Unknown') : 'Unknown';
+    var contentPreview = getMessagePreview(parentMsg);
     
-    return `
-        <div class="quoted-message" onclick="window.scrollToMessage('${parentMsg.id}')" style="cursor: pointer;">
-            <div class="quoted-sender">${senderName}</div>
-            <div class="quoted-content">${contentPreview}</div>
-        </div>
-    `;
+    return '\
+        <div class="quoted-message" onclick="window.scrollToMessage(\'' + parentMsg.id + '\')" style="cursor: pointer;">\
+            <div class="quoted-sender">' + senderName + '</div>\
+            <div class="quoted-content">' + contentPreview + '</div>\
+        </div>\
+    ';
 }
 
 // ================= FIXED RENDER MESSAGE CONTENT WITH SAFE URLS =================
 function renderMessageContent(msg) {
-    if (msg.message_type === 'text') return `<p>${msg.content || ''}</p>`;
+    if (msg.message_type === 'text') return '<p>' + (msg.content || '') + '</p>';
     
     if (msg.message_type === 'image') {
-        const imageUrl = safeUrl(msg.file_url);
+        var imageUrl = safeUrl(msg.file_url);
         if (!imageUrl) return '<p>Image not available</p>';
-        return `<img src="${imageUrl}" alt="Image" onclick="window.open('${imageUrl}')" style="max-width: 100%; cursor: pointer;">`;
+        return '<img src="' + imageUrl + '" alt="Image" onclick="window.open(\'' + imageUrl + '\')" style="max-width: 100%; cursor: pointer;">';
     }
     
     if (msg.message_type === 'video') {
-        const videoUrl = safeUrl(msg.file_url);
+        var videoUrl = safeUrl(msg.file_url);
         if (!videoUrl) return '<p>Video not available</p>';
-        return `<video controls style="max-width: 100%;"><source src="${videoUrl}"></video>`;
+        return '<video controls style="max-width: 100%;"><source src="' + videoUrl + '"></video>';
     }
     
     if (msg.message_type === 'audio') {
-        const audioUrl = safeUrl(msg.file_url);
+        var audioUrl = safeUrl(msg.file_url);
         if (!audioUrl) return '<p>Audio not available</p>';
-        return `<audio controls src="${audioUrl}" style="width: 280px; height: 40px;"></audio>`;
+        return '<audio controls src="' + audioUrl + '" style="width: 280px; height: 40px;"></audio>';
     }
     
     return '<p>Unsupported message type</p>';
@@ -2180,15 +2215,15 @@ function setupRealtimeSubscription() {
     
     messagesSubscription = supabase
         .channel('chat_messages_channel')
-        .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'chat_messages' }, (payload) => {
+        .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'chat_messages' }, function(payload) {
             handleNewMessage(payload.new);
         })
-        .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'chat_messages' }, (payload) => {
+        .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'chat_messages' }, function(payload) {
             if (payload.new.read_at && !payload.old.read_at) {
                 updateMessageStatus(payload.new.id, 'seen');
             }
         })
-        .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'chat_messages' }, (payload) => {
+        .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'chat_messages' }, function(payload) {
             console.log("Message deleted, refreshing...");
             loadGroupMessages();
         })
@@ -2196,7 +2231,7 @@ function setupRealtimeSubscription() {
 }
 
 async function handleNewMessage(newMessage) {
-    const isRelevant = 
+    var isRelevant = 
         (!newMessage.receiver_id && !currentChatPartner) ||
         (newMessage.receiver_id === currentUser.id && newMessage.sender_id === currentChatPartner) ||
         (newMessage.sender_id === currentUser.id && newMessage.receiver_id === currentChatPartner) ||
@@ -2207,34 +2242,57 @@ async function handleNewMessage(newMessage) {
     }
 }
 
-// ================= CHAT LISTENERS =================
+// ================= CHAT LISTENERS (UPDATED WITH ENTER KEY BEHAVIOR) =================
 function setupChatListeners() {
-    const sendBtn = document.getElementById('sendBtn');
-    const messageInput = document.getElementById('messageInput');
-    const imageBtn = document.getElementById('imageBtn');
-    const videoBtn = document.getElementById('videoBtn');
-    const voiceBtn = document.getElementById('voiceBtn');
-    const fileInput = document.getElementById('fileInput');
+    var sendBtn = document.getElementById('sendBtn');
+    var messageInput = document.getElementById('messageInput');
+    var imageBtn = document.getElementById('imageBtn');
+    var videoBtn = document.getElementById('videoBtn');
+    var voiceBtn = document.getElementById('voiceBtn');
+    var fileInput = document.getElementById('fileInput');
     
     if (sendBtn) sendBtn.addEventListener('click', sendMessage);
+    
     if (messageInput) {
-        messageInput.addEventListener('keypress', (e) => {
+        messageInput.addEventListener('keypress', function(e) {
+            // Check if Shift key is pressed (Shift+Enter for new line)
             if (e.key === 'Enter' && !e.shiftKey) {
-                e.preventDefault();
-                sendMessage();
+                // Enter without Shift
+                if (isTouchDevice) {
+                    // On mobile devices, Enter key should create a new line
+                    // So we don't prevent default, and we don't send
+                    console.log("📱 Mobile device: Enter creates new line");
+                    // Do nothing - let default behavior insert new line
+                } else {
+                    // On desktop, Enter sends the message
+                    console.log("💻 Desktop: Enter sends message");
+                    e.preventDefault();
+                    sendMessage();
+                }
+            }
+            // If Shift+Enter, let default behavior insert new line on all devices
+        });
+        
+        // Also add input event to handle mobile keyboard behavior
+        messageInput.addEventListener('keydown', function(e) {
+            // For mobile, we want to ensure the Enter key doesn't hide keyboard
+            if (isTouchDevice && e.key === 'Enter' && !e.shiftKey) {
+                // On mobile, let the default Enter behavior happen (new line)
+                console.log("📱 Mobile: Enter key - adding new line");
+                // Don't prevent default
             }
         });
     }
     
     if (imageBtn && fileInput) {
-        imageBtn.addEventListener('click', () => {
+        imageBtn.addEventListener('click', function() {
             fileInput.accept = 'image/*';
             fileInput.click();
         });
     }
     
     if (videoBtn && fileInput) {
-        videoBtn.addEventListener('click', () => {
+        videoBtn.addEventListener('click', function() {
             fileInput.accept = 'video/*';
             fileInput.click();
         });
@@ -2251,43 +2309,43 @@ function setupChatListeners() {
 
 // ================= VOICE RECORDING =================
 async function toggleVoiceRecording() {
-    const voiceBtn = document.getElementById('voiceBtn');
-    const timerDiv = document.getElementById('recordingTimer');
+    var voiceBtn = document.getElementById('voiceBtn');
+    var timerDiv = document.getElementById('recordingTimer');
     
     if (!mediaRecorder) {
         try {
-            const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+            var stream = await navigator.mediaDevices.getUserMedia({ audio: true });
             mediaRecorder = new MediaRecorder(stream);
             audioChunks = [];
             recordedAudio = null;
             recordedAudioUrl = null;
             
-            mediaRecorder.ondataavailable = e => {
+            mediaRecorder.ondataavailable = function(e) {
                 if (e.data.size > 0) {
                     audioChunks.push(e.data);
                 }
             };
             
-            const stopHandler = () => {
+            var stopHandler = function() {
                 isRecordingOperation = true;
                 
                 if (audioChunks.length === 0) {
-                    stream.getTracks().forEach(track => track.stop());
+                    stream.getTracks().forEach(function(track) { track.stop(); });
                     mediaRecorder = null;
-                    setTimeout(() => {
+                    setTimeout(function() {
                         isRecordingOperation = false;
                     }, 500);
                     return;
                 }
                 
-                const audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
+                var audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
                 recordedAudio = audioBlob;
                 recordedAudioUrl = URL.createObjectURL(audioBlob);
                 showAudioPreview(recordedAudioUrl);
-                stream.getTracks().forEach(track => track.stop());
+                stream.getTracks().forEach(function(track) { track.stop(); });
                 mediaRecorder = null;
                 
-                setTimeout(() => {
+                setTimeout(function() {
                     isRecordingOperation = false;
                 }, 1000);
             };
@@ -2302,9 +2360,9 @@ async function toggleVoiceRecording() {
             timerDiv.style.display = 'block';
             timerDiv.innerHTML = '🔴 Recording: 0s';
             
-            recordingTimer = setInterval(() => {
+            recordingTimer = setInterval(function() {
                 recordingSeconds++;
-                timerDiv.innerHTML = `🔴 Recording: ${recordingSeconds}s`;
+                timerDiv.innerHTML = '🔴 Recording: ' + recordingSeconds + 's';
             }, 1000);
             
         } catch (err) {
@@ -2323,25 +2381,25 @@ async function toggleVoiceRecording() {
 }
 
 function showAudioPreview(audioUrl) {
-    const existingPreview = document.getElementById('audioPreview');
+    var existingPreview = document.getElementById('audioPreview');
     if (existingPreview) existingPreview.remove();
     
-    const chatInput = document.querySelector('.chat-input-area');
-    const previewDiv = document.createElement('div');
+    var chatInput = document.querySelector('.chat-input-area');
+    var previewDiv = document.createElement('div');
     previewDiv.id = 'audioPreview';
-    previewDiv.style.cssText = `display: flex; align-items: center; gap: 10px; padding: 10px; background: var(--card-bg); border-radius: 8px; margin-bottom: 10px; width: 100%; flex-wrap: wrap;`;
+    previewDiv.style.cssText = 'display: flex; align-items: center; gap: 10px; padding: 10px; background: var(--card-bg); border-radius: 8px; margin-bottom: 10px; width: 100%; flex-wrap: wrap;';
     
-    previewDiv.innerHTML = `
-        <audio controls src="${audioUrl}" style="flex: 1; height: 40px; min-width: 200px;"></audio>
-        <div style="display: flex; gap: 5px;">
-            <button id="deletePreviewBtn" class="media-btn" style="background: var(--danger);"><i class="fas fa-trash"></i></button>
-            <button id="sendPreviewBtn" class="media-btn" style="background: var(--primary-color);"><i class="fas fa-paper-plane"></i></button>
-        </div>
-    `;
+    previewDiv.innerHTML = '\
+        <audio controls src="' + audioUrl + '" style="flex: 1; height: 40px; min-width: 200px;"></audio>\
+        <div style="display: flex; gap: 5px;">\
+            <button id="deletePreviewBtn" class="media-btn" style="background: var(--danger);"><i class="fas fa-trash"></i></button>\
+            <button id="sendPreviewBtn" class="media-btn" style="background: var(--primary-color);"><i class="fas fa-paper-plane"></i></button>\
+        </div>\
+    ';
     
     chatInput.parentNode.insertBefore(previewDiv, chatInput);
     
-    document.getElementById('deletePreviewBtn').addEventListener('click', () => {
+    document.getElementById('deletePreviewBtn').addEventListener('click', function() {
         if (recordedAudioUrl) {
             URL.revokeObjectURL(recordedAudioUrl);
             recordedAudio = null;
@@ -2350,7 +2408,7 @@ function showAudioPreview(audioUrl) {
         previewDiv.remove();
     });
     
-    document.getElementById('sendPreviewBtn').addEventListener('click', async () => {
+    document.getElementById('sendPreviewBtn').addEventListener('click', async function() {
         if (recordedAudio) {
             currentFile = new File([recordedAudio], 'voice-message.webm', { type: 'audio/webm' });
             currentFileType = 'audio';
@@ -2362,7 +2420,7 @@ function showAudioPreview(audioUrl) {
 
 // ================= FILE HANDLING =================
 function handleFileSelect(e) {
-    const file = e.target.files[0];
+    var file = e.target.files[0];
     if (!file) return;
     
     if (file.size > 50 * 1024 * 1024) {
@@ -2391,33 +2449,33 @@ function handleFileSelect(e) {
 }
 
 function showImagePreview(file) {
-    const reader = new FileReader();
-    reader.onload = (e) => {
-        const existingPreview = document.getElementById('mediaPreview');
+    var reader = new FileReader();
+    reader.onload = function(e) {
+        var existingPreview = document.getElementById('mediaPreview');
         if (existingPreview) existingPreview.remove();
         
-        const chatInput = document.querySelector('.chat-input-area');
-        const previewDiv = document.createElement('div');
+        var chatInput = document.querySelector('.chat-input-area');
+        var previewDiv = document.createElement('div');
         previewDiv.id = 'mediaPreview';
-        previewDiv.style.cssText = `display: flex; align-items: center; gap: 10px; padding: 10px; background: var(--card-bg); border-radius: 8px; margin-bottom: 10px; width: 100%; flex-wrap: wrap;`;
+        previewDiv.style.cssText = 'display: flex; align-items: center; gap: 10px; padding: 10px; background: var(--card-bg); border-radius: 8px; margin-bottom: 10px; width: 100%; flex-wrap: wrap;';
         
-        previewDiv.innerHTML = `
-            <img src="${e.target.result}" style="max-width: 80px; max-height: 80px; border-radius: 4px; object-fit: cover;">
-            <span style="flex: 1; color: var(--text-light); font-size: 14px; word-break: break-word;">${file.name}</span>
-            <div style="display: flex; gap: 5px;">
-                <button id="deletePreviewBtn" class="media-btn" style="background: var(--danger);"><i class="fas fa-trash"></i></button>
-                <button id="sendPreviewBtn" class="media-btn" style="background: var(--primary-color);"><i class="fas fa-paper-plane"></i></button>
-            </div>
-        `;
+        previewDiv.innerHTML = '\
+            <img src="' + e.target.result + '" style="max-width: 80px; max-height: 80px; border-radius: 4px; object-fit: cover;">\
+            <span style="flex: 1; color: var(--text-light); font-size: 14px; word-break: break-word;">' + file.name + '</span>\
+            <div style="display: flex; gap: 5px;">\
+                <button id="deletePreviewBtn" class="media-btn" style="background: var(--danger);"><i class="fas fa-trash"></i></button>\
+                <button id="sendPreviewBtn" class="media-btn" style="background: var(--primary-color);"><i class="fas fa-paper-plane"></i></button>\
+            </div>\
+        ';
         
         chatInput.parentNode.insertBefore(previewDiv, chatInput);
         
-        document.getElementById('deletePreviewBtn').addEventListener('click', () => {
+        document.getElementById('deletePreviewBtn').addEventListener('click', function() {
             currentFile = null;
             previewDiv.remove();
         });
         
-        document.getElementById('sendPreviewBtn').addEventListener('click', async () => {
+        document.getElementById('sendPreviewBtn').addEventListener('click', async function() {
             previewDiv.remove();
             await sendMessage();
         });
@@ -2426,33 +2484,33 @@ function showImagePreview(file) {
 }
 
 function showVideoPreview(file) {
-    const reader = new FileReader();
-    reader.onload = (e) => {
-        const existingPreview = document.getElementById('mediaPreview');
+    var reader = new FileReader();
+    reader.onload = function(e) {
+        var existingPreview = document.getElementById('mediaPreview');
         if (existingPreview) existingPreview.remove();
         
-        const chatInput = document.querySelector('.chat-input-area');
-        const previewDiv = document.createElement('div');
+        var chatInput = document.querySelector('.chat-input-area');
+        var previewDiv = document.createElement('div');
         previewDiv.id = 'mediaPreview';
-        previewDiv.style.cssText = `display: flex; align-items: center; gap: 10px; padding: 10px; background: var(--card-bg); border-radius: 8px; margin-bottom: 10px; width: 100%; flex-wrap: wrap;`;
+        previewDiv.style.cssText = 'display: flex; align-items: center; gap: 10px; padding: 10px; background: var(--card-bg); border-radius: 8px; margin-bottom: 10px; width: 100%; flex-wrap: wrap;';
         
-        previewDiv.innerHTML = `
-            <video src="${e.target.result}" style="max-width: 80px; max-height: 80px; border-radius: 4px;" controls></video>
-            <span style="flex: 1; color: var(--text-light); font-size: 14px; word-break: break-word;">${file.name}</span>
-            <div style="display: flex; gap: 5px;">
-                <button id="deletePreviewBtn" class="media-btn" style="background: var(--danger);"><i class="fas fa-trash"></i></button>
-                <button id="sendPreviewBtn" class="media-btn" style="background: var(--primary-color);"><i class="fas fa-paper-plane"></i></button>
-            </div>
-        `;
+        previewDiv.innerHTML = '\
+            <video src="' + e.target.result + '" style="max-width: 80px; max-height: 80px; border-radius: 4px;" controls></video>\
+            <span style="flex: 1; color: var(--text-light); font-size: 14px; word-break: break-word;">' + file.name + '</span>\
+            <div style="display: flex; gap: 5px;">\
+                <button id="deletePreviewBtn" class="media-btn" style="background: var(--danger);"><i class="fas fa-trash"></i></button>\
+                <button id="sendPreviewBtn" class="media-btn" style="background: var(--primary-color);"><i class="fas fa-paper-plane"></i></button>\
+            </div>\
+        ';
         
         chatInput.parentNode.insertBefore(previewDiv, chatInput);
         
-        document.getElementById('deletePreviewBtn').addEventListener('click', () => {
+        document.getElementById('deletePreviewBtn').addEventListener('click', function() {
             currentFile = null;
             previewDiv.remove();
         });
         
-        document.getElementById('sendPreviewBtn').addEventListener('click', async () => {
+        document.getElementById('sendPreviewBtn').addEventListener('click', async function() {
             previewDiv.remove();
             await sendMessage();
         });
@@ -2465,12 +2523,12 @@ async function uploadFile(file) {
     try {
         if (!file) throw new Error("No file to upload");
         
-        const fileName = file.name || 'voice-message.webm';
-        const fileExt = fileName.split('.').pop() || 'webm';
-        const uniqueFileName = `${currentUser.id}/${Date.now()}.${fileExt}`;
-        const filePath = `chat/${uniqueFileName}`;
+        var fileName = file.name || 'voice-message.webm';
+        var fileExt = fileName.split('.').pop() || 'webm';
+        var uniqueFileName = currentUser.id + '/' + Date.now() + '.' + fileExt;
+        var filePath = 'chat/' + uniqueFileName;
         
-        const { error: uploadError } = await supabase.storage
+        var { error: uploadError } = await supabase.storage
             .from('chat-files')
             .upload(filePath, file, {
                 cacheControl: '3600',
@@ -2480,7 +2538,7 @@ async function uploadFile(file) {
         
         if (uploadError) throw uploadError;
         
-        const { data: { publicUrl } } = supabase.storage
+        var { data: { publicUrl } } = supabase.storage
             .from('chat-files')
             .getPublicUrl(filePath);
         
@@ -2492,28 +2550,28 @@ async function uploadFile(file) {
     }
 }
 
-// ================= SEND MESSAGE (WITH PROPER REPLY HANDLING) - FINAL FIX =================
+// ================= SEND MESSAGE =================
 async function sendMessage() {
-    const messageInput = document.getElementById('messageInput');
-    const message = messageInput.value.trim();
+    var messageInput = document.getElementById('messageInput');
+    var message = messageInput.value.trim();
     
     if (!message && !currentFile && !recordedAudio) {
         alert("Please enter a message or select a file");
         return;
     }
     
-    const sendBtn = document.getElementById('sendBtn');
-    const originalText = sendBtn.innerHTML;
+    var sendBtn = document.getElementById('sendBtn');
+    var originalText = sendBtn.innerHTML;
     sendBtn.disabled = true;
     sendBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Sending...';
     
-    // Get reply data from pendingReply (most reliable source)
-    const replyToSend = pendingReply ? { ...pendingReply } : null;
+    // Get reply data from pendingReply
+    var replyToSend = pendingReply ? JSON.parse(JSON.stringify(pendingReply)) : null;
     
     console.log("📝 Final reply being sent:", replyToSend);
     
     try {
-        let messageData = {
+        var messageData = {
             sender_id: currentUser.id,
             message_type: 'text',
             content: message || '',
@@ -2538,7 +2596,7 @@ async function sendMessage() {
         if (currentFile && !recordedAudio) {
             try {
                 console.log("Processing file upload...");
-                const fileUrl = await uploadFile(currentFile);
+                var fileUrl = await uploadFile(currentFile);
                 messageData.message_type = currentFileType;
                 messageData.content = '';
                 messageData.file_url = fileUrl;
@@ -2556,7 +2614,7 @@ async function sendMessage() {
         if (recordedAudio) {
             try {
                 console.log("Processing audio upload...");
-                const fileUrl = await uploadFile(recordedAudio);
+                var fileUrl = await uploadFile(recordedAudio);
                 messageData.message_type = 'audio';
                 messageData.content = '';
                 messageData.file_url = fileUrl;
@@ -2579,7 +2637,7 @@ async function sendMessage() {
         
         console.log("Sending message to database:", messageData);
         
-        const { error } = await supabase
+        var { error } = await supabase
             .from('chat_messages')
             .insert([messageData]);
         
@@ -2591,7 +2649,7 @@ async function sendMessage() {
             return;
         }
         
-        console.log("✅ Message sent successfully! Reply to:", replyToSend?.id);
+        console.log("✅ Message sent successfully! Reply to:", replyToSend ? replyToSend.id : 'none');
         messageInput.value = '';
         
         // Clear reply indicator after sending
@@ -2600,10 +2658,10 @@ async function sendMessage() {
         }
         
         // Clear any previews
-        const mediaPreview = document.getElementById('mediaPreview');
+        var mediaPreview = document.getElementById('mediaPreview');
         if (mediaPreview) mediaPreview.remove();
         
-        const audioPreview = document.getElementById('audioPreview');
+        var audioPreview = document.getElementById('audioPreview');
         if (audioPreview) audioPreview.remove();
         
         // Show success notification
@@ -2620,11 +2678,11 @@ async function sendMessage() {
 
 // ================= LOGOUT =================
 function setupLogoutButtons() {
-    const logoutBtns = document.querySelectorAll('#logoutBtn, .logout-btn-sidebar');
+    var logoutBtns = document.querySelectorAll('#logoutBtn, .logout-btn-sidebar');
     
-    logoutBtns.forEach(btn => {
+    logoutBtns.forEach(function(btn) {
         if (btn) {
-            btn.addEventListener('click', async () => {
+            btn.addEventListener('click', async function() {
                 if (presenceSubscription) {
                     await presenceSubscription.untrack();
                     await presenceSubscription.unsubscribe();
@@ -2637,18 +2695,18 @@ function setupLogoutButtons() {
 }
 
 // Add date separator styles
-const style = document.createElement('style');
-style.textContent = `
-    .date-separator {
-        text-align: center;
-        margin: 20px 0 10px;
-    }
-    .date-separator span {
-        background: var(--card-bg, #12332b);
-        padding: 5px 15px;
-        border-radius: 20px;
-        font-size: 12px;
-        color: var(--text-muted, #9ca3af);
-    }
-`;
+var style = document.createElement('style');
+style.textContent = '\
+    .date-separator {\
+        text-align: center;\
+        margin: 20px 0 10px;\
+    }\
+    .date-separator span {\
+        background: var(--card-bg, #12332b);\
+        padding: 5px 15px;\
+        border-radius: 20px;\
+        font-size: 12px;\
+        color: var(--text-muted, #9ca3af);\
+    }\
+';
 document.head.appendChild(style);

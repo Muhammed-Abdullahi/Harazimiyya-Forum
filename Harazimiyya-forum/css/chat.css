@@ -25,14 +25,14 @@
 
 /* Light Theme - ALL ICONS BLACK */
 [data-theme="light"] {
-    --background-dark: #e5ded5;
+    --background-dark: #b9d3452a;
     --sidebar-bg: #0b5e3b;
     --card-bg: #ffffff;
-    --text-light: #303030;
+    --text-light: #000000;
     --text-muted: #667781;
-    --border-color: #e9edef;
-    --message-bg-sent: #dcf8c6;
-    --message-bg-received: #ffffff;
+    --border-color: #539626ad;
+    --message-bg-sent: #3a3f22fd;
+    --message-bg-received: #667c0567;
     --input-bg: #ffffff;
     --theme-toggle-bg: #ffffff;
     --seen-color: #34b7f1;
@@ -42,19 +42,20 @@
 
 /* Sepia Theme - ALL ICONS BLACK */
 [data-theme="sepia"] {
-    --background-dark: #f0e9db;
+    --background-dark: #25703185;
     --sidebar-bg: #8b5e3c;
-    --card-bg: #fff9ef;
-    --text-light: #5b4636;
-    --text-muted: #8b7a6b;
-    --border-color: #d4c5b5;
-    --message-bg-sent: #e6d5b8;
-    --message-bg-received: #fff9ef;
-    --input-bg: #fff9ef;
-    --theme-toggle-bg: #fff9ef;
-    --seen-color: #8b5e3c;
-    --icon-color: #000000; /* Black icons */
-    --media-icon-color: #000000; /* Black media icons */
+    --card-bg: #9bc08a;
+    --text-light: #0f0f0f;
+    --text-muted: #ecdfd4;
+    --border-color: #12530571;
+    --message-bg-sent: #0f3f06;
+    --message-bg-received: #d0f0d5;
+    --input-bg: #153805b6;
+    --theme-toggle-bg:     --background-dark: #25703185;
+
+    --seen-color: #e4dad1;
+    --icon-color: #f3ebeb; /* Black icons */
+    --media-icon-color: #2a7944; /* Black media icons */
 }
 
 /* Forest Theme - ALL ICONS BLACK */

@@ -588,3 +588,251 @@ button[onclick="forceRefreshCount()"]:active {
         font-size: 0.55rem;
     }
 }
+
+
+
+
+
+/* ================= PROFILE PICTURE UPLOAD STYLES ================= */
+.user-avatar {
+    cursor: pointer;
+    transition: all 0.3s ease;
+    position: relative;
+}
+
+.user-avatar:hover {
+    transform: scale(1.05);
+    box-shadow: 0 4px 15px rgba(255, 215, 0, 0.3);
+}
+
+.user-avatar:hover::after {
+    content: '\f030'; /* Camera icon */
+    font-family: 'Font Awesome 6 Free';
+    font-weight: 900;
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    color: white;
+    font-size: 20px;
+    background: rgba(0, 0, 0, 0.5);
+    width: 100%;
+    height: 100%;
+    border-radius: 16px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.logo-area {
+    cursor: default;
+    transition: all 0.3s ease;
+    position: relative;
+}
+
+.logo-area[data-admin="true"] {
+    cursor: pointer;
+}
+
+.logo-area[data-admin="true"]:hover {
+    transform: scale(1.05);
+}
+
+.logo-area[data-admin="true"]:hover::after {
+    content: '\f030'; /* Camera icon */
+    font-family: 'Font Awesome 6 Free';
+    font-weight: 900;
+    position: absolute;
+    top: 50%;
+    left: 25px;
+    transform: translateY(-50%);
+    color: #ffd700;
+    font-size: 16px;
+    background: rgba(0, 0, 0, 0.5);
+    padding: 4px 8px;
+    border-radius: 4px;
+}
+
+/* Profile modal animations */
+@keyframes slideIn {
+    from {
+        transform: translateX(100%);
+        opacity: 0;
+    }
+    to {
+        transform: translateX(0);
+        opacity: 1;
+    }
+}
+
+/* Welcome name styling */
+.welcome-section h2 span {
+    color: #0b5e3b;
+    font-weight: 600;
+}
+
+/* Make sure user avatar images display properly */
+.user-avatar img {
+    width: 100%;
+    height: 100%;
+    border-radius: 16px;
+    object-fit: cover;
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+    .user-avatar:hover::after {
+        font-size: 16px;
+    }
+    
+    .logo-area[data-admin="true"]:hover::after {
+        font-size: 14px;
+        left: 20px;
+        padding: 2px 6px;
+    }
+}
+
+
+
+
+/* ================= ENLARGED GROUP LOGO STYLES ================= */
+.logo-area {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    transition: all 0.3s ease;
+    position: relative;
+}
+
+/* Normal icon size */
+.logo-area i {
+    font-size: 32px; /* Slightly larger than before */
+    color: #ffd700;
+}
+
+/* Enlarged image for group logo */
+.logo-area img {
+    width: 48px !important;  /* Increased from 32px to 48px */
+    height: 48px !important; /* Increased from 32px to 48px */
+    border-radius: 12px !important; /* Slightly rounded corners */
+    object-fit: cover !important;
+    border: 2px solid rgba(255, 215, 0, 0.5); /* Gold border */
+    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.3); /* Subtle shadow for depth */
+    transition: all 0.3s ease;
+}
+
+/* Logo text styling */
+.logo-text {
+    font-size: 20px;
+    font-weight: 700;
+    letter-spacing: 0.5px;
+    color: white;
+}
+
+/* Hover effect for logo image */
+.logo-area img:hover {
+    transform: scale(1.05);
+    border-color: #ffd700;
+    box-shadow: 0 6px 15px rgba(255, 215, 0, 0.4);
+}
+
+/* Admin hover camera icon - adjusted for larger logo */
+.logo-area[data-admin="true"]:hover::after {
+    content: '\f030'; /* Camera icon */
+    font-family: 'Font Awesome 6 Free';
+    font-weight: 900;
+    position: absolute;
+    top: 50%;
+    left: 36px; /* Adjusted for larger logo (48px/2 + some offset) */
+    transform: translateY(-50%);
+    color: #ffd700;
+    font-size: 18px; /* Slightly larger icon */
+    background: rgba(0, 0, 0, 0.6);
+    padding: 6px 10px;
+    border-radius: 20px;
+    white-space: nowrap;
+    z-index: 10;
+    pointer-events: none;
+}
+
+/* Mobile responsive adjustments */
+@media (max-width: 768px) {
+    .logo-area img {
+        width: 42px !important;  /* Slightly smaller on mobile but still visible */
+        height: 42px !important;
+    }
+    
+    .logo-area i {
+        font-size: 28px; /* Adjusted for mobile */
+    }
+    
+    .logo-text {
+        font-size: 18px; /* Slightly smaller text on mobile */
+    }
+    
+    .logo-area[data-admin="true"]:hover::after {
+        left: 32px;
+        font-size: 16px;
+        padding: 4px 8px;
+    }
+}
+
+/* Small phones */
+@media (max-width: 480px) {
+    .logo-area img {
+        width: 38px !important;
+        height: 38px !important;
+    }
+    
+    .logo-area i {
+        font-size: 24px;
+    }
+    
+    .logo-text {
+        font-size: 16px;
+    }
+    
+    .logo-area[data-admin="true"]:hover::after {
+        left: 28px;
+        font-size: 14px;
+        padding: 3px 6px;
+    }
+}
+
+/* Very small phones */
+@media (max-width: 360px) {
+    .logo-area img {
+        width: 34px !important;
+        height: 34px !important;
+    }
+    
+    .logo-area i {
+        font-size: 22px;
+    }
+    
+    .logo-text {
+        font-size: 14px;
+    }
+    
+    .logo-area[data-admin="true"]:hover::after {
+        left: 26px;
+        font-size: 12px;
+        padding: 2px 5px;
+    }
+}
+
+/* Also update the sidebar header padding to accommodate larger logo */
+.sidebar-header {
+    padding: 20px 24px; /* Slightly adjusted padding */
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+/* Make sure the close button stays properly aligned */
+.close-sidebar {
+    width: 40px;
+    height: 40px;
+    flex-shrink: 0;
+}

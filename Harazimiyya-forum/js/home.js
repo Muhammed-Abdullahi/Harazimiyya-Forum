@@ -3,6 +3,8 @@ console.log("🏠 HOME PAGE LOADING");
 
 // Global variables
 let currentUserId = null;
+let currentUserProfile = null;
+let isAdmin = false;
 
 document.addEventListener('DOMContentLoaded', async function() {
     console.log("DOM loaded, initializing home page...");
@@ -91,6 +93,11 @@ async function loadHomeData() {
         setupLogoutButtons();
         setupClickableBoxes();
         
+        // Setup profile picture upload functionality
+        setTimeout(() => {
+            setupProfilePictureUploads();
+        }, 500);
+        
     } catch (err) {
         console.error("Home initialization error:", err);
     }
@@ -134,14 +141,550 @@ async function loadUserProfile(userId) {
             return loadUserProfile(userId);
         }
         
-        console.log("Profile loaded:", data.full_name);
+        currentUserProfile = data;
+        isAdmin = data.role === 'admin';
         
-        const userNameEl = document.getElementById('userName');
-        if (userNameEl) userNameEl.textContent = data.full_name || 'Member';
+        console.log("Profile loaded:", data.full_name);
+        console.log("Is Admin:", isAdmin);
+        
+        // Update user name in multiple places
+        updateUserNames(data.full_name);
+        
+        // Load profile picture if exists
+        if (data.avatar_url) {
+            updateProfilePictures(data.avatar_url);
+        }
+        
+        // Load group logo if admin
+        if (isAdmin) {
+            loadGroupLogo();
+        }
         
     } catch (err) {
         console.error("Error loading profile:", err);
     }
+}
+
+// ===== Format name to show only last name after Welcome =====
+function formatWelcomeName(fullName) {
+    if (!fullName || fullName === 'Member') return 'Member';
+    
+    // Split the name by spaces
+    const nameParts = fullName.trim().split(' ');
+    
+    // If there's at least 2 parts (first and last name)
+    if (nameParts.length >= 2) {
+        // Return the last part (assumes format: "First Last")
+        return nameParts[nameParts.length - 1];
+    }
+    
+    // If only one part, return that part
+    return nameParts[0];
+}
+
+// ===== Update all user name displays =====
+function updateUserNames(fullName) {
+    // Update sidebar user name
+    const sidebarUserName = document.getElementById('sidebarUserName');
+    if (sidebarUserName) {
+        sidebarUserName.textContent = fullName || 'Member';
+    }
+    
+    // Update welcome message with formatted name
+    const welcomeNameEl = document.getElementById('welcomeName');
+    if (welcomeNameEl) {
+        const formattedName = formatWelcomeName(fullName);
+        welcomeNameEl.textContent = formattedName;
+    }
+}
+
+// ===== Update profile pictures =====
+function updateProfilePictures(avatarUrl) {
+    // Update sidebar user avatar
+    const userAvatar = document.querySelector('.user-avatar');
+    if (userAvatar) {
+        if (avatarUrl) {
+            userAvatar.innerHTML = `<img src="${avatarUrl}" alt="Profile" style="width: 100%; height: 100%; border-radius: 16px; object-fit: cover;">`;
+        } else {
+            userAvatar.innerHTML = '<i class="fas fa-user"></i>';
+        }
+    }
+}
+
+// ===== Load group logo =====
+async function loadGroupLogo() {
+    try {
+        const { data, error } = await window.supabase
+            .from('group_settings')
+            .select('logo_url')
+            .eq('id', 1)
+            .single();
+        
+        if (error) {
+            console.log("No group logo found or table doesn't exist");
+            return;
+        }
+        
+        if (data && data.logo_url) {
+            const logoArea = document.querySelector('.logo-area');
+            if (logoArea) {
+                const existingIcon = logoArea.querySelector('i');
+                if (existingIcon) {
+                    existingIcon.outerHTML = `<img src="${data.logo_url}" alt="Group Logo" style="width: 32px; height: 32px; border-radius: 8px; object-fit: cover;">`;
+                }
+            }
+        }
+        
+    } catch (err) {
+        console.error("Error loading group logo:", err);
+    }
+}
+
+// ===== Setup profile picture uploads =====
+function setupProfilePictureUploads() {
+    // Make user avatar clickable for profile picture upload
+    const userAvatar = document.querySelector('.user-avatar');
+    if (userAvatar) {
+        userAvatar.style.cursor = 'pointer';
+        userAvatar.title = 'Click to upload profile picture';
+        
+        userAvatar.addEventListener('click', function(e) {
+            e.preventDefault();
+            e.stopPropagation();
+            showProfilePictureOptions('user');
+        });
+    }
+    
+    // Make group logo clickable ONLY for admin
+    const logoArea = document.querySelector('.logo-area');
+    if (logoArea && isAdmin) {
+        logoArea.style.cursor = 'pointer';
+        logoArea.title = 'Click to change group logo (Admin only)';
+        logoArea.setAttribute('data-admin', 'true');
+        
+        logoArea.addEventListener('click', function(e) {
+            e.preventDefault();
+            e.stopPropagation();
+            showProfilePictureOptions('group');
+        });
+    }
+}
+
+// ===== Show profile picture options =====
+function showProfilePictureOptions(type) {
+    // Remove any existing modal
+    const existingModal = document.querySelector('.profile-modal');
+    if (existingModal) existingModal.remove();
+    
+    const modal = document.createElement('div');
+    modal.className = 'profile-modal';
+    modal.style.cssText = `
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background: rgba(0, 0, 0, 0.5);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        z-index: 10000;
+        animation: fadeIn 0.2s ease;
+    `;
+    
+    const content = document.createElement('div');
+    content.style.cssText = `
+        background: white;
+        border-radius: 16px;
+        padding: 24px;
+        max-width: 320px;
+        width: 90%;
+        box-shadow: 0 20px 40px rgba(0, 0, 0, 0.3);
+        animation: slideUp 0.2s ease;
+    `;
+    
+    const title = type === 'user' ? 'Profile Picture' : 'Group Logo';
+    
+    content.innerHTML = `
+        <h3 style="margin: 0 0 16px 0; color: #0b5e3b; font-size: 18px;">${title}</h3>
+        <div style="display: flex; flex-direction: column; gap: 12px;">
+            <button id="uploadProfileBtn" style="padding: 12px; background: #0b5e3b; color: white; border: none; border-radius: 8px; cursor: pointer; font-size: 14px;">
+                <i class="fas fa-upload"></i> Upload New Picture
+            </button>
+            <button id="deleteProfileBtn" style="padding: 12px; background: #dc3545; color: white; border: none; border-radius: 8px; cursor: pointer; font-size: 14px;">
+                <i class="fas fa-trash"></i> Delete Picture
+            </button>
+            <button id="cancelProfileBtn" style="padding: 12px; background: #f0f0f0; color: #333; border: none; border-radius: 8px; cursor: pointer; font-size: 14px;">
+                <i class="fas fa-times"></i> Cancel
+            </button>
+        </div>
+    `;
+    
+    modal.appendChild(content);
+    document.body.appendChild(modal);
+    
+    // Create hidden file input
+    const fileInput = document.createElement('input');
+    fileInput.type = 'file';
+    fileInput.accept = 'image/*';
+    fileInput.style.display = 'none';
+    document.body.appendChild(fileInput);
+    
+    document.getElementById('uploadProfileBtn').addEventListener('click', function() {
+        fileInput.click();
+    });
+    
+    document.getElementById('deleteProfileBtn').addEventListener('click', function() {
+        modal.remove();
+        if (type === 'user') {
+            deleteProfilePicture();
+        } else {
+            deleteGroupLogo();
+        }
+        fileInput.remove();
+    });
+    
+    document.getElementById('cancelProfileBtn').addEventListener('click', function() {
+        modal.remove();
+        fileInput.remove();
+    });
+    
+    modal.addEventListener('click', function(e) {
+        if (e.target === modal) {
+            modal.remove();
+            fileInput.remove();
+        }
+    });
+    
+    fileInput.addEventListener('change', function(e) {
+        const file = e.target.files[0];
+        if (file) {
+            modal.remove();
+            if (type === 'user') {
+                uploadProfilePicture(file);
+            } else {
+                uploadGroupLogo(file);
+            }
+        }
+        fileInput.remove();
+    });
+}
+
+// ===== FIXED: Upload profile picture =====
+async function uploadProfilePicture(file) {
+    if (!file || !currentUserId) return;
+    
+    try {
+        // Show loading state
+        showNotification('Uploading...', 'info');
+        
+        // Check file type
+        if (!file.type.startsWith('image/')) {
+            showNotification('Please select an image file (JPEG, PNG, GIF, WEBP)', 'error');
+            return;
+        }
+        
+        // Check file size (max 5MB)
+        if (file.size > 5 * 1024 * 1024) {
+            showNotification('File too large. Max size is 5MB', 'error');
+            return;
+        }
+        
+        // Upload to Supabase Storage - FIXED PATH
+        const fileExt = file.name.split('.').pop();
+        const fileName = `${currentUserId}/profile.${fileExt}`;
+        const filePath = fileName;
+        
+        console.log('Uploading to path:', filePath);
+        
+        const { error: uploadError } = await window.supabase.storage
+            .from('profile-pictures')
+            .upload(filePath, file, {
+                cacheControl: '3600',
+                upsert: true
+            });
+        
+        if (uploadError) throw uploadError;
+        
+        // Get public URL
+        const { data: urlData } = window.supabase.storage
+            .from('profile-pictures')
+            .getPublicUrl(filePath);
+        
+        const publicUrl = urlData.publicUrl;
+        console.log('File uploaded, public URL:', publicUrl);
+        
+        // Update profile with avatar URL
+        const { error: updateError } = await window.supabase
+            .from('profiles')
+            .update({ avatar_url: publicUrl })
+            .eq('id', currentUserId);
+        
+        if (updateError) throw updateError;
+        
+        // Update UI
+        updateProfilePictures(publicUrl);
+        
+        showNotification('✅ Profile picture updated!', 'success');
+        
+    } catch (err) {
+        console.error("Error uploading profile picture:", err);
+        
+        if (err.message && err.message.includes('Bucket not found')) {
+            showNotification('Storage bucket not configured. Please contact admin.', 'error');
+        } else if (err.message && err.message.includes('mime type')) {
+            showNotification('Please select a valid image file (JPEG, PNG, GIF, WEBP)', 'error');
+        } else {
+            showNotification('❌ Failed to upload picture: ' + (err.message || 'Unknown error'), 'error');
+        }
+    }
+}
+
+// ===== Delete profile picture =====
+async function deleteProfilePicture() {
+    if (!currentUserId) return;
+    
+    try {
+        // Show confirmation
+        if (!await confirmAction('Delete profile picture?')) return;
+        
+        // Update profile to remove avatar URL
+        const { error } = await window.supabase
+            .from('profiles')
+            .update({ avatar_url: null })
+            .eq('id', currentUserId);
+        
+        if (error) throw error;
+        
+        // Update UI
+        const userAvatar = document.querySelector('.user-avatar');
+        if (userAvatar) {
+            userAvatar.innerHTML = '<i class="fas fa-user"></i>';
+        }
+        
+        showNotification('✅ Profile picture deleted!', 'success');
+        
+    } catch (err) {
+        console.error("Error deleting profile picture:", err);
+        showNotification('❌ Failed to delete picture', 'error');
+    }
+}
+
+// ===== FIXED: Upload group logo =====
+async function uploadGroupLogo(file) {
+    if (!file || !isAdmin) return;
+    
+    try {
+        // Show loading state
+        showNotification('Uploading group logo...', 'info');
+        
+        // Check file type
+        if (!file.type.startsWith('image/')) {
+            showNotification('Please select an image file (JPEG, PNG, GIF, WEBP)', 'error');
+            return;
+        }
+        
+        // Check file size (max 10MB)
+        if (file.size > 10 * 1024 * 1024) {
+            showNotification('File too large. Max size is 10MB', 'error');
+            return;
+        }
+        
+        // Upload to Supabase Storage
+        const fileExt = file.name.split('.').pop();
+        const fileName = `group-logo.${fileExt}`;
+        const filePath = fileName;
+        
+        console.log('Uploading group logo to:', filePath);
+        
+        const { error: uploadError } = await window.supabase.storage
+            .from('group-assets')
+            .upload(filePath, file, {
+                cacheControl: '3600',
+                upsert: true
+            });
+        
+        if (uploadError) throw uploadError;
+        
+        // Get public URL
+        const { data: urlData } = window.supabase.storage
+            .from('group-assets')
+            .getPublicUrl(filePath);
+        
+        const publicUrl = urlData.publicUrl;
+        console.log('Group logo uploaded, URL:', publicUrl);
+        
+        // Update group_settings
+        const { error: upsertError } = await window.supabase
+            .from('group_settings')
+            .upsert({ 
+                id: 1, 
+                logo_url: publicUrl, 
+                updated_at: new Date().toISOString(), 
+                updated_by: currentUserId 
+            });
+        
+        if (upsertError) throw upsertError;
+        
+        // Update UI
+        const logoArea = document.querySelector('.logo-area');
+        if (logoArea) {
+            const existingIcon = logoArea.querySelector('i');
+            if (existingIcon) {
+                existingIcon.outerHTML = `<img src="${publicUrl}" alt="Group Logo" style="width: 32px; height: 32px; border-radius: 8px; object-fit: cover;">`;
+            } else {
+                const existingImg = logoArea.querySelector('img');
+                if (existingImg) {
+                    existingImg.src = publicUrl;
+                } else {
+                    logoArea.innerHTML = `<img src="${publicUrl}" alt="Group Logo" style="width: 32px; height: 32px; border-radius: 8px; object-fit: cover;"><span class="logo-text">Harazimiyya</span>`;
+                }
+            }
+        }
+        
+        showNotification('✅ Group logo updated!', 'success');
+        
+    } catch (err) {
+        console.error("Error uploading group logo:", err);
+        
+        if (err.message && err.message.includes('Bucket not found')) {
+            showNotification('Storage bucket not configured. Please contact admin.', 'error');
+        } else if (err.message && err.message.includes('mime type')) {
+            showNotification('Please select a valid image file (JPEG, PNG, GIF, WEBP)', 'error');
+        } else {
+            showNotification('❌ Failed to upload group logo: ' + (err.message || 'Unknown error'), 'error');
+        }
+    }
+}
+
+// ===== Delete group logo =====
+async function deleteGroupLogo() {
+    if (!isAdmin) return;
+    
+    try {
+        // Show confirmation
+        if (!await confirmAction('Delete group logo?')) return;
+        
+        // Update settings to remove logo URL
+        const { error } = await window.supabase
+            .from('group_settings')
+            .update({ logo_url: null })
+            .eq('id', 1);
+        
+        if (error) throw error;
+        
+        // Update UI
+        const logoArea = document.querySelector('.logo-area');
+        if (logoArea) {
+            const existingImg = logoArea.querySelector('img');
+            if (existingImg) {
+                existingImg.outerHTML = '<i class="fas fa-mosque"></i>';
+            } else {
+                const icon = logoArea.querySelector('i');
+                if (icon) icon.className = 'fas fa-mosque';
+            }
+        }
+        
+        showNotification('✅ Group logo deleted!', 'success');
+        
+    } catch (err) {
+        console.error("Error deleting group logo:", err);
+        showNotification('❌ Failed to delete group logo', 'error');
+    }
+}
+
+// ===== Confirm action helper =====
+function confirmAction(message) {
+    return new Promise((resolve) => {
+        const modal = document.createElement('div');
+        modal.style.cssText = `
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.5);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 10001;
+            animation: fadeIn 0.2s ease;
+        `;
+        
+        const content = document.createElement('div');
+        content.style.cssText = `
+            background: white;
+            border-radius: 16px;
+            padding: 24px;
+            max-width: 280px;
+            width: 90%;
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.3);
+            animation: slideUp 0.2s ease;
+        `;
+        
+        content.innerHTML = `
+            <p style="margin: 0 0 20px 0; color: #333; font-size: 16px;">${message}</p>
+            <div style="display: flex; gap: 12px;">
+                <button id="confirmYesBtn" style="flex: 1; padding: 10px; background: #dc3545; color: white; border: none; border-radius: 8px; cursor: pointer;">Yes</button>
+                <button id="confirmNoBtn" style="flex: 1; padding: 10px; background: #f0f0f0; color: #333; border: none; border-radius: 8px; cursor: pointer;">No</button>
+            </div>
+        `;
+        
+        modal.appendChild(content);
+        document.body.appendChild(modal);
+        
+        document.getElementById('confirmYesBtn').onclick = function() {
+            modal.remove();
+            resolve(true);
+        };
+        
+        document.getElementById('confirmNoBtn').onclick = function() {
+            modal.remove();
+            resolve(false);
+        };
+        
+        modal.onclick = function(e) {
+            if (e.target === modal) {
+                modal.remove();
+                resolve(false);
+            }
+        };
+    });
+}
+
+// ===== Show notification =====
+function showNotification(message, type) {
+    // Remove existing notification
+    const existing = document.querySelector('.home-notification');
+    if (existing) existing.remove();
+    
+    const notification = document.createElement('div');
+    notification.className = 'home-notification';
+    
+    let bgColor = '#3b82f6'; // info blue
+    if (type === 'success') bgColor = '#10b981';
+    if (type === 'error') bgColor = '#ef4444';
+    
+    notification.style.cssText = `
+        position: fixed;
+        top: 20px;
+        right: 20px;
+        padding: 12px 20px;
+        background: ${bgColor};
+        color: white;
+        border-radius: 8px;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+        z-index: 10002;
+        animation: slideIn 0.3s ease;
+        font-size: 14px;
+        max-width: 300px;
+    `;
+    notification.textContent = message;
+    document.body.appendChild(notification);
+    
+    setTimeout(() => {
+        notification.remove();
+    }, 3000);
 }
 
 // ================= LOAD ALL COUNTS =================
@@ -213,21 +756,16 @@ async function loadEventCount() {
 }
 
 // ================= FIXED UNREAD MESSAGES COUNT =================
-// This now counts only messages from OTHER people (not sent by current user)
 async function loadUnreadMessageCount(userId) {
     try {
         console.log("📨 Counting unread messages from OTHER people for user:", userId);
         
-        // Count messages that are:
-        // 1. Relevant to this user (group messages OR private messages to them)
-        // 2. Unread (read_at is null)
-        // 3. NOT sent by the current user (neq sender_id)
         const { count, error } = await window.supabase
             .from('chat_messages')
             .select('*', { count: 'exact', head: true })
             .or(`receiver_id.is.null,receiver_id.eq.${userId}`)
             .is('read_at', null)
-            .neq('sender_id', userId); // EXCLUDE messages sent by current user
+            .neq('sender_id', userId);
         
         if (error) {
             console.error("Error counting unread messages:", error);
@@ -320,4 +858,37 @@ function setupClickableBoxes() {
             window.location.href = 'chat.html';
         });
     }
+}
+
+// Add animation styles if they don't exist
+if (!document.getElementById('homeAnimationStyles')) {
+    const style = document.createElement('style');
+    style.id = 'homeAnimationStyles';
+    style.textContent = `
+        @keyframes slideIn {
+            from {
+                transform: translateX(100%);
+                opacity: 0;
+            }
+            to {
+                transform: translateX(0);
+                opacity: 1;
+            }
+        }
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+        @keyframes slideUp {
+            from {
+                transform: translateY(20px);
+                opacity: 0;
+            }
+            to {
+                transform: translateY(0);
+                opacity: 1;
+            }
+        }
+    `;
+    document.head.appendChild(style);
 }
