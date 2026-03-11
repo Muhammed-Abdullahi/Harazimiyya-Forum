@@ -61,7 +61,7 @@ let firstUnreadMessageId = null;
 const themes = ['dark', 'light', 'sepia', 'forest'];
 let currentTheme = localStorage.getItem('chatTheme') || 'dark';
 
-// ===== NEW: Detect if device is mobile/touch device =====
+// ===== MAKE isTouchDevice GLOBAL =====
 let isTouchDevice = false;
 
 document.addEventListener('DOMContentLoaded', function() {
@@ -71,6 +71,11 @@ document.addEventListener('DOMContentLoaded', function() {
     isTouchDevice = ('ontouchstart' in window) || 
                     (navigator.maxTouchPoints > 0) || 
                     (navigator.msMaxTouchPoints > 0);
+    
+    // Also check screen width as additional mobile detection
+    if (window.innerWidth <= 768) {
+        isTouchDevice = true;
+    }
     
     console.log("📱 Touch device detected:", isTouchDevice);
     
@@ -2242,7 +2247,7 @@ async function handleNewMessage(newMessage) {
     }
 }
 
-// ================= COMPLETELY FIXED ANDROID ENTER KEY BEHAVIOR =================
+// ================= COMPLETELY REWRITTEN ANDROID ENTER KEY FIX =================
 function setupChatListeners() {
     var sendBtn = document.getElementById('sendBtn');
     var messageInput = document.getElementById('messageInput');
@@ -2254,61 +2259,58 @@ function setupChatListeners() {
     if (sendBtn) sendBtn.addEventListener('click', sendMessage);
     
     if (messageInput) {
-        // Set inputmode to text on mobile to show return key
-        if (isTouchDevice) {
-            messageInput.setAttribute('inputmode', 'text');
-            messageInput.setAttribute('enterkeyhint', 'enter');
-        }
+        // Force mobile detection based on screen width AND touch capabilities
+        var isMobileDevice = isTouchDevice || window.innerWidth <= 768;
+        console.log("📱 Device detection - isTouchDevice:", isTouchDevice, "isMobileDevice:", isMobileDevice);
         
-        // Store the last keydown time to prevent double events
-        let lastKeyTime = 0;
+        // Set mobile attributes
+        messageInput.setAttribute('inputmode', 'text');
+        messageInput.setAttribute('enterkeyhint', 'enter');
         
-        // Handle keydown for Enter key - COMPLETELY REWRITTEN FOR ANDROID
+        // Remove all existing listeners to avoid conflicts
+        var newInput = messageInput.cloneNode(true);
+        messageInput.parentNode.replaceChild(newInput, messageInput);
+        messageInput = newInput;
+        
+        // Simple, direct handler for Enter key
         messageInput.addEventListener('keydown', function(e) {
-            // Prevent duplicate events
-            const now = Date.now();
-            if (now - lastKeyTime < 100) {
-                e.preventDefault();
-                return false;
-            }
-            lastKeyTime = now;
+            console.log('Key pressed:', e.key, 'Shift:', e.shiftKey);
             
             if (e.key === 'Enter') {
-                if (isTouchDevice) {
-                    // ON ANDROID: Always create a new line
-                    console.log("📱 Android: Creating new line");
+                // Check if this is a mobile device
+                var isMobile = isTouchDevice || window.innerWidth <= 768;
+                
+                if (isMobile) {
+                    // MOBILE: Always insert a new line
+                    console.log('📱 MOBILE MODE: Inserting new line');
                     
                     // Get current cursor position
-                    const start = this.selectionStart;
-                    const end = this.selectionEnd;
+                    var start = this.selectionStart;
+                    var end = this.selectionEnd;
+                    var value = this.value;
                     
-                    // Get current value
-                    const value = this.value;
-                    
-                    // Insert new line at cursor position
+                    // Insert new line at cursor
                     this.value = value.substring(0, start) + '\n' + value.substring(end);
                     
-                    // Move cursor after the new line
+                    // Move cursor after new line
                     this.selectionStart = this.selectionEnd = start + 1;
                     
-                    // Prevent default completely - this stops the keyboard from changing case
+                    // Prevent ALL default behavior
                     e.preventDefault();
                     e.stopPropagation();
                     
                     // Trigger input event for typing indicator
-                    const inputEvent = new Event('input', { bubbles: true });
+                    var inputEvent = new Event('input', { bubbles: true });
                     this.dispatchEvent(inputEvent);
                     
                     return false;
                 } else {
-                    // ON DESKTOP: Enter sends, Shift+Enter new line
+                    // DESKTOP: Enter sends, Shift+Enter new line
                     if (e.shiftKey) {
-                        // Shift+Enter creates new line
-                        console.log("💻 Desktop: Shift+Enter - new line");
+                        console.log('💻 DESKTOP MODE: Shift+Enter - new line');
                         return true; // Let default happen
                     } else {
-                        // Enter sends message
-                        console.log("💻 Desktop: Enter - sending message");
+                        console.log('💻 DESKTOP MODE: Enter - send message');
                         e.preventDefault();
                         sendMessage();
                         return false;
@@ -2317,17 +2319,7 @@ function setupChatListeners() {
             }
         }, true); // Use capture phase to catch event early
         
-        // Remove keypress handler for mobile to avoid conflicts
-        if (!isTouchDevice) {
-            messageInput.addEventListener('keypress', function(e) {
-                if (e.key === 'Enter' && !e.shiftKey) {
-                    e.preventDefault();
-                    sendMessage();
-                }
-            });
-        }
-        
-        // Add input event for typing indicator
+        // Typing indicator
         messageInput.addEventListener('input', function() {
             if (!isTyping) {
                 isTyping = true;
@@ -2342,6 +2334,7 @@ function setupChatListeners() {
         });
     }
     
+    // File upload buttons
     if (imageBtn && fileInput) {
         imageBtn.addEventListener('click', function() {
             fileInput.accept = 'image/*';
