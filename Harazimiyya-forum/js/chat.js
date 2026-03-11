@@ -2247,7 +2247,7 @@ async function handleNewMessage(newMessage) {
     }
 }
 
-// ================= COMPLETELY REWRITTEN ANDROID ENTER KEY FIX =================
+// ================= ULTIMATE ANDROID ENTER KEY FIX =================
 function setupChatListeners() {
     var sendBtn = document.getElementById('sendBtn');
     var messageInput = document.getElementById('messageInput');
@@ -2259,47 +2259,53 @@ function setupChatListeners() {
     if (sendBtn) sendBtn.addEventListener('click', sendMessage);
     
     if (messageInput) {
-        // Force mobile detection based on screen width AND touch capabilities
-        var isMobileDevice = isTouchDevice || window.innerWidth <= 768;
-        console.log("📱 Device detection - isTouchDevice:", isTouchDevice, "isMobileDevice:", isMobileDevice);
+        // Force mobile detection
+        var isMobile = isTouchDevice || window.innerWidth <= 768;
+        console.log("📱 Device detection - isTouchDevice:", isTouchDevice, "isMobileDevice:", isMobile);
         
         // Set mobile attributes
         messageInput.setAttribute('inputmode', 'text');
         messageInput.setAttribute('enterkeyhint', 'enter');
         
-        // Remove all existing listeners to avoid conflicts
+        // Remove all existing listeners by cloning and replacing
         var newInput = messageInput.cloneNode(true);
         messageInput.parentNode.replaceChild(newInput, messageInput);
         messageInput = newInput;
         
-        // Simple, direct handler for Enter key
+        // Track last key time to prevent double events
+        var lastKeyTime = 0;
+        
+        // Single event handler for Enter key
         messageInput.addEventListener('keydown', function(e) {
-            console.log('Key pressed:', e.key, 'Shift:', e.shiftKey);
+            var now = Date.now();
+            
+            // Prevent duplicate events
+            if (now - lastKeyTime < 100) {
+                e.preventDefault();
+                e.stopPropagation();
+                return false;
+            }
+            lastKeyTime = now;
             
             if (e.key === 'Enter') {
-                // Check if this is a mobile device
-                var isMobile = isTouchDevice || window.innerWidth <= 768;
-                
                 if (isMobile) {
-                    // MOBILE: Always insert a new line
-                    console.log('📱 MOBILE MODE: Inserting new line');
+                    // MOBILE: Insert new line and prevent all default behavior
+                    console.log('📱 MOBILE: Inserting new line at position', this.selectionStart);
                     
-                    // Get current cursor position
+                    e.preventDefault();
+                    e.stopPropagation();
+                    
                     var start = this.selectionStart;
                     var end = this.selectionEnd;
                     var value = this.value;
                     
-                    // Insert new line at cursor
+                    // Insert new line
                     this.value = value.substring(0, start) + '\n' + value.substring(end);
                     
-                    // Move cursor after new line
+                    // Move cursor
                     this.selectionStart = this.selectionEnd = start + 1;
                     
-                    // Prevent ALL default behavior
-                    e.preventDefault();
-                    e.stopPropagation();
-                    
-                    // Trigger input event for typing indicator
+                    // Trigger input event
                     var inputEvent = new Event('input', { bubbles: true });
                     this.dispatchEvent(inputEvent);
                     
@@ -2307,17 +2313,35 @@ function setupChatListeners() {
                 } else {
                     // DESKTOP: Enter sends, Shift+Enter new line
                     if (e.shiftKey) {
-                        console.log('💻 DESKTOP MODE: Shift+Enter - new line');
-                        return true; // Let default happen
+                        console.log('💻 DESKTOP: Shift+Enter - new line');
+                        return true;
                     } else {
-                        console.log('💻 DESKTOP MODE: Enter - send message');
+                        console.log('💻 DESKTOP: Enter - sending message');
                         e.preventDefault();
                         sendMessage();
                         return false;
                     }
                 }
             }
-        }, true); // Use capture phase to catch event early
+        }, true); // Use capture phase
+        
+        // Prevent keypress event from interfering
+        messageInput.addEventListener('keypress', function(e) {
+            if (e.key === 'Enter' && isMobile) {
+                e.preventDefault();
+                e.stopPropagation();
+                return false;
+            }
+        });
+        
+        // Prevent keyup event from interfering
+        messageInput.addEventListener('keyup', function(e) {
+            if (e.key === 'Enter' && isMobile) {
+                e.preventDefault();
+                e.stopPropagation();
+                return false;
+            }
+        });
         
         // Typing indicator
         messageInput.addEventListener('input', function() {
