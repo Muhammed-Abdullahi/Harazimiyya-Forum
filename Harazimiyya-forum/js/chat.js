@@ -1568,14 +1568,6 @@ function createReplyIndicator(senderName, messageContent, messageType) {
         messageInput.classList.add('replying');
         messageInput.focus();
         
-        // For contenteditable, set cursor position
-        var range = document.createRange();
-        var sel = window.getSelection();
-        range.selectNodeContents(messageInput);
-        range.collapse(false);
-        sel.removeAllRanges();
-        sel.addRange(range);
-        
         // Force animation to restart
         messageInput.style.animation = 'none';
         messageInput.offsetHeight; // Trigger reflow
@@ -2255,7 +2247,7 @@ async function handleNewMessage(newMessage) {
     }
 }
 
-// ================= COMPLETE REWRITE USING CONTENTEDITABLE DIV =================
+// ================= SIMPLE, GUARANTEED ANDROID ENTER KEY FIX =================
 function setupChatListeners() {
     var sendBtn = document.getElementById('sendBtn');
     var messageInput = document.getElementById('messageInput');
@@ -2267,38 +2259,27 @@ function setupChatListeners() {
     if (sendBtn) sendBtn.addEventListener('click', sendMessage);
     
     if (messageInput) {
-        // Force mobile detection
-        var isMobile = isTouchDevice || window.innerWidth <= 768;
-        console.log("📱 Device detection - isTouchDevice:", isTouchDevice, "isMobileDevice:", isMobile);
+        // Simple detection - if it's a touch device or small screen
+        var isMobile = ('ontouchstart' in window) || window.innerWidth <= 768;
+        console.log("📱 Mobile mode:", isMobile);
         
-        // Remove all existing listeners by cloning and replacing
-        var newInput = messageInput.cloneNode(true);
-        messageInput.parentNode.replaceChild(newInput, messageInput);
-        messageInput = newInput;
+        // Remove any existing listeners (simple approach)
+        var newTextarea = messageInput.cloneNode(true);
+        messageInput.parentNode.replaceChild(newTextarea, messageInput);
+        messageInput = newTextarea;
         
-        // Handle Enter key for contenteditable
+        // ONE simple event handler
         messageInput.addEventListener('keydown', function(e) {
             if (e.key === 'Enter') {
                 if (isMobile) {
-                    // MOBILE: Insert a new line and prevent default
-                    console.log('📱 MOBILE: Inserting new line');
-                    
-                    // Insert line break at cursor position
-                    document.execCommand('insertLineBreak');
-                    
-                    // Prevent default behavior (which would submit or toggle caps)
-                    e.preventDefault();
-                    e.stopPropagation();
-                    
-                    return false;
+                    // Mobile: ALWAYS let the default happen (new line)
+                    // We don't prevent anything, just let Android do its thing
+                    console.log("📱 Mobile: Letting Enter create new line");
+                    return true; // Let default behavior happen
                 } else {
-                    // DESKTOP: Enter sends, Shift+Enter new line
-                    if (e.shiftKey) {
-                        console.log('💻 DESKTOP: Shift+Enter - new line');
-                        // Let default happen (inserts line break)
-                        return true;
-                    } else {
-                        console.log('💻 DESKTOP: Enter - sending message');
+                    // Desktop: Enter sends, Shift+Enter new line
+                    if (!e.shiftKey) {
+                        console.log("💻 Desktop: Enter - sending message");
                         e.preventDefault();
                         sendMessage();
                         return false;
@@ -2307,24 +2288,7 @@ function setupChatListeners() {
             }
         });
         
-        // Prevent other events from interfering
-        messageInput.addEventListener('keypress', function(e) {
-            if (e.key === 'Enter' && isMobile) {
-                e.preventDefault();
-                e.stopPropagation();
-                return false;
-            }
-        });
-        
-        messageInput.addEventListener('keyup', function(e) {
-            if (e.key === 'Enter' && isMobile) {
-                e.preventDefault();
-                e.stopPropagation();
-                return false;
-            }
-        });
-        
-        // Typing indicator
+        // Typing indicator (unchanged)
         messageInput.addEventListener('input', function() {
             if (!isTyping) {
                 isTyping = true;
@@ -2337,16 +2301,9 @@ function setupChatListeners() {
                 broadcastTypingStatus(false);
             }, 1000);
         });
-        
-        // Handle paste to maintain plain text
-        messageInput.addEventListener('paste', function(e) {
-            e.preventDefault();
-            var text = (e.originalEvent || e).clipboardData.getData('text/plain');
-            document.execCommand('insertText', false, text);
-        });
     }
     
-    // File upload buttons
+    // File upload buttons (unchanged)
     if (imageBtn && fileInput) {
         imageBtn.addEventListener('click', function() {
             fileInput.accept = 'image/*';
@@ -2613,10 +2570,10 @@ async function uploadFile(file) {
     }
 }
 
-// ================= UPDATED SEND MESSAGE FOR CONTENTEDITABLE =================
+// ================= SEND MESSAGE =================
 async function sendMessage() {
     var messageInput = document.getElementById('messageInput');
-    var message = messageInput.innerText.trim();
+    var message = messageInput.value.trim();
     
     if (!message && !currentFile && !recordedAudio) {
         alert("Please enter a message or select a file");
@@ -2713,9 +2670,7 @@ async function sendMessage() {
         }
         
         console.log("✅ Message sent successfully! Reply to:", replyToSend ? replyToSend.id : 'none');
-        
-        // Clear the contenteditable div
-        messageInput.innerHTML = '';
+        messageInput.value = '';
         
         // Clear reply indicator after sending
         if (replyToSend) {
