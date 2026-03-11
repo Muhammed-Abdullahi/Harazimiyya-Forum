@@ -1568,6 +1568,14 @@ function createReplyIndicator(senderName, messageContent, messageType) {
         messageInput.classList.add('replying');
         messageInput.focus();
         
+        // For contenteditable, set cursor position
+        var range = document.createRange();
+        var sel = window.getSelection();
+        range.selectNodeContents(messageInput);
+        range.collapse(false);
+        sel.removeAllRanges();
+        sel.addRange(range);
+        
         // Force animation to restart
         messageInput.style.animation = 'none';
         messageInput.offsetHeight; // Trigger reflow
@@ -2247,7 +2255,7 @@ async function handleNewMessage(newMessage) {
     }
 }
 
-// ================= ULTIMATE ANDROID ENTER KEY FIX =================
+// ================= COMPLETE REWRITE USING CONTENTEDITABLE DIV =================
 function setupChatListeners() {
     var sendBtn = document.getElementById('sendBtn');
     var messageInput = document.getElementById('messageInput');
@@ -2263,57 +2271,31 @@ function setupChatListeners() {
         var isMobile = isTouchDevice || window.innerWidth <= 768;
         console.log("📱 Device detection - isTouchDevice:", isTouchDevice, "isMobileDevice:", isMobile);
         
-        // Set mobile attributes
-        messageInput.setAttribute('inputmode', 'text');
-        messageInput.setAttribute('enterkeyhint', 'enter');
-        
         // Remove all existing listeners by cloning and replacing
         var newInput = messageInput.cloneNode(true);
         messageInput.parentNode.replaceChild(newInput, messageInput);
         messageInput = newInput;
         
-        // Track last key time to prevent double events
-        var lastKeyTime = 0;
-        
-        // Single event handler for Enter key
+        // Handle Enter key for contenteditable
         messageInput.addEventListener('keydown', function(e) {
-            var now = Date.now();
-            
-            // Prevent duplicate events
-            if (now - lastKeyTime < 100) {
-                e.preventDefault();
-                e.stopPropagation();
-                return false;
-            }
-            lastKeyTime = now;
-            
             if (e.key === 'Enter') {
                 if (isMobile) {
-                    // MOBILE: Insert new line and prevent all default behavior
-                    console.log('📱 MOBILE: Inserting new line at position', this.selectionStart);
+                    // MOBILE: Insert a new line and prevent default
+                    console.log('📱 MOBILE: Inserting new line');
                     
+                    // Insert line break at cursor position
+                    document.execCommand('insertLineBreak');
+                    
+                    // Prevent default behavior (which would submit or toggle caps)
                     e.preventDefault();
                     e.stopPropagation();
-                    
-                    var start = this.selectionStart;
-                    var end = this.selectionEnd;
-                    var value = this.value;
-                    
-                    // Insert new line
-                    this.value = value.substring(0, start) + '\n' + value.substring(end);
-                    
-                    // Move cursor
-                    this.selectionStart = this.selectionEnd = start + 1;
-                    
-                    // Trigger input event
-                    var inputEvent = new Event('input', { bubbles: true });
-                    this.dispatchEvent(inputEvent);
                     
                     return false;
                 } else {
                     // DESKTOP: Enter sends, Shift+Enter new line
                     if (e.shiftKey) {
                         console.log('💻 DESKTOP: Shift+Enter - new line');
+                        // Let default happen (inserts line break)
                         return true;
                     } else {
                         console.log('💻 DESKTOP: Enter - sending message');
@@ -2323,9 +2305,9 @@ function setupChatListeners() {
                     }
                 }
             }
-        }, true); // Use capture phase
+        });
         
-        // Prevent keypress event from interfering
+        // Prevent other events from interfering
         messageInput.addEventListener('keypress', function(e) {
             if (e.key === 'Enter' && isMobile) {
                 e.preventDefault();
@@ -2334,7 +2316,6 @@ function setupChatListeners() {
             }
         });
         
-        // Prevent keyup event from interfering
         messageInput.addEventListener('keyup', function(e) {
             if (e.key === 'Enter' && isMobile) {
                 e.preventDefault();
@@ -2355,6 +2336,13 @@ function setupChatListeners() {
                 isTyping = false;
                 broadcastTypingStatus(false);
             }, 1000);
+        });
+        
+        // Handle paste to maintain plain text
+        messageInput.addEventListener('paste', function(e) {
+            e.preventDefault();
+            var text = (e.originalEvent || e).clipboardData.getData('text/plain');
+            document.execCommand('insertText', false, text);
         });
     }
     
@@ -2625,10 +2613,10 @@ async function uploadFile(file) {
     }
 }
 
-// ================= SEND MESSAGE =================
+// ================= UPDATED SEND MESSAGE FOR CONTENTEDITABLE =================
 async function sendMessage() {
     var messageInput = document.getElementById('messageInput');
-    var message = messageInput.value.trim();
+    var message = messageInput.innerText.trim();
     
     if (!message && !currentFile && !recordedAudio) {
         alert("Please enter a message or select a file");
@@ -2725,7 +2713,9 @@ async function sendMessage() {
         }
         
         console.log("✅ Message sent successfully! Reply to:", replyToSend ? replyToSend.id : 'none');
-        messageInput.value = '';
+        
+        // Clear the contenteditable div
+        messageInput.innerHTML = '';
         
         // Clear reply indicator after sending
         if (replyToSend) {
