@@ -2242,7 +2242,7 @@ async function handleNewMessage(newMessage) {
     }
 }
 
-// ================= CHAT LISTENERS (UPDATED WITH ENTER KEY BEHAVIOR) =================
+// ================= UPDATED CHAT LISTENERS WITH FIXED ANDROID ENTER KEY BEHAVIOR =================
 function setupChatListeners() {
     var sendBtn = document.getElementById('sendBtn');
     var messageInput = document.getElementById('messageInput');
@@ -2254,33 +2254,58 @@ function setupChatListeners() {
     if (sendBtn) sendBtn.addEventListener('click', sendMessage);
     
     if (messageInput) {
-        messageInput.addEventListener('keypress', function(e) {
-            // Check if Shift key is pressed (Shift+Enter for new line)
-            if (e.key === 'Enter' && !e.shiftKey) {
-                // Enter without Shift
+        // Set inputmode to text on mobile to show return key instead of send/go
+        if (isTouchDevice) {
+            messageInput.setAttribute('inputmode', 'text');
+            messageInput.setAttribute('enterkeyhint', 'enter'); // Shows "return" or "enter" on mobile keyboard
+        }
+        
+        // Handle keydown for Enter key
+        messageInput.addEventListener('keydown', function(e) {
+            if (e.key === 'Enter') {
                 if (isTouchDevice) {
                     // On mobile devices, Enter key should create a new line
-                    // So we don't prevent default, and we don't send
-                    console.log("📱 Mobile device: Enter creates new line");
-                    // Do nothing - let default behavior insert new line
+                    // We don't prevent default, so it adds a new line
+                    console.log("📱 Mobile: Enter key - adding new line");
+                    // Don't prevent default - this allows new line
+                    return true;
                 } else {
-                    // On desktop, Enter sends the message
-                    console.log("💻 Desktop: Enter sends message");
-                    e.preventDefault();
-                    sendMessage();
+                    // On desktop, check if Shift is pressed
+                    if (e.shiftKey) {
+                        // Shift+Enter creates new line
+                        console.log("💻 Desktop: Shift+Enter - new line");
+                        // Let default behavior happen (new line)
+                        return true;
+                    } else {
+                        // Enter without Shift sends message
+                        console.log("💻 Desktop: Enter - sending message");
+                        e.preventDefault(); // Prevent new line
+                        sendMessage();
+                    }
                 }
             }
-            // If Shift+Enter, let default behavior insert new line on all devices
         });
         
-        // Also add input event to handle mobile keyboard behavior
-        messageInput.addEventListener('keydown', function(e) {
-            // For mobile, we want to ensure the Enter key doesn't hide keyboard
-            if (isTouchDevice && e.key === 'Enter' && !e.shiftKey) {
-                // On mobile, let the default Enter behavior happen (new line)
-                console.log("📱 Mobile: Enter key - adding new line");
-                // Don't prevent default
+        // Also handle keypress for older browsers
+        messageInput.addEventListener('keypress', function(e) {
+            if (e.key === 'Enter' && !isTouchDevice && !e.shiftKey) {
+                e.preventDefault();
+                sendMessage();
             }
+        });
+        
+        // Add input event for typing indicator (keep existing)
+        messageInput.addEventListener('input', function() {
+            if (!isTyping) {
+                isTyping = true;
+                broadcastTypingStatus(true);
+            }
+            
+            clearTimeout(typingTimeout);
+            typingTimeout = setTimeout(function() {
+                isTyping = false;
+                broadcastTypingStatus(false);
+            }, 1000);
         });
     }
     
