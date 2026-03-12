@@ -19,7 +19,7 @@
     --input-bg: #1a2f28;
     --theme-toggle-bg: #12332b;
     --seen-color: #34a853;
-    --icon-color: white; /* Icons stay white in dark mode */
+    --icon-color: white;
     --media-icon-color: white;
 }
 
@@ -36,8 +36,8 @@
     --input-bg: #ffffff;
     --theme-toggle-bg: #ffffff;
     --seen-color: #34b7f1;
-    --icon-color: #000000; /* Black icons */
-    --media-icon-color: #000000; /* Black media icons */
+    --icon-color: #000000;
+    --media-icon-color: #000000;
 }
 
 /* Sepia Theme - ALL ICONS BLACK */
@@ -51,11 +51,10 @@
     --message-bg-sent: #0f3f06;
     --message-bg-received: #d0f0d5;
     --input-bg: #153805b6;
-    --theme-toggle-bg:     --background-dark: #25703185;
-
+    --theme-toggle-bg: var(--background-dark);
     --seen-color: #e4dad1;
-    --icon-color: #f3ebeb; /* Black icons */
-    --media-icon-color: #2a7944; /* Black media icons */
+    --icon-color: #f3ebeb;
+    --media-icon-color: #2a7944;
 }
 
 /* Forest Theme - ALL ICONS BLACK */
@@ -71,8 +70,8 @@
     --input-bg: #f0f7f0;
     --theme-toggle-bg: #f0f7f0;
     --seen-color: #2d5a4b;
-    --icon-color: #000000; /* Black icons */
-    --media-icon-color: #000000; /* Black media icons */
+    --icon-color: #000000;
+    --media-icon-color: #000000;
 }
 
 /* Make everything scale properly */
@@ -939,6 +938,24 @@ body {
     margin: 5px 0;
 }
 
+/* ===== FIXED MESSAGE TEXT DISPLAY - PRESERVES LINE BREAKS ===== */
+.message-content p {
+    white-space: pre-wrap !important;
+    word-wrap: break-word !important;
+    word-break: break-word !important;
+    line-height: 1.5;
+    margin: 0;
+    padding: 0;
+}
+
+.message.sent .message-content p {
+    color: #fff;
+}
+
+.message.received .message-content p {
+    color: var(--text-light);
+}
+
 /* Three dots menu for native options - ICON COLOR NOW USES THEME VARIABLE */
 .message-options {
     position: relative;
@@ -965,7 +982,7 @@ body {
     justify-content: center;
     border-radius: 50%;
     background: rgba(255,255,255,0.1);
-    color: var(--icon-color); /* Uses theme variable (black in light/sepia/forest, white in dark) */
+    color: var(--icon-color);
 }
 
 .options-menu summary:hover {
@@ -1175,7 +1192,7 @@ body {
     cursor: pointer;
 }
 
-/* Uniform audio player styles - PLAY BUTTON, VOLUME ICON NOW BLACK IN LIGHT/SEPIA/FOREST */
+/* Uniform audio player styles */
 .message audio {
     width: 280px;
     height: 40px;
@@ -1185,7 +1202,6 @@ body {
     margin: 5px 0;
 }
 
-/* Force audio controls to be visible with BLACK icons in light/sepia/forest */
 .message audio::-webkit-media-controls-panel {
     background: var(--card-bg) !important;
     display: flex !important;
@@ -1193,7 +1209,7 @@ body {
 
 .message audio::-webkit-media-controls-play-button {
     display: flex !important;
-    filter: var(--media-icon-filter, none); /* No filter in dark mode */
+    filter: var(--media-icon-filter, none);
 }
 
 .message audio::-webkit-media-controls-timeline {
@@ -1223,17 +1239,17 @@ body {
 
 /* Media icon filters for each theme */
 [data-theme="light"] .message audio {
-    --media-icon-filter: brightness(0); /* Makes icons black */
+    --media-icon-filter: brightness(0);
     --media-color-scheme: light;
 }
 
 [data-theme="sepia"] .message audio {
-    --media-icon-filter: brightness(0); /* Makes icons black */
+    --media-icon-filter: brightness(0);
     --media-color-scheme: light;
 }
 
 [data-theme="forest"] .message audio {
-    --media-icon-filter: brightness(0); /* Makes icons black */
+    --media-icon-filter: brightness(0);
     --media-color-scheme: light;
 }
 
@@ -1249,7 +1265,7 @@ body {
     opacity: 0.5;
 }
 
-/* Fixed chat input area - buttons in one line */
+/* ================= FIXED CHAT INPUT AREA WITH TEXTAREA ================= */
 .chat-input-area {
     padding: 12px 15px;
     background: var(--card-bg);
@@ -1264,9 +1280,12 @@ body {
     transition: background-color 0.3s ease;
 }
 
-.chat-input-area input[type="text"] {
+/* ===== UPDATED TEXTAREA STYLES - AUTO-RESIZE WITH LINE BREAKS ===== */
+.chat-input-area textarea.message-input {
     flex: 1;
     min-width: 150px;
+    min-height: 44px;
+    max-height: 120px;
     padding: 12px 15px;
     border-radius: 25px;
     border: none;
@@ -1275,24 +1294,36 @@ body {
     font-size: 16px;
     outline: none;
     transition: background-color 0.3s ease, color 0.3s ease;
+    font-family: "Segoe UI", sans-serif;
+    line-height: 1.5;
+    resize: none;
+    overflow-y: auto;
+    white-space: pre-wrap !important;
+    word-wrap: break-word;
+    word-break: break-word;
 }
 
-.chat-input-area input[type="text"]:focus {
+.chat-input-area textarea.message-input:focus {
     box-shadow: 0 0 0 2px var(--primary-color);
 }
 
-.chat-input-area input[type="text"].replying {
+.chat-input-area textarea.message-input::placeholder {
+    color: var(--text-muted);
+    opacity: 0.8;
+}
+
+.chat-input-area textarea.message-input.replying {
     border-left: 3px solid var(--primary-color);
 }
 
-/* Media buttons - ICONS NOW USE THEME VARIABLE */
+/* Media buttons */
 .media-btn {
     width: 44px;
     height: 44px;
     border-radius: 50%;
     border: none;
     background: var(--input-bg);
-    color: var(--icon-color); /* Uses theme variable (black in light/sepia/forest, white in dark) */
+    color: var(--icon-color);
     cursor: pointer;
     display: flex;
     align-items: center;
@@ -1314,14 +1345,14 @@ body {
     transform: scale(0.95);
 }
 
-/* Send button - ICON NOW USES THEME VARIABLE */
+/* Send button */
 .send-btn {
     padding: 0 20px;
     height: 44px;
     border: none;
     border-radius: 25px;
     background: var(--primary-color);
-    color: var(--icon-color); /* Uses theme variable (black in light/sepia/forest, white in dark) */
+    color: var(--icon-color);
     cursor: pointer;
     font-weight: 600;
     transition: all 0.3s;
@@ -1348,6 +1379,7 @@ body {
     cursor: not-allowed;
 }
 
+/* Recording timer */
 .recording-timer {
     position: fixed;
     bottom: 100px;
@@ -1672,18 +1704,6 @@ body {
     }
 }
 
-/* Animation */
-@keyframes fadeIn {
-    from {
-        opacity: 0;
-        transform: translateY(10px);
-    }
-    to {
-        opacity: 1;
-        transform: translateY(0);
-    }
-}
-
 /* Pulse animation */
 @keyframes pulse {
     0% {
@@ -1743,10 +1763,11 @@ body {
         gap: 6px;
     }
     
-    .chat-input-area input[type="text"] {
+    .chat-input-area textarea.message-input {
         font-size: 16px;
         padding: 10px 12px;
-        outline: 1px rgba(147, 175, 147, 0.342) solid;
+        min-height: 40px;
+        max-height: 80px;
     }
     
     .media-btn {
@@ -1805,8 +1826,11 @@ body {
         gap: 4px;
     }
     
-    .chat-input-area input[type="text"] {
+    .chat-input-area textarea.message-input {
         min-width: 120px;
+        padding: 8px 10px;
+        font-size: 15px;
+        min-height: 38px;
     }
     
     .media-btn {
@@ -1848,9 +1872,11 @@ body {
         gap: 3px;
     }
     
-    .chat-input-area input[type="text"] {
+    .chat-input-area textarea.message-input {
         min-width: 80px;
         padding: 8px 10px;
+        font-size: 14px;
+        min-height: 36px;
     }
     
     .media-btn {
@@ -2111,7 +2137,7 @@ body {
     display: none !important;
 }
 
-/* ================= MESSAGE REACTIONS - UPDATED COMPACT VERSION ================= */
+/* ================= MESSAGE REACTIONS ================= */
 .message-reactions {
     display: flex;
     gap: 4px;
@@ -2271,24 +2297,9 @@ body {
 
 /* ANIMATION RING AROUND INPUT WHEN REPLYING */
 #messageInput.replying {
-    border: 2px solid var(--primary-color);
+    border: 2px solid var(--primary-color) !important;
     animation: replyPulse 2s infinite;
     position: relative;
-}
-
-#messageInput.replying::before {
-    content: '';
-    position: absolute;
-    top: -4px;
-    left: -4px;
-    right: -4px;
-    bottom: -4px;
-    border: 2px solid var(--primary-color);
-    border-radius: 30px;
-    animation: replySpin 3s linear infinite;
-    border-top-color: transparent;
-    border-right-color: transparent;
-    pointer-events: none;
 }
 
 /* Reply icon animation */
@@ -2310,7 +2321,7 @@ body {
     outline-offset: 2px;
 }
 
-/* Member search button outline (matching your search member button) */
+/* Member search button outline */
 .member-search-input {
     outline: 1px solid var(--border-color);
     transition: all 0.3s ease;
@@ -2346,7 +2357,7 @@ body {
     outline-offset: 2px;
 }
 
-/* ================= REACTION MODAL - UPDATED COMPACT VERSION ================= */
+/* ================= REACTION MODAL ================= */
 .online-users-modal {
     position: fixed;
     top: 0;
@@ -2515,7 +2526,7 @@ body {
     box-shadow: 0 0 0 3px rgba(12, 143, 95, 0.2);
 }
 
-/* ================= REACTION TOOLTIP - FINAL FIXED VERSION ================= */
+/* ================= REACTION TOOLTIP ================= */
 .reaction-tooltip {
     position: fixed;
     background: var(--card-bg);
@@ -2550,206 +2561,16 @@ body {
     filter: drop-shadow(0 -2px 2px rgba(0,0,0,0.1));
 }
 
-
-
-
-
-
-/* ================= CONTENTEDITABLE MESSAGE INPUT STYLES ================= */
-.message-input {
-    flex: 1;
-    min-width: 150px;
-    padding: 12px 15px;
-    border-radius: 25px;
-    border: none;
-    background: var(--input-bg);
-    color: var(--text-light);
-    font-size: 16px;
-    outline: none;
-    transition: background-color 0.3s ease, color 0.3s ease;
-    max-height: 100px;
-    overflow-y: auto;
-    white-space: pre-wrap;
-    word-wrap: break-word;
-    font-family: "Segoe UI", sans-serif;
-    line-height: 1.4;
-    cursor: text;
+/* ================= DATE SEPARATOR STYLES ================= */
+.date-separator {
+    text-align: center;
+    margin: 20px 0 10px;
 }
 
-.message-input:focus {
-    box-shadow: 0 0 0 2px var(--primary-color);
-}
-
-.message-input.replying {
-    border-left: 3px solid var(--primary-color);
-}
-
-.message-input:empty:before {
-    content: attr(data-placeholder);
-    color: var(--text-muted);
-    font-style: italic;
-    pointer-events: none;
-}
-
-/* Mobile adjustments */
-@media (max-width: 768px) {
-    .message-input {
-        font-size: 16px;
-        padding: 10px 12px;
-        max-height: 80px;
-    }
-}
-
-@media (max-width: 480px) {
-    .message-input {
-        min-width: 120px;
-        padding: 8px 10px;
-        font-size: 15px;
-    }
-}
-
-@media (max-width: 360px) {
-    .message-input {
-        min-width: 80px;
-        padding: 8px 10px;
-        font-size: 14px;
-    }
-}
-
-/* Ensure the input area maintains proper spacing */
-.chat-input-area {
-    padding: 12px 15px;
+.date-separator span {
     background: var(--card-bg);
-    display: flex;
-    gap: 8px;
-    border-top: 1px solid var(--border-color);
-    align-items: center;
-    flex-wrap: wrap;
-    flex-shrink: 0;
-    width: 100%;
-    position: relative;
-    transition: background-color 0.3s ease;
-}
-
-/* Media buttons remain unchanged */
-.media-btn {
-    width: 44px;
-    height: 44px;
-    border-radius: 50%;
-    border: none;
-    background: var(--input-bg);
-    color: var(--icon-color);
-    cursor: pointer;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    transition: all 0.3s;
-    font-size: 18px;
-    flex-shrink: 0;
-    padding: 0;
-    margin: 0;
-}
-
-.media-btn:hover {
-    background: var(--primary-color);
-    color: white;
-    transform: scale(1.1);
-}
-
-.media-btn:active {
-    transform: scale(0.95);
-}
-
-/* Send button remains unchanged */
-.send-btn {
-    padding: 0 20px;
-    height: 44px;
-    border: none;
-    border-radius: 25px;
-    background: var(--primary-color);
-    color: var(--icon-color);
-    cursor: pointer;
-    font-weight: 600;
-    transition: all 0.3s;
-    min-width: 70px;
-    flex-shrink: 0;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 5px;
-    font-size: 14px;
-}
-
-.send-btn:hover {
-    background: var(--primary-dark);
-    transform: scale(1.05);
-}
-
-.send-btn:active {
-    transform: scale(0.95);
-}
-
-.send-btn:disabled {
-    opacity: 0.5;
-    cursor: not-allowed;
-}
-
-
-
-
-/* ================= TEXTAREA STYLES FOR ANDROID FIX ================= */
-.chat-input-area textarea {
-    flex: 1;
-    min-width: 150px;
-    padding: 12px 15px;
-    border-radius: 25px;
-    border: none;
-    background: var(--input-bg);
-    color: var(--text-light);
-    font-size: 16px;
-    outline: none;
-    transition: background-color 0.3s ease, color 0.3s ease;
-    font-family: "Segoe UI", sans-serif;
-    line-height: 1.4;
-    resize: none;
-    overflow-y: auto;
-    max-height: 100px;
-}
-
-.chat-input-area textarea:focus {
-    box-shadow: 0 0 0 2px var(--primary-color);
-}
-
-.chat-input-area textarea::placeholder {
+    padding: 5px 15px;
+    border-radius: 20px;
+    font-size: 12px;
     color: var(--text-muted);
-    opacity: 0.8;
-}
-
-.chat-input-area textarea.replying {
-    border-left: 3px solid var(--primary-color);
-}
-
-/* Mobile adjustments */
-@media (max-width: 768px) {
-    .chat-input-area textarea {
-        font-size: 16px;
-        padding: 10px 12px;
-        max-height: 80px;
-    }
-}
-
-@media (max-width: 480px) {
-    .chat-input-area textarea {
-        min-width: 120px;
-        padding: 8px 10px;
-        font-size: 15px;
-    }
-}
-
-@media (max-width: 360px) {
-    .chat-input-area textarea {
-        min-width: 80px;
-        padding: 8px 10px;
-        font-size: 14px;
-    }
 }

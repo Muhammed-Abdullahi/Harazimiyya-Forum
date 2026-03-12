@@ -1,4 +1,4 @@
-// js/chat.js - Complete Group Chat with Context Menu, Multi-Select, and Reply Features
+// js/chat.js - Complete Group Chat with Line Break Preservation
 console.log("💬 Chat page loading...");
 
 // Helper function to prevent null URL errors
@@ -2190,9 +2190,14 @@ function renderQuotedMessage(parentMsg) {
     ';
 }
 
-// ================= FIXED RENDER MESSAGE CONTENT WITH SAFE URLS =================
+// ================= FIXED RENDER MESSAGE CONTENT WITH SAFE URLS AND LINE BREAKS =================
 function renderMessageContent(msg) {
-    if (msg.message_type === 'text') return '<p>' + (msg.content || '') + '</p>';
+    if (msg.message_type === 'text') {
+        // CRITICAL FIX: Convert line breaks to <br> tags AND use pre-wrap for display
+        // This ensures line breaks are preserved in the displayed message
+        var textWithBreaks = (msg.content || '').replace(/\n/g, '<br>');
+        return '<p style="white-space: pre-wrap; word-wrap: break-word; word-break: break-word; line-height: 1.5; margin: 0;">' + textWithBreaks + '</p>';
+    }
     
     if (msg.message_type === 'image') {
         var imageUrl = safeUrl(msg.file_url);
@@ -2288,8 +2293,12 @@ function setupChatListeners() {
             }
         });
         
-        // Typing indicator (unchanged)
+        // Auto-resize textarea as user types
         messageInput.addEventListener('input', function() {
+            this.style.height = 'auto';
+            this.style.height = (this.scrollHeight) + 'px';
+            
+            // Typing indicator
             if (!isTyping) {
                 isTyping = true;
                 broadcastTypingStatus(true);
@@ -2300,6 +2309,13 @@ function setupChatListeners() {
                 isTyping = false;
                 broadcastTypingStatus(false);
             }, 1000);
+        });
+        
+        // Reset height on blur
+        messageInput.addEventListener('blur', function() {
+            if (this.value === '') {
+                this.style.height = 'auto';
+            }
         });
     }
     
@@ -2570,12 +2586,13 @@ async function uploadFile(file) {
     }
 }
 
-// ================= SEND MESSAGE =================
+// ================= UPDATED SEND MESSAGE - PRESERVES LINE BREAKS =================
 async function sendMessage() {
     var messageInput = document.getElementById('messageInput');
-    var message = messageInput.value.trim();
+    var message = messageInput.value; // Don't trim() - preserve line breaks
     
-    if (!message && !currentFile && !recordedAudio) {
+    // Check if message has content (including line breaks)
+    if (!message.trim() && !currentFile && !recordedAudio) {
         alert("Please enter a message or select a file");
         return;
     }
@@ -2594,7 +2611,7 @@ async function sendMessage() {
         var messageData = {
             sender_id: currentUser.id,
             message_type: 'text',
-            content: message || '',
+            content: message, // Send the original message with line breaks
             created_at: new Date().toISOString(),
             read_at: null
         };
@@ -2670,7 +2687,12 @@ async function sendMessage() {
         }
         
         console.log("✅ Message sent successfully! Reply to:", replyToSend ? replyToSend.id : 'none');
+        
+        // Clear the textarea
         messageInput.value = '';
+        
+        // Reset textarea height if needed
+        messageInput.style.height = 'auto';
         
         // Clear reply indicator after sending
         if (replyToSend) {
