@@ -2625,3 +2625,561 @@ textarea,
     -ms-user-select: none;
     user-select: none;
 }
+
+
+
+
+
+
+
+
+/* ================= FIXED HEADER & INPUT (NO SHAKING/DISAPPEARING) ================= */
+.chat-main {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    background: var(--background-dark);
+    width: 100%;
+    height: 100vh;
+    overflow: hidden;
+    transition: background-color 0.3s ease;
+    position: relative;
+}
+
+/* Fixed Header - NEVER moves */
+.chat-header {
+    padding: 20px;
+    background: var(--card-bg);
+    border-bottom: 1px solid var(--border-color);
+    flex-shrink: 0;
+    transition: background-color 0.3s ease;
+    width: 100%;
+    z-index: 100;
+    position: sticky;
+    top: 0;
+    box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+}
+
+/* Typing indicator - right below header */
+.typing-indicator {
+    padding: 10px 20px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    background: var(--card-bg);
+    border-bottom: 1px solid var(--border-color);
+    animation: slideDown 0.3s ease;
+    flex-shrink: 0;
+    z-index: 90;
+    position: relative;
+}
+
+/* Messages container - ONLY this scrolls */
+.messages {
+    flex: 1 1 auto;
+    padding: 20px;
+    overflow-y: auto;
+    background: var(--background-dark);
+    display: flex;
+    flex-direction: column;
+    gap: 15px;
+    -webkit-overflow-scrolling: touch;
+    transition: background-color 0.3s ease;
+    min-height: 0; /* Critical for flex scrolling */
+}
+
+/* Fixed Reply Preview - ALWAYS visible when replying */
+.reply-preview-area {
+    padding: 10px 15px;
+    background: var(--card-bg);
+    border-top: 1px solid var(--border-color);
+    border-bottom: 1px solid var(--border-color);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-shrink: 0;
+    width: 100%;
+    z-index: 80;
+    animation: slideDown 0.2s ease;
+    box-shadow: 0 -2px 10px rgba(0,0,0,0.05);
+}
+
+.reply-preview-area.hidden {
+    display: none;
+}
+
+.reply-preview-content {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex: 1;
+}
+
+.reply-preview-icon {
+    color: var(--primary-color);
+    font-size: 14px;
+    width: 20px;
+}
+
+.reply-preview-text {
+    flex: 1;
+}
+
+.reply-preview-text span {
+    color: var(--primary-color);
+    font-weight: bold;
+    font-size: 12px;
+    display: block;
+    margin-bottom: 2px;
+}
+
+.reply-preview-text p {
+    color: var(--text-light);
+    font-size: 13px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 250px;
+    margin: 0;
+}
+
+.reply-preview-close {
+    background: none;
+    border: none;
+    color: var(--text-muted);
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.3s;
+    flex-shrink: 0;
+}
+
+.reply-preview-close:hover {
+    background: rgba(255, 255, 255, 0.1);
+    color: var(--danger);
+}
+
+/* Fixed Input Area - ALWAYS visible at bottom */
+.chat-input-area {
+    padding: 12px 15px;
+    background: var(--card-bg);
+    display: flex !important; /* Force display */
+    gap: 8px;
+    border-top: 1px solid var(--border-color);
+    align-items: center;
+    flex-wrap: wrap;
+    flex-shrink: 0;
+    width: 100%;
+    position: sticky;
+    bottom: 0;
+    transition: background-color 0.3s ease;
+    margin-top: auto; /* Pushes to bottom */
+    visibility: visible !important; /* Force visibility */
+    opacity: 1 !important; /* Force opacity */
+    z-index: 100;
+    box-shadow: 0 -2px 10px rgba(0,0,0,0.1);
+}
+
+/* Textarea styles - ALWAYS visible */
+.chat-input-area textarea.message-input {
+    flex: 1;
+    min-width: 150px;
+    min-height: 44px;
+    max-height: 120px;
+    padding: 12px 15px;
+    border-radius: 25px;
+    border: none;
+    background: var(--input-bg);
+    color: var(--text-light);
+    font-size: 16px;
+    outline: none;
+    transition: background-color 0.3s ease, color 0.3s ease;
+    font-family: "Segoe UI", sans-serif;
+    line-height: 1.5;
+    resize: none;
+    overflow-y: auto;
+    white-space: pre-wrap !important;
+    word-wrap: break-word;
+    word-break: break-word;
+}
+
+/* ================= WHATSAPP-STYLE MEDIA (BLURRY UNTIL DOWNLOAD) ================= */
+/* Blurry image preview */
+.message-image-blurry {
+    position: relative;
+    width: 200px;
+    height: 150px;
+    border-radius: 8px;
+    overflow: hidden;
+    cursor: pointer;
+    background: var(--card-bg);
+}
+
+.message-image-blurry img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    filter: blur(10px);
+    transform: scale(1.1);
+    transition: filter 0.3s ease;
+}
+
+.message-image-blurry::after {
+    content: '\f07c'; /* fa-image */
+    font-family: 'Font Awesome 6 Free';
+    font-weight: 900;
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    color: white;
+    font-size: 24px;
+    text-shadow: 0 2px 5px rgba(0,0,0,0.5);
+    z-index: 2;
+    pointer-events: none;
+}
+
+.message-image-blurry .download-overlay {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    background: rgba(0,0,0,0.7);
+    color: white;
+    padding: 8px;
+    font-size: 12px;
+    text-align: center;
+    z-index: 3;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 5px;
+}
+
+.message-image-blurry .download-overlay i {
+    font-size: 14px;
+}
+
+/* Blurry video preview */
+.message-video-blurry {
+    position: relative;
+    width: 200px;
+    height: 150px;
+    border-radius: 8px;
+    overflow: hidden;
+    cursor: pointer;
+    background: var(--card-bg);
+}
+
+.message-video-blurry video {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    filter: blur(10px);
+    transform: scale(1.1);
+}
+
+.message-video-blurry::after {
+    content: '\f04b'; /* fa-play */
+    font-family: 'Font Awesome 6 Free';
+    font-weight: 900;
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    color: white;
+    font-size: 32px;
+    text-shadow: 0 2px 10px rgba(0,0,0,0.7);
+    z-index: 2;
+    pointer-events: none;
+    background: rgba(0,0,0,0.5);
+    width: 60px;
+    height: 60px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.message-video-blurry .download-overlay {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    background: rgba(0,0,0,0.7);
+    color: white;
+    padding: 8px;
+    font-size: 12px;
+    text-align: center;
+    z-index: 3;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 5px;
+}
+
+/* Clear media (after download) */
+.message-image-clear img {
+    max-width: 200px;
+    max-height: 150px;
+    border-radius: 8px;
+    cursor: pointer;
+    filter: none;
+    transform: none;
+}
+
+.message-video-clear video {
+    max-width: 200px;
+    max-height: 150px;
+    border-radius: 8px;
+    cursor: pointer;
+    filter: none;
+    transform: none;
+}
+
+/* Media Modal - WhatsApp style */
+.media-modal {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.95);
+    backdrop-filter: blur(10px);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 3000;
+    padding: 16px;
+    animation: fadeIn 0.2s ease;
+}
+
+.media-modal.hidden {
+    display: none;
+}
+
+.media-modal-content {
+    background: var(--card-bg);
+    border-radius: 20px;
+    width: 90%;
+    max-width: 500px;
+    max-height: 80vh;
+    overflow: hidden;
+    box-shadow: 0 20px 40px rgba(0, 0, 0, 0.5);
+    animation: slideUp 0.3s ease;
+    border: 1px solid var(--border-color);
+}
+
+.media-modal-header {
+    padding: 16px 20px;
+    background: var(--primary-color);
+    color: white;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.media-modal-header h3 {
+    font-size: 1.1rem;
+    margin: 0;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.media-modal-close {
+    background: rgba(255, 255, 255, 0.2);
+    border: none;
+    color: white;
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.3s;
+    font-size: 18px;
+}
+
+.media-modal-close:hover {
+    background: rgba(255, 255, 255, 0.3);
+    transform: rotate(90deg);
+}
+
+.media-modal-body {
+    padding: 20px;
+    max-height: calc(80vh - 140px);
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    min-height: 200px;
+}
+
+.media-modal-body img,
+.media-modal-body video {
+    max-width: 100%;
+    max-height: 50vh;
+    border-radius: 12px;
+    box-shadow: 0 5px 20px rgba(0,0,0,0.3);
+}
+
+/* Blurry in modal until download */
+.media-modal-body .modal-media-blurry {
+    filter: blur(20px);
+    transform: scale(1.1);
+    opacity: 0.7;
+}
+
+.media-modal-body .modal-media-clear {
+    filter: none;
+    transform: none;
+    opacity: 1;
+}
+
+.media-modal-footer {
+    padding: 16px 20px;
+    border-top: 1px solid var(--border-color);
+    display: flex;
+    justify-content: center;
+}
+
+.media-modal-download {
+    padding: 14px 30px;
+    background: var(--primary-color);
+    color: white;
+    border: none;
+    border-radius: 30px;
+    font-size: 16px;
+    font-weight: 600;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    transition: all 0.3s;
+    width: 100%;
+    max-width: 300px;
+}
+
+.media-modal-download:hover {
+    background: var(--primary-dark);
+    transform: scale(1.05);
+}
+
+.media-modal-download:active {
+    transform: scale(0.95);
+}
+
+.media-modal-download i {
+    font-size: 18px;
+}
+
+/* Download progress */
+.download-progress {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    height: 3px;
+    background: var(--primary-color);
+    animation: progress 1s linear;
+}
+
+@keyframes progress {
+    0% { width: 0%; }
+    100% { width: 100%; }
+}
+
+/* Mobile optimizations */
+@media (max-width: 768px) {
+    .message-image-blurry,
+    .message-video-blurry {
+        width: 180px;
+        height: 135px;
+    }
+    
+    .message-image-clear img,
+    .message-video-clear video {
+        max-width: 180px;
+        max-height: 135px;
+    }
+    
+    .reply-preview-text p {
+        max-width: 180px;
+    }
+    
+    .media-modal-content {
+        width: 95%;
+    }
+    
+    .media-modal-download {
+        padding: 12px 20px;
+        font-size: 14px;
+    }
+}
+
+@media (max-width: 480px) {
+    .message-image-blurry,
+    .message-video-blurry {
+        width: 150px;
+        height: 112px;
+    }
+    
+    .message-image-clear img,
+    .message-video-clear video {
+        max-width: 150px;
+        max-height: 112px;
+    }
+    
+    .reply-preview-text p {
+        max-width: 140px;
+    }
+    
+    .message-video-blurry::after {
+        width: 40px;
+        height: 40px;
+        font-size: 20px;
+    }
+}
+
+/* Ensure header and input NEVER disappear */
+.chat-header,
+.chat-input-area {
+    opacity: 1 !important;
+    visibility: visible !important;
+    display: flex !important;
+    pointer-events: auto !important;
+}
+
+/* Remove any transform that could cause shaking */
+.chat-header,
+.chat-input-area,
+.messages,
+.reply-preview-area {
+    transform: none !important;
+    transition: background-color 0.3s ease, border-color 0.3s ease !important;
+}
+
+/* Ensure no overflow issues */
+html, body {
+    overflow: hidden;
+    height: 100%;
+    position: fixed;
+    width: 100%;
+}
+
+.chat-layout {
+    height: 100vh;
+    overflow: hidden;
+}
+
+.chat-main {
+    height: 100vh;
+    overflow: hidden;
+}
