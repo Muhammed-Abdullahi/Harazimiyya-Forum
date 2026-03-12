@@ -1272,11 +1272,11 @@ body {
     opacity: 0.5;
 }
 
-/* ===== FIXED INPUT AREA - ALWAYS AT BOTTOM ===== */
+/* ===== FIXED INPUT AREA - ALWAYS VISIBLE AT BOTTOM ===== */
 .chat-input-area {
     padding: 12px 15px;
     background: var(--card-bg);
-    display: flex;
+    display: flex !important; /* Force display */
     gap: 8px;
     border-top: 1px solid var(--border-color);
     align-items: center;
@@ -1286,6 +1286,8 @@ body {
     position: relative;
     transition: background-color 0.3s ease;
     margin-top: auto; /* Pushes to bottom */
+    visibility: visible !important; /* Force visibility */
+    opacity: 1 !important; /* Force opacity */
 }
 
 /* Textarea styles */

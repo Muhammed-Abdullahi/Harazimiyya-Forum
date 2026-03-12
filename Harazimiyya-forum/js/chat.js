@@ -663,7 +663,10 @@ function showContextMenu(x, y, messageId, senderName, messageContent, messageTyp
     if (existingMenu) existingMenu.remove();
     
     var messageEl = document.querySelector('.message[data-message-id="' + messageId + '"]');
-    var canDelete = isAdmin || (messageEl && messageEl.dataset.senderId === currentUser.id);
+    var senderId = messageEl ? messageEl.dataset.senderId : null;
+    
+    // Strict check: Only admin OR the message owner can delete
+    var canDelete = isAdmin || (senderId === currentUser.id);
     
     var contextMenu = document.createElement('div');
     contextMenu.className = 'context-menu desktop';
@@ -901,14 +904,14 @@ window.handleReply = function(messageId, senderName, messageContent, messageType
     if (contextMenu) contextMenu.remove();
 };
 
-// ================= FIXED HANDLE DELETE =================
+// ================= FIXED HANDLE DELETE - ONLY OWN MESSAGES OR ADMIN =================
 window.handleDelete = async function(messageId) {
     var messageEl = document.querySelector('.message[data-message-id="' + messageId + '"]');
     var senderId = messageEl ? messageEl.dataset.senderId : null;
     
-    // Check if user can delete
+    // Strict check: Only admin OR the message owner can delete
     if (!isAdmin && senderId !== currentUser.id) {
-        showNotification("You can only delete your own messages", "error");
+        showNotification("❌ You can only delete your own messages", "error");
         return;
     }
     
@@ -936,32 +939,46 @@ window.handleDelete = async function(messageId) {
     }
 };
 
-// ================= FIXED HANDLE DELETE SELECTED =================
+// ================= FIXED HANDLE DELETE SELECTED - ONLY OWN MESSAGES =================
 window.handleDeleteSelected = async function() {
     if (highlightedMessages.size === 0) return;
     
+    // Filter messages - user can only delete their own unless admin
+    var deletableMessages = [];
+    var nonDeletableMessages = [];
+    
+    highlightedMessages.forEach(function(messageId) {
+        var messageEl = document.querySelector('.message[data-message-id="' + messageId + '"]');
+        var senderId = messageEl ? messageEl.dataset.senderId : null;
+        
+        if (isAdmin || senderId === currentUser.id) {
+            deletableMessages.push(messageId);
+        } else {
+            nonDeletableMessages.push(messageId);
+        }
+    });
+    
+    if (deletableMessages.length === 0) {
+        showNotification("❌ You can only delete your own messages", "error");
+        clearAllHighlights();
+        return;
+    }
+    
+    if (nonDeletableMessages.length > 0) {
+        showNotification(`⚠️ ${nonDeletableMessages.length} message(s) not yours - skipping`, "warning", 3000);
+    }
+    
     // Use a custom modal instead of confirm
-    if (await confirmDelete(highlightedMessages.size + ' message' + (highlightedMessages.size > 1 ? 's' : ''))) {
+    if (await confirmDelete(deletableMessages.length + ' message' + (deletableMessages.length > 1 ? 's' : ''))) {
         var successCount = 0;
         var failCount = 0;
         
-        var messageIds = Array.from(highlightedMessages);
-        
-        for (var i = 0; i < messageIds.length; i++) {
-            var messageId = messageIds[i];
-            var messageEl = document.querySelector('.message[data-message-id="' + messageId + '"]');
-            var senderId = messageEl ? messageEl.dataset.senderId : null;
-            
-            if (!isAdmin && senderId !== currentUser.id) {
-                failCount++;
-                continue;
-            }
-            
+        for (var i = 0; i < deletableMessages.length; i++) {
             try {
                 var { error } = await supabase
                     .from('chat_messages')
                     .delete()
-                    .eq('id', messageId);
+                    .eq('id', deletableMessages[i]);
                 
                 if (error) {
                     failCount++;
@@ -1115,6 +1132,7 @@ function showNotification(message, type, duration) {
     var iconClass = 'fa-check-circle';
     if (type === 'error') iconClass = 'fa-exclamation-circle';
     else if (type === 'info') iconClass = 'fa-info-circle';
+    else if (type === 'warning') iconClass = 'fa-exclamation-triangle';
     
     notification.innerHTML = '\
         <i class="fas ' + iconClass + '"></i>\
@@ -2212,22 +2230,22 @@ function renderMessageContent(msg) {
     if (msg.message_type === 'image') {
         var imageUrl = safeUrl(msg.file_url);
         if (!imageUrl) return '<p>Image not available</p>';
-        // Add oncontextmenu to prevent download, and controlslist for video elements
-        return '<img src="' + imageUrl + '" alt="Image" onclick="window.open(\'' + imageUrl + '\')" style="max-width: 100%; cursor: pointer;" oncontextmenu="return false;" draggable="false">';
+        // REMOVED download prevention - users can now download
+        return '<img src="' + imageUrl + '" alt="Image" onclick="window.open(\'' + imageUrl + '\')" style="max-width: 100%; cursor: pointer;">';
     }
     
     if (msg.message_type === 'video') {
         var videoUrl = safeUrl(msg.file_url);
         if (!videoUrl) return '<p>Video not available</p>';
-        // Add controlslist="nodownload" to prevent download button, and disable context menu
-        return '<video controls style="max-width: 100%;" oncontextmenu="return false;" controlslist="nodownload" disablePictureInPicture><source src="' + videoUrl + '"></video>';
+        // REMOVED download prevention - users can now download
+        return '<video controls style="max-width: 100%;"><source src="' + videoUrl + '"></video>';
     }
     
     if (msg.message_type === 'audio') {
         var audioUrl = safeUrl(msg.file_url);
         if (!audioUrl) return '<p>Audio not available</p>';
-        // Add controlslist="nodownload" to prevent download
-        return '<audio controls src="' + audioUrl + '" style="width: 280px; height: 40px;" controlslist="nodownload" oncontextmenu="return false;"></audio>';
+        // REMOVED download prevention - users can now download
+        return '<audio controls src="' + audioUrl + '" style="width: 280px; height: 40px;"></audio>';
     }
     
     return '<p>Unsupported message type</p>';
