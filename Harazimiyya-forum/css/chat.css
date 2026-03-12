@@ -6,7 +6,7 @@
     --success: #10b981;
 }
 
-/* Dark Theme (Default) - COMPLETELY UNCHANGED */
+/* Dark Theme (Default) */
 [data-theme="dark"] {
     --background-dark: #0a1f1a;
     --sidebar-bg: #0f2b24;
@@ -23,7 +23,7 @@
     --media-icon-color: white;
 }
 
-/* Light Theme - ALL ICONS BLACK */
+/* Light Theme */
 [data-theme="light"] {
     --background-dark: #b9d3452a;
     --sidebar-bg: #0b5e3b;
@@ -40,10 +40,10 @@
     --media-icon-color: #000000;
 }
 
-/* Sepia Theme - ALL ICONS BLACK */
+/* Sepia Theme */
 [data-theme="sepia"] {
     --background-dark: #25703185;
-    --sidebar-bg: #0f3f06;
+    --sidebar-bg: #8b5e3c;
     --card-bg: #9bc08a;
     --text-light: #0f0f0f;
     --text-muted: #ecdfd4;
@@ -57,7 +57,7 @@
     --media-icon-color: #2a7944;
 }
 
-/* Forest Theme - ALL ICONS BLACK */
+/* Forest Theme */
 [data-theme="forest"] {
     --background-dark: #e8f0e8;
     --sidebar-bg: #2d5a4b;
@@ -117,7 +117,7 @@ body {
     background: var(--background-dark);
     color: var(--text-light);
     height: 100vh;
-    overflow: hidden; /* CHANGE: Prevent body scrolling */
+    overflow: hidden;
     font-family: "Segoe UI", sans-serif;
     transition: background-color 0.3s ease, color 0.3s ease;
 }
@@ -126,7 +126,7 @@ body {
     display: flex;
     height: 100vh;
     width: 100%;
-    overflow: hidden; /* CHANGE: Prevent layout scrolling */
+    overflow: hidden;
     position: relative;
 }
 
@@ -349,7 +349,7 @@ body {
     display: block;
 }
 
-/* ================= CHAT MAIN - COMPLETELY FIXED LAYOUT ================= */
+/* ================= CHAT MAIN - FIXED LAYOUT ================= */
 .chat-main {
     flex: 1;
     display: flex;
@@ -357,7 +357,7 @@ body {
     background: var(--background-dark);
     width: 100%;
     height: 100vh;
-    overflow: hidden; /* CHANGE: Prevent main scrolling */
+    overflow: hidden;
     transition: background-color 0.3s ease;
     position: relative;
 }
@@ -369,13 +369,10 @@ body {
     border-bottom: 1px solid var(--border-color);
     flex-shrink: 0;
     transition: background-color 0.3s ease;
-    position: sticky;
-    top: 0;
-    z-index: 100;
     width: 100%;
+    z-index: 10;
 }
 
-/* ===== UPDATED HEADER LAYOUT ===== */
 .chat-header-top {
     display: flex;
     justify-content: space-between;
@@ -844,7 +841,7 @@ body {
 
 /* ===== MESSAGES CONTAINER - ONLY THIS SCROLLS ===== */
 .messages {
-    flex: 1;
+    flex: 1 1 auto;
     padding: 20px;
     overflow-y: auto;
     background: var(--background-dark);
@@ -853,9 +850,7 @@ body {
     gap: 15px;
     -webkit-overflow-scrolling: touch;
     transition: background-color 0.3s ease;
-    /* Ensure it takes remaining space */
-    height: 0;
-    min-height: 0;
+    min-height: 0; /* Critical for flex scrolling */
 }
 
 .message {
@@ -934,7 +929,7 @@ body {
     gap: 4px;
 }
 
-/* Message content wrapper for options positioning */
+/* Message content wrapper */
 .message-content-wrapper {
     position: relative;
     display: flex;
@@ -950,7 +945,7 @@ body {
     margin: 5px 0;
 }
 
-/* ===== FIXED MESSAGE TEXT DISPLAY - PRESERVES LINE BREAKS ===== */
+/* Message text display - preserves line breaks */
 .message-content p {
     white-space: pre-wrap !important;
     word-wrap: break-word !important;
@@ -968,7 +963,7 @@ body {
     color: var(--text-light);
 }
 
-/* Three dots menu for native options - ICON COLOR NOW USES THEME VARIABLE */
+/* Three dots menu */
 .message-options {
     position: relative;
     opacity: 0;
@@ -1071,7 +1066,7 @@ body {
     box-shadow: 0 2px 8px rgba(0,0,0,0.2);
 }
 
-/* Quoted message styles (WhatsApp style) */
+/* Quoted message styles */
 .quoted-message {
     background: rgba(255, 255, 255, 0.1);
     border-left: 4px solid var(--primary-color);
@@ -1204,7 +1199,7 @@ body {
     cursor: pointer;
 }
 
-/* Uniform audio player styles */
+/* Audio player styles */
 .message audio {
     width: 280px;
     height: 40px;
@@ -1277,7 +1272,7 @@ body {
     opacity: 0.5;
 }
 
-/* ===== FIXED CHAT INPUT AREA - ALWAYS AT BOTTOM ===== */
+/* ===== FIXED INPUT AREA - ALWAYS AT BOTTOM ===== */
 .chat-input-area {
     padding: 12px 15px;
     background: var(--card-bg);
@@ -1290,11 +1285,10 @@ body {
     width: 100%;
     position: relative;
     transition: background-color 0.3s ease;
-    /* Stick to bottom */
-    margin-top: auto;
+    margin-top: auto; /* Pushes to bottom */
 }
 
-/* ===== UPDATED TEXTAREA STYLES - AUTO-RESIZE WITH LINE BREAKS ===== */
+/* Textarea styles */
 .chat-input-area textarea.message-input {
     flex: 1;
     min-width: 150px;
@@ -2589,15 +2583,15 @@ body {
     color: var(--text-muted);
 }
 
-/* ================= PREVENT TEXT SELECTION ON MESSAGES ================= */
+/* ================= PREVENT TEXT SELECTION ON MESSAGES (BUT ALLOW DOWNLOADS) ================= */
 .message, .message * {
-    -webkit-touch-callout: none !important;
-    -webkit-user-select: none !important;
-    -khtml-user-select: none !important;
-    -moz-user-select: none !important;
-    -ms-user-select: none !important;
-    user-select: none !important;
-    -webkit-tap-highlight-color: transparent !important;
+    -webkit-touch-callout: none;  /* Prevents callout menu */
+    -webkit-user-select: none;     /* Prevents text selection */
+    -khtml-user-select: none;
+    -moz-user-select: none;
+    -ms-user-select: none;
+    user-select: none;
+    -webkit-tap-highlight-color: transparent;
 }
 
 /* Allow text selection in input areas only */
@@ -2613,22 +2607,8 @@ textarea,
     user-select: text !important;
 }
 
-/* ===== MEDIA PROTECTION RULES ===== */
-/* Prevent image/video download menu and context menu */
-img, 
-video, 
-audio,
-.message img,
-.message video,
-.message audio {
-    -webkit-touch-callout: none;
-    -webkit-user-select: none;
-    -webkit-user-drag: none;
-    -moz-user-select: none;
-    -ms-user-select: none;
-    user-select: none;
-    pointer-events: auto;
-}
+/* REMOVED download prevention - users CAN now download media */
+/* This allows normal browser download functionality */
 
 /* Prevent the blue highlight on tap */
 .message {
