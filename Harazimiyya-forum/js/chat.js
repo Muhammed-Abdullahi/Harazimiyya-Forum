@@ -118,6 +118,12 @@ document.addEventListener('DOMContentLoaded', function() {
     initializeChat();
 });
 
+// ================= DISABLE TEXT SELECTION ON ALL MESSAGES =================
+function disableTextSelection() {
+    // This function is now handled by CSS, but we keep it for compatibility
+    console.log("✅ Text selection disabled on messages");
+}
+
 // ================= REACTION TOUCH HANDLER FOR MOBILE =================
 function setupReactionTouchHandlers() {
     document.addEventListener('touchstart', function(e) {
@@ -2161,6 +2167,9 @@ function renderMessages(messages) {
     
     container.innerHTML = html;
     
+    // DISABLE TEXT SELECTION ON ALL MESSAGES
+    disableTextSelection();
+    
     // Re-render reactions after messages are loaded
     messageReactions.forEach(function(reactions, messageId) {
         updateMessageReactions(messageId);
@@ -2196,25 +2205,29 @@ function renderMessageContent(msg) {
         // CRITICAL FIX: Convert line breaks to <br> tags AND use pre-wrap for display
         // This ensures line breaks are preserved in the displayed message
         var textWithBreaks = (msg.content || '').replace(/\n/g, '<br>');
-        return '<p style="white-space: pre-wrap; word-wrap: break-word; word-break: break-word; line-height: 1.5; margin: 0;">' + textWithBreaks + '</p>';
+        // Add user-select: none to prevent text selection on mobile
+        return '<p style="white-space: pre-wrap; word-wrap: break-word; word-break: break-word; line-height: 1.5; margin: 0; -webkit-user-select: none; -moz-user-select: none; -ms-user-select: none; user-select: none;">' + textWithBreaks + '</p>';
     }
     
     if (msg.message_type === 'image') {
         var imageUrl = safeUrl(msg.file_url);
         if (!imageUrl) return '<p>Image not available</p>';
-        return '<img src="' + imageUrl + '" alt="Image" onclick="window.open(\'' + imageUrl + '\')" style="max-width: 100%; cursor: pointer;">';
+        // Add oncontextmenu to prevent download, and controlslist for video elements
+        return '<img src="' + imageUrl + '" alt="Image" onclick="window.open(\'' + imageUrl + '\')" style="max-width: 100%; cursor: pointer;" oncontextmenu="return false;" draggable="false">';
     }
     
     if (msg.message_type === 'video') {
         var videoUrl = safeUrl(msg.file_url);
         if (!videoUrl) return '<p>Video not available</p>';
-        return '<video controls style="max-width: 100%;"><source src="' + videoUrl + '"></video>';
+        // Add controlslist="nodownload" to prevent download button, and disable context menu
+        return '<video controls style="max-width: 100%;" oncontextmenu="return false;" controlslist="nodownload" disablePictureInPicture><source src="' + videoUrl + '"></video>';
     }
     
     if (msg.message_type === 'audio') {
         var audioUrl = safeUrl(msg.file_url);
         if (!audioUrl) return '<p>Audio not available</p>';
-        return '<audio controls src="' + audioUrl + '" style="width: 280px; height: 40px;"></audio>';
+        // Add controlslist="nodownload" to prevent download
+        return '<audio controls src="' + audioUrl + '" style="width: 280px; height: 40px;" controlslist="nodownload" oncontextmenu="return false;"></audio>';
     }
     
     return '<p>Unsupported message type</p>';

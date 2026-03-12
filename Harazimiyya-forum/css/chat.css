@@ -43,7 +43,7 @@
 /* Sepia Theme - ALL ICONS BLACK */
 [data-theme="sepia"] {
     --background-dark: #25703185;
-    --sidebar-bg: #8b5e3c;
+    --sidebar-bg: #0f3f06;
     --card-bg: #9bc08a;
     --text-light: #0f0f0f;
     --text-muted: #ecdfd4;
@@ -117,7 +117,7 @@ body {
     background: var(--background-dark);
     color: var(--text-light);
     height: 100vh;
-    overflow-x: hidden;
+    overflow: hidden; /* CHANGE: Prevent body scrolling */
     font-family: "Segoe UI", sans-serif;
     transition: background-color 0.3s ease, color 0.3s ease;
 }
@@ -126,7 +126,8 @@ body {
     display: flex;
     height: 100vh;
     width: 100%;
-    overflow: hidden;
+    overflow: hidden; /* CHANGE: Prevent layout scrolling */
+    position: relative;
 }
 
 /* ================= DEEPSEEK SIDEBAR ================= */
@@ -348,7 +349,7 @@ body {
     display: block;
 }
 
-/* ================= CHAT MAIN ================= */
+/* ================= CHAT MAIN - COMPLETELY FIXED LAYOUT ================= */
 .chat-main {
     flex: 1;
     display: flex;
@@ -356,19 +357,25 @@ body {
     background: var(--background-dark);
     width: 100%;
     height: 100vh;
-    overflow: hidden;
+    overflow: hidden; /* CHANGE: Prevent main scrolling */
     transition: background-color 0.3s ease;
+    position: relative;
 }
 
+/* ===== FIXED HEADER - NEVER MOVES ===== */
 .chat-header {
     padding: 20px;
     background: var(--card-bg);
     border-bottom: 1px solid var(--border-color);
     flex-shrink: 0;
     transition: background-color 0.3s ease;
+    position: sticky;
+    top: 0;
+    z-index: 100;
+    width: 100%;
 }
 
-/* ================= UPDATED HEADER LAYOUT ================= */
+/* ===== UPDATED HEADER LAYOUT ===== */
 .chat-header-top {
     display: flex;
     justify-content: space-between;
@@ -529,6 +536,7 @@ body {
     background: var(--card-bg);
     border-bottom: 1px solid var(--border-color);
     animation: slideDown 0.3s ease;
+    flex-shrink: 0;
 }
 
 .typing-indicator.hidden {
@@ -834,6 +842,7 @@ body {
     border-radius: 2px;
 }
 
+/* ===== MESSAGES CONTAINER - ONLY THIS SCROLLS ===== */
 .messages {
     flex: 1;
     padding: 20px;
@@ -844,6 +853,9 @@ body {
     gap: 15px;
     -webkit-overflow-scrolling: touch;
     transition: background-color 0.3s ease;
+    /* Ensure it takes remaining space */
+    height: 0;
+    min-height: 0;
 }
 
 .message {
@@ -1265,7 +1277,7 @@ body {
     opacity: 0.5;
 }
 
-/* ================= FIXED CHAT INPUT AREA WITH TEXTAREA ================= */
+/* ===== FIXED CHAT INPUT AREA - ALWAYS AT BOTTOM ===== */
 .chat-input-area {
     padding: 12px 15px;
     background: var(--card-bg);
@@ -1278,6 +1290,8 @@ body {
     width: 100%;
     position: relative;
     transition: background-color 0.3s ease;
+    /* Stick to bottom */
+    margin-top: auto;
 }
 
 /* ===== UPDATED TEXTAREA STYLES - AUTO-RESIZE WITH LINE BREAKS ===== */
@@ -2573,4 +2587,59 @@ body {
     border-radius: 20px;
     font-size: 12px;
     color: var(--text-muted);
+}
+
+/* ================= PREVENT TEXT SELECTION ON MESSAGES ================= */
+.message, .message * {
+    -webkit-touch-callout: none !important;
+    -webkit-user-select: none !important;
+    -khtml-user-select: none !important;
+    -moz-user-select: none !important;
+    -ms-user-select: none !important;
+    user-select: none !important;
+    -webkit-tap-highlight-color: transparent !important;
+}
+
+/* Allow text selection in input areas only */
+#messageInput, 
+.member-search-input, 
+input, 
+textarea,
+.search-input,
+[contenteditable="true"] {
+    -webkit-user-select: text !important;
+    -moz-user-select: text !important;
+    -ms-user-select: text !important;
+    user-select: text !important;
+}
+
+/* ===== MEDIA PROTECTION RULES ===== */
+/* Prevent image/video download menu and context menu */
+img, 
+video, 
+audio,
+.message img,
+.message video,
+.message audio {
+    -webkit-touch-callout: none;
+    -webkit-user-select: none;
+    -webkit-user-drag: none;
+    -moz-user-select: none;
+    -ms-user-select: none;
+    user-select: none;
+    pointer-events: auto;
+}
+
+/* Prevent the blue highlight on tap */
+.message {
+    -webkit-tap-highlight-color: transparent;
+}
+
+/* Ensure quoted messages also can't be selected */
+.quoted-message, 
+.quoted-message * {
+    -webkit-user-select: none;
+    -moz-user-select: none;
+    -ms-user-select: none;
+    user-select: none;
 }
