@@ -2283,8 +2283,8 @@ async function handleNewMessage(newMessage) {
     }
 }
 
-// ================= RESIZE IMAGE BEFORE UPLOAD =================
-async function resizeImage(file, maxWidth = 800, maxHeight = 800, quality = 0.8) {
+// ================= RESIZE IMAGE BEFORE UPLOAD - UPDATED TO 280px =================
+async function resizeImage(file, maxWidth = 280, maxHeight = 280, quality = 0.8) {
     return new Promise((resolve, reject) => {
         const reader = new FileReader();
         reader.readAsDataURL(file);
@@ -2356,7 +2356,7 @@ async function compressVideo(file, maxSizeMB = 10) {
     });
 }
 
-// ================= MODIFIED handleFileSelect with resize =================
+// ================= MODIFIED handleFileSelect with resize - UPDATED TO 280px =================
 function handleFileSelect(e) {
     var file = e.target.files[0];
     if (!file) return;
@@ -2375,10 +2375,10 @@ function handleFileSelect(e) {
     if (file.type.startsWith('image/')) {
         currentFileType = 'image';
         // Show loading indicator
-        showNotification('🖼️ Resizing image...', 'info', 2000);
+        showNotification('🖼️ Resizing image to 280px...', 'info', 2000);
         
-        // Resize image before preview
-        resizeImage(file, 800, 800, 0.8).then(resizedFile => {
+        // Resize image before preview - CHANGED FROM 800 TO 280
+        resizeImage(file, 280, 280, 0.8).then(resizedFile => {
             currentFile = resizedFile;
             console.log(`Image resized: ${(file.size/1024).toFixed(2)}KB → ${(resizedFile.size/1024).toFixed(2)}KB`);
             showImagePreview(resizedFile);
@@ -2433,7 +2433,7 @@ function showImagePreview(file) {
                 <img src="' + e.target.result + '" style="max-width: ' + displayWidth + 'px; max-height: ' + displayHeight + 'px; border-radius: 4px; object-fit: cover;">\
                 <div style="flex: 1; min-width: 0;">\
                     <span style="color: var(--text-light); font-size: 14px; word-break: break-word; display: block;">' + file.name + '</span>\
-                    <span style="color: var(--text-muted); font-size: 11px;">Size: ' + (file.size / 1024).toFixed(1) + 'KB (resized)</span>\
+                    <span style="color: var(--text-muted); font-size: 11px;">Size: ' + (file.size / 1024).toFixed(1) + 'KB (resized to 280px)</span>\
                 </div>\
                 <div style="display: flex; gap: 5px;">\
                     <button id="deletePreviewBtn" class="media-btn" style="background: var(--danger);"><i class="fas fa-trash"></i></button>\

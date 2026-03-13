@@ -2609,17 +2609,11 @@ textarea,
     user-select: none;
 }
 
-
-
-
-
-
-
-
-
-/* Add this to your CSS file - CRITICAL FIX FOR ANDROID */
+/* ================= ANDROID KEYBOARD FIXES ================= */
 html, body {
     height: 100%;
+    margin: 0;
+    padding: 0;
     overflow: hidden;
     position: fixed;
     width: 100%;
@@ -2627,7 +2621,7 @@ html, body {
 
 .chat-main {
     height: 100vh;
-    height: -webkit-fill-available; /* Critical for Android */
+    height: -webkit-fill-available;
     display: flex;
     flex-direction: column;
     overflow: hidden;
@@ -2648,23 +2642,11 @@ html, body {
     bottom: 0;
     left: 0;
     right: 0;
-    background: var(--card-bg) !important;
-    display: flex !important;
-    visibility: visible !important;
-    opacity: 1 !important;
-    padding: 8px 10px;
-    gap: 6px;
-    border-top: 1px solid var(--border-color);
-    align-items: center;
-    flex-wrap: wrap;
-    flex-shrink: 0;
-    width: 100%;
     z-index: 1000;
-    min-height: 60px;
-    transform: translateZ(0); /* Force hardware acceleration */
+    transform: translateZ(0);
 }
 
-/* Android keyboard fix - ensures input stays above keyboard */
+/* Android keyboard fix */
 @media (max-width: 768px) {
     .chat-main {
         height: 100vh;
