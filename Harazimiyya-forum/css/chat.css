@@ -1272,7 +1272,7 @@ body {
     gap: 6px;
     border-top: 1px solid var(--border-color);
     align-items: center;
-    flex-wrap: wrap;
+    flex-wrap: nowrap !important; /* PREVENT WRAPPING */
     flex-shrink: 0;
     width: 100%;
     position: relative;
@@ -1320,6 +1320,14 @@ body {
 
 .chat-input-area textarea.message-input.replying {
     border-left: 3px solid var(--primary-color);
+}
+
+/* Media buttons container */
+.chat-input-area .media-buttons-wrapper {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex-shrink: 0;
 }
 
 /* Media buttons */
@@ -2645,7 +2653,7 @@ textarea,
     height: 44px !important;
 }
 
-/* ================= ANDROID KEYBOARD FIXES - UPDATED ================= */
+/* ================= ANDROID KEYBOARD FIXES - WITH 50/50 SPLIT ================= */
 html, body {
     height: 100%;
     margin: 0;
@@ -2707,6 +2715,7 @@ html, body {
     -webkit-transform: translateZ(0);
     visibility: visible !important;
     opacity: 1 !important;
+    flex-wrap: nowrap !important; /* PREVENT WRAPPING */
 }
 
 /* Textarea styling - ENSURE IT'S VISIBLE */
@@ -2732,7 +2741,15 @@ html, body {
     opacity: 1 !important;
 }
 
-/* Media buttons - ENSURE THEY'RE VISIBLE */
+/* Media buttons container */
+.chat-input-area .media-buttons-wrapper {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex-shrink: 0;
+}
+
+/* Media buttons */
 .media-btn {
     width: 48px;
     height: 48px;
@@ -2751,7 +2768,7 @@ html, body {
     opacity: 1 !important;
 }
 
-/* Send button - ENSURE IT'S VISIBLE */
+/* Send button */
 .send-btn {
     min-width: 70px;
     height: 48px;
@@ -2772,7 +2789,7 @@ html, body {
     opacity: 1 !important;
 }
 
-/* Android keyboard specific fixes */
+/* Android keyboard specific fixes - 50/50 SPLIT */
 @media (max-width: 768px) {
     .chat-main {
         height: 100vh;
@@ -2783,24 +2800,125 @@ html, body {
         padding: 8px 10px;
         padding-bottom: max(8px, env(safe-area-inset-bottom, 8px));
         min-height: 65px;
+        gap: 8px;
+        flex-wrap: nowrap !important; /* PREVENT WRAPPING */
     }
     
+    /* Text input takes exactly 50% width */
     .chat-input-area textarea.message-input {
+        flex: 0 0 50% !important;
+        min-width: 50% !important;
+        max-width: 50% !important;
+        width: 50% !important;
         font-size: 16px;
         min-height: 44px;
         padding: 10px 15px;
+        margin: 0;
+    }
+    
+    /* Button wrapper takes exactly 50% width */
+    .chat-input-area .media-buttons-wrapper {
+        flex: 0 0 50% !important;
+        min-width: 50% !important;
+        max-width: 50% !important;
+        width: 50% !important;
+        display: flex;
+        align-items: center;
+        justify-content: flex-end;
+        gap: 6px;
     }
     
     .media-btn {
-        width: 44px;
-        height: 44px;
+        width: 40px;
+        height: 40px;
         font-size: 18px;
+        flex-shrink: 0;
     }
     
     .send-btn {
-        min-width: 60px;
-        height: 44px;
+        min-width: 55px;
+        height: 40px;
         font-size: 14px;
+        padding: 0 12px;
+        flex-shrink: 0;
+    }
+}
+
+/* Even smaller screens - keep 50/50 split */
+@media (max-width: 480px) {
+    .chat-input-area {
+        padding: 6px 8px;
+        gap: 6px;
+        flex-wrap: nowrap !important; /* PREVENT WRAPPING */
+    }
+    
+    /* Text input takes exactly 50% width */
+    .chat-input-area textarea.message-input {
+        flex: 0 0 50% !important;
+        min-width: 50% !important;
+        max-width: 50% !important;
+        padding: 8px 12px;
+        font-size: 15px;
+    }
+    
+    /* Button wrapper takes exactly 50% width */
+    .chat-input-area .media-buttons-wrapper {
+        flex: 0 0 50% !important;
+        min-width: 50% !important;
+        max-width: 50% !important;
+        gap: 4px;
+    }
+    
+    .media-btn {
+        width: 36px;
+        height: 36px;
+        font-size: 16px;
+    }
+    
+    .send-btn {
+        min-width: 48px;
+        height: 36px;
+        font-size: 13px;
+        padding: 0 8px;
+    }
+}
+
+/* Very small screens - keep 50/50 split */
+@media (max-width: 360px) {
+    .chat-input-area {
+        padding: 5px 6px;
+        gap: 4px;
+        flex-wrap: nowrap !important; /* PREVENT WRAPPING */
+    }
+    
+    /* Text input takes exactly 50% width */
+    .chat-input-area textarea.message-input {
+        flex: 0 0 50% !important;
+        min-width: 50% !important;
+        max-width: 50% !important;
+        padding: 6px 10px;
+        font-size: 14px;
+    }
+    
+    /* Button wrapper takes exactly 50% width */
+    .chat-input-area .media-buttons-wrapper {
+        flex: 0 0 50% !important;
+        min-width: 50% !important;
+        max-width: 50% !important;
+        gap: 3px;
+    }
+    
+    .media-btn {
+        width: 32px;
+        height: 32px;
+        font-size: 14px;
+    }
+    
+    .send-btn {
+        min-width: 42px;
+        height: 32px;
+        font-size: 12px;
+        padding: 0 6px;
     }
 }
 
