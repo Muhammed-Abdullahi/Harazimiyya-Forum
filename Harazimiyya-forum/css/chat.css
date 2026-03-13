@@ -2609,7 +2609,43 @@ textarea,
     user-select: none;
 }
 
-/* ================= ANDROID KEYBOARD FIXES ================= */
+/* ===== FIX FOR IMAGE SIZE IN CHAT - MAKE THEM SMALL ===== */
+.message img,
+.message video {
+    max-width: 200px !important;
+    max-height: 200px !important;
+    width: auto !important;
+    height: auto !important;
+    border-radius: 12px;
+    object-fit: cover;
+    display: block;
+}
+
+/* Even smaller on mobile */
+@media (max-width: 768px) {
+    .message img,
+    .message video {
+        max-width: 150px !important;
+        max-height: 150px !important;
+    }
+}
+
+/* For very small screens */
+@media (max-width: 480px) {
+    .message img,
+    .message video {
+        max-width: 120px !important;
+        max-height: 120px !important;
+    }
+}
+
+/* Make sure audio messages stay the same size */
+.message audio {
+    width: 280px !important;
+    height: 44px !important;
+}
+
+/* ================= ANDROID KEYBOARD FIXES - UPDATED ================= */
 html, body {
     height: 100%;
     margin: 0;
@@ -2617,36 +2653,126 @@ html, body {
     overflow: hidden;
     position: fixed;
     width: 100%;
+    -webkit-text-size-adjust: 100%;
 }
 
-.chat-main {
-    height: 100vh;
-    height: -webkit-fill-available;
+.chat-layout {
     display: flex;
-    flex-direction: column;
+    height: 100%;
+    width: 100%;
     overflow: hidden;
     position: relative;
 }
 
-/* Fix for Android keyboard */
+.chat-main {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    background: var(--background-dark);
+    height: 100%;
+    width: 100%;
+    overflow: hidden;
+    position: relative;
+}
+
+/* Messages area - scrollable */
 .messages {
     flex: 1 1 auto;
     overflow-y: auto;
+    overflow-x: hidden;
     -webkit-overflow-scrolling: touch;
+    padding: 15px;
     padding-bottom: 10px;
+    background: var(--background-dark);
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    min-height: 0;
 }
 
-/* Ensure input area is ALWAYS visible */
+/* Input area - FIXED TO ALWAYS SHOW */
 .chat-input-area {
-    position: relative;
-    bottom: 0;
-    left: 0;
-    right: 0;
+    flex-shrink: 0;
+    background: var(--card-bg) !important;
+    display: flex !important;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 12px;
+    padding-bottom: calc(10px + env(safe-area-inset-bottom, 0px));
+    border-top: 1px solid var(--border-color);
+    width: 100%;
+    min-height: 70px;
     z-index: 1000;
     transform: translateZ(0);
+    -webkit-transform: translateZ(0);
+    visibility: visible !important;
+    opacity: 1 !important;
 }
 
-/* Android keyboard fix */
+/* Textarea styling - ENSURE IT'S VISIBLE */
+.chat-input-area textarea.message-input {
+    flex: 1;
+    min-width: 80px;
+    min-height: 44px;
+    max-height: 100px;
+    padding: 12px 15px;
+    border-radius: 25px;
+    border: none;
+    background: var(--input-bg);
+    color: var(--text-light);
+    font-size: 16px;
+    line-height: 1.4;
+    resize: none;
+    overflow-y: auto;
+    font-family: "Segoe UI", sans-serif;
+    -webkit-appearance: none;
+    appearance: none;
+    display: block !important;
+    visibility: visible !important;
+    opacity: 1 !important;
+}
+
+/* Media buttons - ENSURE THEY'RE VISIBLE */
+.media-btn {
+    width: 48px;
+    height: 48px;
+    border-radius: 50%;
+    border: none;
+    background: var(--input-bg);
+    color: var(--icon-color);
+    cursor: pointer;
+    display: flex !important;
+    align-items: center;
+    justify-content: center;
+    font-size: 20px;
+    flex-shrink: 0;
+    transition: all 0.3s;
+    visibility: visible !important;
+    opacity: 1 !important;
+}
+
+/* Send button - ENSURE IT'S VISIBLE */
+.send-btn {
+    min-width: 70px;
+    height: 48px;
+    border: none;
+    border-radius: 30px;
+    background: var(--primary-color);
+    color: var(--icon-color);
+    cursor: pointer;
+    font-weight: 600;
+    display: flex !important;
+    align-items: center;
+    justify-content: center;
+    gap: 5px;
+    font-size: 15px;
+    flex-shrink: 0;
+    padding: 0 20px;
+    visibility: visible !important;
+    opacity: 1 !important;
+}
+
+/* Android keyboard specific fixes */
 @media (max-width: 768px) {
     .chat-main {
         height: 100vh;
@@ -2654,6 +2780,38 @@ html, body {
     }
     
     .chat-input-area {
-        padding-bottom: max(8px, env(safe-area-inset-bottom));
+        padding: 8px 10px;
+        padding-bottom: max(8px, env(safe-area-inset-bottom, 8px));
+        min-height: 65px;
     }
+    
+    .chat-input-area textarea.message-input {
+        font-size: 16px;
+        min-height: 44px;
+        padding: 10px 15px;
+    }
+    
+    .media-btn {
+        width: 44px;
+        height: 44px;
+        font-size: 18px;
+    }
+    
+    .send-btn {
+        min-width: 60px;
+        height: 44px;
+        font-size: 14px;
+    }
+}
+
+/* Force hardware acceleration for smoother rendering */
+.chat-header,
+.messages,
+.chat-input-area,
+.media-btn,
+.send-btn {
+    -webkit-transform: translateZ(0);
+    transform: translateZ(0);
+    backface-visibility: hidden;
+    -webkit-backface-visibility: hidden;
 }

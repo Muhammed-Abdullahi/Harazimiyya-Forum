@@ -2230,21 +2230,20 @@ function renderMessageContent(msg) {
     if (msg.message_type === 'image') {
         var imageUrl = safeUrl(msg.file_url);
         if (!imageUrl) return '<p>Image not available</p>';
-        // REMOVED download prevention - users can now download
-        return '<img src="' + imageUrl + '" alt="Image" onclick="window.open(\'' + imageUrl + '\')" style="max-width: 100%; cursor: pointer;">';
+        // Image will now be styled by CSS to be small (max 200px)
+        return '<img src="' + imageUrl + '" alt="Image" onclick="window.open(\'' + imageUrl + '\')" style="cursor: pointer; max-width: 100%;">';
     }
     
     if (msg.message_type === 'video') {
         var videoUrl = safeUrl(msg.file_url);
         if (!videoUrl) return '<p>Video not available</p>';
-        // REMOVED download prevention - users can now download
+        // Video will now be styled by CSS to be small (max 200px)
         return '<video controls style="max-width: 100%;"><source src="' + videoUrl + '"></video>';
     }
     
     if (msg.message_type === 'audio') {
         var audioUrl = safeUrl(msg.file_url);
         if (!audioUrl) return '<p>Audio not available</p>';
-        // REMOVED download prevention - users can now download
         return '<audio controls src="' + audioUrl + '" style="width: 280px; height: 40px;"></audio>';
     }
     
@@ -2283,7 +2282,7 @@ async function handleNewMessage(newMessage) {
     }
 }
 
-// ================= RESIZE IMAGE BEFORE UPLOAD - UPDATED TO 280px =================
+// ================= RESIZE IMAGE BEFORE UPLOAD =================
 async function resizeImage(file, maxWidth = 280, maxHeight = 280, quality = 0.8) {
     return new Promise((resolve, reject) => {
         const reader = new FileReader();
@@ -2356,7 +2355,7 @@ async function compressVideo(file, maxSizeMB = 10) {
     });
 }
 
-// ================= MODIFIED handleFileSelect with resize - UPDATED TO 280px =================
+// ================= MODIFIED handleFileSelect with resize =================
 function handleFileSelect(e) {
     var file = e.target.files[0];
     if (!file) return;
@@ -2375,9 +2374,9 @@ function handleFileSelect(e) {
     if (file.type.startsWith('image/')) {
         currentFileType = 'image';
         // Show loading indicator
-        showNotification('🖼️ Resizing image to 280px...', 'info', 2000);
+        showNotification('🖼️ Resizing image...', 'info', 2000);
         
-        // Resize image before preview - CHANGED FROM 800 TO 280
+        // Resize image before preview
         resizeImage(file, 280, 280, 0.8).then(resizedFile => {
             currentFile = resizedFile;
             console.log(`Image resized: ${(file.size/1024).toFixed(2)}KB → ${(resizedFile.size/1024).toFixed(2)}KB`);
@@ -2433,7 +2432,7 @@ function showImagePreview(file) {
                 <img src="' + e.target.result + '" style="max-width: ' + displayWidth + 'px; max-height: ' + displayHeight + 'px; border-radius: 4px; object-fit: cover;">\
                 <div style="flex: 1; min-width: 0;">\
                     <span style="color: var(--text-light); font-size: 14px; word-break: break-word; display: block;">' + file.name + '</span>\
-                    <span style="color: var(--text-muted); font-size: 11px;">Size: ' + (file.size / 1024).toFixed(1) + 'KB (resized to 280px)</span>\
+                    <span style="color: var(--text-muted); font-size: 11px;">Size: ' + (file.size / 1024).toFixed(1) + 'KB (resized)</span>\
                 </div>\
                 <div style="display: flex; gap: 5px;">\
                     <button id="deletePreviewBtn" class="media-btn" style="background: var(--danger);"><i class="fas fa-trash"></i></button>\
