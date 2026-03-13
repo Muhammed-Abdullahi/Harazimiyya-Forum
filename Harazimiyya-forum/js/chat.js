@@ -1,4 +1,4 @@
-// js/chat.js - Complete Group Chat with Line Break Preservation
+// js/chat.js - Complete Group Chat with Line Break Preservation and Image Resizing
 console.log("💬 Chat page loading...");
 
 // Helper function to prevent null URL errors
@@ -2283,6 +2283,219 @@ async function handleNewMessage(newMessage) {
     }
 }
 
+// ================= RESIZE IMAGE BEFORE UPLOAD =================
+async function resizeImage(file, maxWidth = 800, maxHeight = 800, quality = 0.8) {
+    return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.readAsDataURL(file);
+        reader.onload = (e) => {
+            const img = new Image();
+            img.src = e.target.result;
+            img.onload = () => {
+                // Calculate new dimensions
+                let width = img.width;
+                let height = img.height;
+                
+                if (width > height) {
+                    if (width > maxWidth) {
+                        height = Math.round(height * (maxWidth / width));
+                        width = maxWidth;
+                    }
+                } else {
+                    if (height > maxHeight) {
+                        width = Math.round(width * (maxHeight / height));
+                        height = maxHeight;
+                    }
+                }
+                
+                // Create canvas and resize
+                const canvas = document.createElement('canvas');
+                canvas.width = width;
+                canvas.height = height;
+                
+                const ctx = canvas.getContext('2d');
+                ctx.drawImage(img, 0, 0, width, height);
+                
+                // Convert to blob
+                canvas.toBlob((blob) => {
+                    // Create new file from blob
+                    const resizedFile = new File([blob], file.name, {
+                        type: file.type,
+                        lastModified: Date.now()
+                    });
+                    resolve(resizedFile);
+                }, file.type, quality);
+            };
+            img.onerror = reject;
+        };
+        reader.onerror = reject;
+    });
+}
+
+// ================= RESIZE VIDEO (COMPRESS) =================
+async function compressVideo(file, maxSizeMB = 10) {
+    return new Promise((resolve, reject) => {
+        // If video is already small enough, return as is
+        if (file.size <= maxSizeMB * 1024 * 1024) {
+            resolve(file);
+            return;
+        }
+        
+        // For videos, we'll use FFmpeg.wasm or similar in production
+        // For now, show warning and let user know
+        console.log(`Video size: ${(file.size / (1024*1024)).toFixed(2)}MB`);
+        
+        // Simple compression warning
+        if (file.size > 20 * 1024 * 1024) {
+            alert("Video is large (>20MB). It may take time to upload and might be compressed.");
+        }
+        
+        // In a production app, you'd use a library like ffmpeg.wasm
+        // For now, we'll just return the original file with a note
+        resolve(file);
+    });
+}
+
+// ================= MODIFIED handleFileSelect with resize =================
+function handleFileSelect(e) {
+    var file = e.target.files[0];
+    if (!file) return;
+    
+    if (file.size > 50 * 1024 * 1024) {
+        alert("File too large. Maximum size is 50MB.");
+        return;
+    }
+    
+    recordedAudio = null;
+    if (recordedAudioUrl) {
+        URL.revokeObjectURL(recordedAudioUrl);
+        recordedAudioUrl = null;
+    }
+    
+    if (file.type.startsWith('image/')) {
+        currentFileType = 'image';
+        // Show loading indicator
+        showNotification('🖼️ Resizing image...', 'info', 2000);
+        
+        // Resize image before preview
+        resizeImage(file, 800, 800, 0.8).then(resizedFile => {
+            currentFile = resizedFile;
+            console.log(`Image resized: ${(file.size/1024).toFixed(2)}KB → ${(resizedFile.size/1024).toFixed(2)}KB`);
+            showImagePreview(resizedFile);
+        }).catch(err => {
+            console.error("Error resizing image:", err);
+            currentFile = file;
+            showImagePreview(file);
+        });
+        
+    } else if (file.type.startsWith('video/')) {
+        currentFileType = 'video';
+        // Show loading indicator
+        showNotification('🎥 Processing video...', 'info', 2000);
+        
+        // Compress video
+        compressVideo(file, 10).then(compressedFile => {
+            currentFile = compressedFile;
+            console.log(`Video processed: ${(file.size/(1024*1024)).toFixed(2)}MB → ${(compressedFile.size/(1024*1024)).toFixed(2)}MB`);
+            showVideoPreview(compressedFile);
+        }).catch(err => {
+            console.error("Error compressing video:", err);
+            currentFile = file;
+            showVideoPreview(file);
+        });
+        
+    } else {
+        alert("File type not supported. Please select an image or video.");
+        currentFile = null;
+    }
+}
+
+// ================= MODIFIED showImagePreview with resize options =================
+function showImagePreview(file) {
+    var reader = new FileReader();
+    reader.onload = function(e) {
+        var existingPreview = document.getElementById('mediaPreview');
+        if (existingPreview) existingPreview.remove();
+        
+        var chatInput = document.querySelector('.chat-input-area');
+        var previewDiv = document.createElement('div');
+        previewDiv.id = 'mediaPreview';
+        previewDiv.style.cssText = 'display: flex; align-items: center; gap: 10px; padding: 10px; background: var(--card-bg); border-radius: 8px; margin-bottom: 10px; width: 100%; flex-wrap: wrap;';
+        
+        // Calculate reduced size for preview
+        var img = new Image();
+        img.src = e.target.result;
+        img.onload = function() {
+            var displayWidth = Math.min(80, img.width);
+            var displayHeight = (img.height / img.width) * displayWidth;
+            
+            previewDiv.innerHTML = '\
+                <img src="' + e.target.result + '" style="max-width: ' + displayWidth + 'px; max-height: ' + displayHeight + 'px; border-radius: 4px; object-fit: cover;">\
+                <div style="flex: 1; min-width: 0;">\
+                    <span style="color: var(--text-light); font-size: 14px; word-break: break-word; display: block;">' + file.name + '</span>\
+                    <span style="color: var(--text-muted); font-size: 11px;">Size: ' + (file.size / 1024).toFixed(1) + 'KB (resized)</span>\
+                </div>\
+                <div style="display: flex; gap: 5px;">\
+                    <button id="deletePreviewBtn" class="media-btn" style="background: var(--danger);"><i class="fas fa-trash"></i></button>\
+                    <button id="sendPreviewBtn" class="media-btn" style="background: var(--primary-color);"><i class="fas fa-paper-plane"></i></button>\
+                </div>\
+            ';
+            
+            chatInput.parentNode.insertBefore(previewDiv, chatInput);
+            
+            document.getElementById('deletePreviewBtn').addEventListener('click', function() {
+                currentFile = null;
+                previewDiv.remove();
+            });
+            
+            document.getElementById('sendPreviewBtn').addEventListener('click', async function() {
+                previewDiv.remove();
+                await sendMessage();
+            });
+        };
+    };
+    reader.readAsDataURL(file);
+}
+
+// ================= MODIFIED showVideoPreview with size info =================
+function showVideoPreview(file) {
+    var reader = new FileReader();
+    reader.onload = function(e) {
+        var existingPreview = document.getElementById('mediaPreview');
+        if (existingPreview) existingPreview.remove();
+        
+        var chatInput = document.querySelector('.chat-input-area');
+        var previewDiv = document.createElement('div');
+        previewDiv.id = 'mediaPreview';
+        previewDiv.style.cssText = 'display: flex; align-items: center; gap: 10px; padding: 10px; background: var(--card-bg); border-radius: 8px; margin-bottom: 10px; width: 100%; flex-wrap: wrap;';
+        
+        previewDiv.innerHTML = '\
+            <video src="' + e.target.result + '" style="max-width: 80px; max-height: 80px; border-radius: 4px;" controls></video>\
+            <div style="flex: 1; min-width: 0;">\
+                <span style="color: var(--text-light); font-size: 14px; word-break: break-word; display: block;">' + file.name + '</span>\
+                <span style="color: var(--text-muted); font-size: 11px;">Size: ' + (file.size / (1024*1024)).toFixed(2) + 'MB</span>\
+            </div>\
+            <div style="display: flex; gap: 5px;">\
+                <button id="deletePreviewBtn" class="media-btn" style="background: var(--danger);"><i class="fas fa-trash"></i></button>\
+                <button id="sendPreviewBtn" class="media-btn" style="background: var(--primary-color);"><i class="fas fa-paper-plane"></i></button>\
+            </div>\
+        ';
+        
+        chatInput.parentNode.insertBefore(previewDiv, chatInput);
+        
+        document.getElementById('deletePreviewBtn').addEventListener('click', function() {
+            currentFile = null;
+            previewDiv.remove();
+        });
+        
+        document.getElementById('sendPreviewBtn').addEventListener('click', async function() {
+            previewDiv.remove();
+            await sendMessage();
+        });
+    };
+    reader.readAsDataURL(file);
+}
+
 // ================= SIMPLE, GUARANTEED ANDROID ENTER KEY FIX =================
 function setupChatListeners() {
     var sendBtn = document.getElementById('sendBtn');
@@ -2483,106 +2696,6 @@ function showAudioPreview(audioUrl) {
             await sendMessage();
         }
     });
-}
-
-// ================= FILE HANDLING =================
-function handleFileSelect(e) {
-    var file = e.target.files[0];
-    if (!file) return;
-    
-    if (file.size > 50 * 1024 * 1024) {
-        alert("File too large. Maximum size is 50MB.");
-        return;
-    }
-    
-    recordedAudio = null;
-    if (recordedAudioUrl) {
-        URL.revokeObjectURL(recordedAudioUrl);
-        recordedAudioUrl = null;
-    }
-    
-    currentFile = file;
-    
-    if (file.type.startsWith('image/')) {
-        currentFileType = 'image';
-        showImagePreview(file);
-    } else if (file.type.startsWith('video/')) {
-        currentFileType = 'video';
-        showVideoPreview(file);
-    } else {
-        alert("File type not supported. Please select an image or video.");
-        currentFile = null;
-    }
-}
-
-function showImagePreview(file) {
-    var reader = new FileReader();
-    reader.onload = function(e) {
-        var existingPreview = document.getElementById('mediaPreview');
-        if (existingPreview) existingPreview.remove();
-        
-        var chatInput = document.querySelector('.chat-input-area');
-        var previewDiv = document.createElement('div');
-        previewDiv.id = 'mediaPreview';
-        previewDiv.style.cssText = 'display: flex; align-items: center; gap: 10px; padding: 10px; background: var(--card-bg); border-radius: 8px; margin-bottom: 10px; width: 100%; flex-wrap: wrap;';
-        
-        previewDiv.innerHTML = '\
-            <img src="' + e.target.result + '" style="max-width: 80px; max-height: 80px; border-radius: 4px; object-fit: cover;">\
-            <span style="flex: 1; color: var(--text-light); font-size: 14px; word-break: break-word;">' + file.name + '</span>\
-            <div style="display: flex; gap: 5px;">\
-                <button id="deletePreviewBtn" class="media-btn" style="background: var(--danger);"><i class="fas fa-trash"></i></button>\
-                <button id="sendPreviewBtn" class="media-btn" style="background: var(--primary-color);"><i class="fas fa-paper-plane"></i></button>\
-            </div>\
-        ';
-        
-        chatInput.parentNode.insertBefore(previewDiv, chatInput);
-        
-        document.getElementById('deletePreviewBtn').addEventListener('click', function() {
-            currentFile = null;
-            previewDiv.remove();
-        });
-        
-        document.getElementById('sendPreviewBtn').addEventListener('click', async function() {
-            previewDiv.remove();
-            await sendMessage();
-        });
-    };
-    reader.readAsDataURL(file);
-}
-
-function showVideoPreview(file) {
-    var reader = new FileReader();
-    reader.onload = function(e) {
-        var existingPreview = document.getElementById('mediaPreview');
-        if (existingPreview) existingPreview.remove();
-        
-        var chatInput = document.querySelector('.chat-input-area');
-        var previewDiv = document.createElement('div');
-        previewDiv.id = 'mediaPreview';
-        previewDiv.style.cssText = 'display: flex; align-items: center; gap: 10px; padding: 10px; background: var(--card-bg); border-radius: 8px; margin-bottom: 10px; width: 100%; flex-wrap: wrap;';
-        
-        previewDiv.innerHTML = '\
-            <video src="' + e.target.result + '" style="max-width: 80px; max-height: 80px; border-radius: 4px;" controls></video>\
-            <span style="flex: 1; color: var(--text-light); font-size: 14px; word-break: break-word;">' + file.name + '</span>\
-            <div style="display: flex; gap: 5px;">\
-                <button id="deletePreviewBtn" class="media-btn" style="background: var(--danger);"><i class="fas fa-trash"></i></button>\
-                <button id="sendPreviewBtn" class="media-btn" style="background: var(--primary-color);"><i class="fas fa-paper-plane"></i></button>\
-            </div>\
-        ';
-        
-        chatInput.parentNode.insertBefore(previewDiv, chatInput);
-        
-        document.getElementById('deletePreviewBtn').addEventListener('click', function() {
-            currentFile = null;
-            previewDiv.remove();
-        });
-        
-        document.getElementById('sendPreviewBtn').addEventListener('click', async function() {
-            previewDiv.remove();
-            await sendMessage();
-        });
-    };
-    reader.readAsDataURL(file);
 }
 
 // ================= UPLOAD FILE FUNCTION =================

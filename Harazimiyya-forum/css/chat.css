@@ -2608,3 +2608,70 @@ textarea,
     -ms-user-select: none;
     user-select: none;
 }
+
+
+
+
+
+
+
+
+
+/* Add this to your CSS file - CRITICAL FIX FOR ANDROID */
+html, body {
+    height: 100%;
+    overflow: hidden;
+    position: fixed;
+    width: 100%;
+}
+
+.chat-main {
+    height: 100vh;
+    height: -webkit-fill-available; /* Critical for Android */
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    position: relative;
+}
+
+/* Fix for Android keyboard */
+.messages {
+    flex: 1 1 auto;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    padding-bottom: 10px;
+}
+
+/* Ensure input area is ALWAYS visible */
+.chat-input-area {
+    position: relative;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    background: var(--card-bg) !important;
+    display: flex !important;
+    visibility: visible !important;
+    opacity: 1 !important;
+    padding: 8px 10px;
+    gap: 6px;
+    border-top: 1px solid var(--border-color);
+    align-items: center;
+    flex-wrap: wrap;
+    flex-shrink: 0;
+    width: 100%;
+    z-index: 1000;
+    min-height: 60px;
+    transform: translateZ(0); /* Force hardware acceleration */
+}
+
+/* Android keyboard fix - ensures input stays above keyboard */
+@media (max-width: 768px) {
+    .chat-main {
+        height: 100vh;
+        height: -webkit-fill-available;
+    }
+    
+    .chat-input-area {
+        padding-bottom: max(8px, env(safe-area-inset-bottom));
+    }
+}
