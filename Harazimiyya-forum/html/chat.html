@@ -150,7 +150,7 @@
             </div>
         </header>
 
-        <!-- Typing Indicator (now inside messages area) -->
+        <!-- Typing Indicator -->
         <div id="typingIndicator" class="typing-indicator hidden">
             <div class="typing-avatars" id="typingAvatars"></div>
             <div class="typing-dots">
@@ -160,25 +160,9 @@
             </div>
         </div>
 
-        <!-- Messages Container - Only this scrolls -->
         <section id="messages" class="messages"></section>
 
-        <!-- Reply Preview Area (Fixed above input) -->
-        <div id="replyPreviewArea" class="reply-preview-area hidden">
-            <div class="reply-preview-content">
-                <i class="fas fa-reply reply-preview-icon"></i>
-                <div class="reply-preview-text">
-                    <span id="replyPreviewSender">Replying to User</span>
-                    <p id="replyPreviewMessage">Message preview</p>
-                </div>
-            </div>
-            <button id="cancelReplyBtn" class="reply-preview-close">
-                <i class="fas fa-times"></i>
-            </button>
-        </div>
-
-        <!-- Fixed Input Area - ALWAYS VISIBLE -->
-        <footer class="chat-input-area" id="chatInputArea">
+        <footer class="chat-input-area">
             <textarea id="messageInput" class="message-input" placeholder="Write a message..." rows="1"></textarea>
             <input type="file" id="fileInput" hidden>
             
@@ -203,26 +187,6 @@
 
 <!-- Audio Player -->
 <audio id="audioPlayer"></audio>
-
-<!-- WhatsApp-style Media Modal (Blurry until download) -->
-<div id="mediaModal" class="media-modal hidden">
-    <div class="media-modal-content">
-        <div class="media-modal-header">
-            <h3 id="mediaModalTitle">Media Preview</h3>
-            <button id="closeMediaModal" class="media-modal-close">
-                <i class="fas fa-times"></i>
-            </button>
-        </div>
-        <div class="media-modal-body" id="mediaModalBody">
-            <!-- Media will be inserted here (blurry initially) -->
-        </div>
-        <div class="media-modal-footer">
-            <button id="downloadMediaBtn" class="media-modal-download">
-                <i class="fas fa-download"></i> Tap to Download & View Clearly
-            </button>
-        </div>
-    </div>
-</div>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="../js/supabase.js"></script>
