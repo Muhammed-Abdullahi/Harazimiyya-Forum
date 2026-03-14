@@ -2653,7 +2653,7 @@ textarea,
     height: 44px !important;
 }
 
-/* ================= ANDROID KEYBOARD FIXES - WITH GAP BETWEEN INPUT AND BUTTONS ================= */
+/* ================= ANDROID KEYBOARD FIXES - MATCH DESKTOP LAYOUT ================= */
 html, body {
     height: 100%;
     margin: 0;
@@ -2715,7 +2715,7 @@ html, body {
     -webkit-transform: translateZ(0);
     visibility: visible !important;
     opacity: 1 !important;
-    flex-wrap: nowrap !important; /* PREVENT WRAPPING */
+    flex-wrap: nowrap !important;
 }
 
 /* Textarea styling - ENSURE IT'S VISIBLE */
@@ -2789,7 +2789,7 @@ html, body {
     opacity: 1 !important;
 }
 
-/* ===== ANDROID SPECIFIC - WITH GAP BETWEEN INPUT AND BUTTONS ===== */
+/* ===== ANDROID SPECIFIC - EXACTLY LIKE DESKTOP ===== */
 @media (max-width: 768px) {
     .chat-main {
         height: 100vh;
@@ -2797,53 +2797,53 @@ html, body {
     }
     
     .chat-input-area {
-        padding: 8px 10px;
+        padding: 8px 12px;
         padding-bottom: max(8px, env(safe-area-inset-bottom, 8px));
         min-height: 65px;
-        gap: 8px;
+        gap: 10px;
         flex-wrap: nowrap !important;
         display: flex !important;
         align-items: center !important;
     }
     
-    /* Text input takes 48% width */
+    /* Text input takes most space - just like desktop */
     .chat-input-area textarea.message-input {
-        flex: 0 0 48% !important;
-        min-width: 48% !important;
-        max-width: 48% !important;
-        width: 48% !important;
+        flex: 1 1 auto !important;  /* This makes it take available space */
+        min-width: 120px !important;
+        max-width: none !important;
+        width: auto !important;
         font-size: 16px;
         min-height: 44px;
         padding: 10px 15px;
         margin: 0;
-        margin-right: 4% !important; /* 4% GAP between input and buttons */
+        margin-right: 10px !important; /* Fixed gap in pixels */
     }
     
-    /* Button wrapper takes 44% width and sits on far right */
+    /* Button wrapper - fixed width like desktop */
     .chat-input-area .media-buttons-wrapper {
-        flex: 0 0 44% !important;
-        min-width: 44% !important;
-        max-width: 44% !important;
-        width: 44% !important;
+        flex: 0 0 auto !important;  /* Don't grow or shrink */
+        min-width: auto !important;
+        max-width: none !important;
+        width: auto !important;
         display: flex;
         align-items: center;
         justify-content: flex-end !important;
-        gap: 6px;
+        gap: 8px;
         margin-left: 0;
     }
     
     .media-btn {
-        width: 40px;
-        height: 40px;
+        width: 44px;
+        height: 44px;
         font-size: 18px;
         flex-shrink: 0;
     }
     
     .send-btn {
-        min-width: 55px;
-        height: 40px;
+        min-width: 65px;
+        height: 44px;
         font-size: 14px;
-        padding: 0 12px;
+        padding: 0 15px;
         flex-shrink: 0;
     }
 }
@@ -2851,28 +2851,51 @@ html, body {
 /* Even smaller screens */
 @media (max-width: 480px) {
     .chat-input-area {
-        padding: 6px 8px;
+        padding: 6px 10px;
+        gap: 8px;
+    }
+    
+    .chat-input-area textarea.message-input {
+        font-size: 15px;
+        padding: 8px 12px;
+        min-height: 40px;
+        margin-right: 8px !important;
+    }
+    
+    .chat-input-area .media-buttons-wrapper {
         gap: 6px;
     }
     
-    /* Text input takes 46% */
-    .chat-input-area textarea.message-input {
-        flex: 0 0 46% !important;
-        min-width: 46% !important;
-        max-width: 46% !important;
-        padding: 8px 12px;
-        font-size: 15px;
-        margin-right: 4% !important; /* 4% GAP */
+    .media-btn {
+        width: 40px;
+        height: 40px;
+        font-size: 17px;
     }
     
-    /* Button wrapper takes 42% on far right */
+    .send-btn {
+        min-width: 58px;
+        height: 40px;
+        font-size: 13px;
+        padding: 0 12px;
+    }
+}
+
+/* Very small screens */
+@media (max-width: 360px) {
+    .chat-input-area {
+        padding: 5px 8px;
+        gap: 6px;
+    }
+    
+    .chat-input-area textarea.message-input {
+        font-size: 14px;
+        padding: 6px 10px;
+        min-height: 38px;
+        margin-right: 6px !important;
+    }
+    
     .chat-input-area .media-buttons-wrapper {
-        flex: 0 0 42% !important;
-        min-width: 42% !important;
-        max-width: 42% !important;
         gap: 4px;
-        justify-content: flex-end !important;
-        margin-left: 0;
     }
     
     .media-btn {
@@ -2882,51 +2905,10 @@ html, body {
     }
     
     .send-btn {
-        min-width: 48px;
+        min-width: 52px;
         height: 36px;
-        font-size: 13px;
-        padding: 0 8px;
-    }
-}
-
-/* Very small screens */
-@media (max-width: 360px) {
-    .chat-input-area {
-        padding: 5px 6px;
-        gap: 4px;
-    }
-    
-    /* Text input takes 44% */
-    .chat-input-area textarea.message-input {
-        flex: 0 0 44% !important;
-        min-width: 44% !important;
-        max-width: 44% !important;
-        padding: 6px 10px;
-        font-size: 14px;
-        margin-right: 4% !important; /* 4% GAP */
-    }
-    
-    /* Button wrapper takes 40% on far right */
-    .chat-input-area .media-buttons-wrapper {
-        flex: 0 0 40% !important;
-        min-width: 40% !important;
-        max-width: 40% !important;
-        gap: 3px;
-        justify-content: flex-end !important;
-        margin-left: 0;
-    }
-    
-    .media-btn {
-        width: 32px;
-        height: 32px;
-        font-size: 14px;
-    }
-    
-    .send-btn {
-        min-width: 42px;
-        height: 32px;
         font-size: 12px;
-        padding: 0 6px;
+        padding: 0 8px;
     }
 }
 
