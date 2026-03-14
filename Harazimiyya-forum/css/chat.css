@@ -2653,7 +2653,7 @@ textarea,
     height: 44px !important;
 }
 
-/* ================= ANDROID KEYBOARD FIXES - WITH 50/50 SPLIT ================= */
+/* ================= ANDROID KEYBOARD FIXES - WITH SPACE BETWEEN INPUT AND BUTTONS ================= */
 html, body {
     height: 100%;
     margin: 0;
@@ -2789,7 +2789,7 @@ html, body {
     opacity: 1 !important;
 }
 
-/* Android keyboard specific fixes - 50/50 SPLIT */
+/* ===== FIXED: ANDROID KEYBOARD SPECIFIC FIXES WITH SPACE BETWEEN INPUT AND BUTTONS ===== */
 @media (max-width: 768px) {
     .chat-main {
         height: 100vh;
@@ -2801,32 +2801,36 @@ html, body {
         padding-bottom: max(8px, env(safe-area-inset-bottom, 8px));
         min-height: 65px;
         gap: 8px;
-        flex-wrap: nowrap !important; /* PREVENT WRAPPING */
+        flex-wrap: nowrap !important;
     }
     
-    /* Text input takes exactly 50% width */
+    /* Text input takes 45% width - REDUCED to create space */
     .chat-input-area textarea.message-input {
-        flex: 0 0 50% !important;
-        min-width: 50% !important;
-        max-width: 50% !important;
-        width: 50% !important;
+        flex: 0 0 45% !important;
+        min-width: 45% !important;
+        max-width: 45% !important;
+        width: 45% !important;
         font-size: 16px;
         min-height: 44px;
         padding: 10px 15px;
         margin: 0;
+        margin-right: 5px; /* ADDED: explicit right margin for space */
     }
     
-    /* Button wrapper takes exactly 50% width */
+    /* Button wrapper takes 45% width - REDUCED to create space */
     .chat-input-area .media-buttons-wrapper {
-        flex: 0 0 50% !important;
-        min-width: 50% !important;
-        max-width: 50% !important;
-        width: 50% !important;
+        flex: 0 0 45% !important;
+        min-width: 45% !important;
+        max-width: 45% !important;
+        width: 45% !important;
         display: flex;
         align-items: center;
         justify-content: flex-end;
         gap: 6px;
+        margin-left: 5px; /* ADDED: explicit left margin for space */
     }
+    
+    /* The remaining 10% becomes natural space between them */
     
     .media-btn {
         width: 40px;
@@ -2844,29 +2848,31 @@ html, body {
     }
 }
 
-/* Even smaller screens - keep 50/50 split */
+/* Even smaller screens - keep the space */
 @media (max-width: 480px) {
     .chat-input-area {
         padding: 6px 8px;
         gap: 6px;
-        flex-wrap: nowrap !important; /* PREVENT WRAPPING */
+        flex-wrap: nowrap !important;
     }
     
-    /* Text input takes exactly 50% width */
+    /* Text input takes 45% */
     .chat-input-area textarea.message-input {
-        flex: 0 0 50% !important;
-        min-width: 50% !important;
-        max-width: 50% !important;
+        flex: 0 0 45% !important;
+        min-width: 45% !important;
+        max-width: 45% !important;
         padding: 8px 12px;
         font-size: 15px;
+        margin-right: 4px; /* Keep the space */
     }
     
-    /* Button wrapper takes exactly 50% width */
+    /* Button wrapper takes 45% */
     .chat-input-area .media-buttons-wrapper {
-        flex: 0 0 50% !important;
-        min-width: 50% !important;
-        max-width: 50% !important;
+        flex: 0 0 45% !important;
+        min-width: 45% !important;
+        max-width: 45% !important;
         gap: 4px;
+        margin-left: 4px; /* Keep the space */
     }
     
     .media-btn {
@@ -2883,29 +2889,31 @@ html, body {
     }
 }
 
-/* Very small screens - keep 50/50 split */
+/* Very small screens - keep the space */
 @media (max-width: 360px) {
     .chat-input-area {
         padding: 5px 6px;
         gap: 4px;
-        flex-wrap: nowrap !important; /* PREVENT WRAPPING */
+        flex-wrap: nowrap !important;
     }
     
-    /* Text input takes exactly 50% width */
+    /* Text input takes 45% */
     .chat-input-area textarea.message-input {
-        flex: 0 0 50% !important;
-        min-width: 50% !important;
-        max-width: 50% !important;
+        flex: 0 0 45% !important;
+        min-width: 45% !important;
+        max-width: 45% !important;
         padding: 6px 10px;
         font-size: 14px;
+        margin-right: 3px; /* Keep the space */
     }
     
-    /* Button wrapper takes exactly 50% width */
+    /* Button wrapper takes 45% */
     .chat-input-area .media-buttons-wrapper {
-        flex: 0 0 50% !important;
-        min-width: 50% !important;
-        max-width: 50% !important;
+        flex: 0 0 45% !important;
+        min-width: 45% !important;
+        max-width: 45% !important;
         gap: 3px;
+        margin-left: 3px; /* Keep the space */
     }
     
     .media-btn {
