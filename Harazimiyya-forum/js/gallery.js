@@ -4,7 +4,7 @@
 // Members can delete their own content
 // Admins can delete any content
 // Features: Smart scroll, Jump to bottom, Vertical mobile layout
-// UPDATED: Video fullscreen and download functionality
+// UPDATED: Fixed video fullscreen and download for Android
 // ============================================
 
 // ================= CLOUDINARY CONFIGURATION =================
@@ -246,40 +246,7 @@ function createDeleteModal() {
     document.getElementById('confirmDeleteBtn').onclick = confirmDelete;
 }
 
-// ================= CREATE DOWNLOAD BUTTON =================
-function createDownloadButton(url, filename) {
-    const button = document.createElement('a');
-    button.href = url;
-    button.download = filename || 'video.mp4';
-    button.className = 'download-btn';
-    button.innerHTML = '<i class="fas fa-download"></i> Download';
-    button.style.cssText = `
-        display: inline-flex;
-        align-items: center;
-        gap: 8px;
-        padding: 10px 20px;
-        background: var(--primary);
-        color: white;
-        border: none;
-        border-radius: 8px;
-        cursor: pointer;
-        font-size: 1rem;
-        text-decoration: none;
-        margin-top: 15px;
-        transition: all 0.3s;
-    `;
-    button.onmouseover = () => {
-        button.style.background = 'var(--primary-dark)';
-        button.style.transform = 'translateY(-2px)';
-    };
-    button.onmouseout = () => {
-        button.style.background = 'var(--primary)';
-        button.style.transform = 'translateY(0)';
-    };
-    return button;
-}
-
-// ================= CREATE LIGHTBOX WITH FULLSCREEN AND DOWNLOAD =================
+// ================= CREATE LIGHTBOX WITH FULLSCREEN AND DOWNLOAD FIXED FOR ANDROID =================
 function createLightbox(src, type, mediaId, title) {
     if (currentLightbox) {
         closeLightbox();
@@ -290,67 +257,61 @@ function createLightbox(src, type, mediaId, title) {
     const lightbox = document.createElement('div');
     lightbox.className = 'lightbox-modal';
     lightbox.setAttribute('data-media-id', mediaId);
+    lightbox.style.cssText = `
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background: rgba(0,0,0,0.95);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        z-index: 10000;
+        padding: 20px;
+        box-sizing: border-box;
+    `;
     
-    // Get filename from URL
-    const filename = src.split('/').pop() || 'video.mp4';
+    // Get filename from URL or use title
+    let filename = title || 'media';
+    if (type === 'image') {
+        filename += '.jpg';
+    } else {
+        filename += '.mp4';
+    }
     
     if (type === 'image') {
         lightbox.innerHTML = `
-            <div class="lightbox-content">
-                <img src="${src}" alt="Gallery image" onerror="this.onerror=null; this.src='${getFallbackImageUrl()}';">
-                <button class="lightbox-close">&times;</button>
-                <div class="lightbox-download">
-                    <a href="${src}" download="${filename}" class="download-btn">
-                        <i class="fas fa-download"></i> Download Image
-                    </a>
-                </div>
+            <div style="position: relative; max-width: 100%; max-height: 100%; display: flex; flex-direction: column; align-items: center;">
+                <img src="${src}" style="max-width: 100%; max-height: 80vh; object-fit: contain; border-radius: 8px;" onerror="this.onerror=null; this.src='${getFallbackImageUrl()}';">
+                <button style="position: absolute; top: 10px; right: 10px; background: white; border: none; width: 44px; height: 44px; border-radius: 50%; font-size: 24px; cursor: pointer; box-shadow: 0 2px 10px rgba(0,0,0,0.3); display: flex; align-items: center; justify-content: center; z-index: 10001;">✕</button>
+                <a href="${src}" download="${filename}" style="display: inline-flex; align-items: center; gap: 8px; padding: 12px 24px; background: #0b5e3b; color: white; border: none; border-radius: 8px; cursor: pointer; font-size: 1rem; text-decoration: none; margin-top: 20px;">
+                    <i class="fas fa-download"></i> Download Image
+                </a>
             </div>
         `;
     } else {
         lightbox.innerHTML = `
-            <div class="lightbox-content">
-                <video src="${src}" controls autoplay playsinline style="max-width: 100%; max-height: 80vh;"></video>
-                <button class="lightbox-close">&times;</button>
-                <div class="lightbox-download">
-                    <a href="${src}" download="${filename}" class="download-btn">
-                        <i class="fas fa-download"></i> Download Video
-                    </a>
-                </div>
+            <div style="position: relative; max-width: 100%; max-height: 100%; display: flex; flex-direction: column; align-items: center;">
+                <video 
+                    src="${src}" 
+                    controls 
+                    autoplay 
+                    playsinline
+                    webkit-playsinline
+                    x5-playsinline
+                    style="max-width: 100%; max-height: 70vh; border-radius: 8px; background: #000;"
+                    preload="auto"
+                >
+                    Your browser does not support the video tag.
+                </video>
+                <button style="position: absolute; top: 10px; right: 10px; background: white; border: none; width: 44px; height: 44px; border-radius: 50%; font-size: 24px; cursor: pointer; box-shadow: 0 2px 10px rgba(0,0,0,0.3); display: flex; align-items: center; justify-content: center; z-index: 10001;">✕</button>
+                <a href="${src}" download="${filename}" style="display: inline-flex; align-items: center; gap: 8px; padding: 12px 24px; background: #0b5e3b; color: white; border: none; border-radius: 8px; cursor: pointer; font-size: 1rem; text-decoration: none; margin-top: 20px;">
+                    <i class="fas fa-download"></i> Download Video
+                </a>
             </div>
         `;
     }
-    
-    // Add download button styles
-    const style = document.createElement('style');
-    style.textContent = `
-        .lightbox-download {
-            text-align: center;
-            margin-top: 20px;
-        }
-        .download-btn {
-            display: inline-flex;
-            align-items: center;
-            gap: 8px;
-            padding: 12px 24px;
-            background: var(--primary, #0b5e3b);
-            color: white;
-            border: none;
-            border-radius: 8px;
-            cursor: pointer;
-            font-size: 1rem;
-            text-decoration: none;
-            transition: all 0.3s;
-        }
-        .download-btn:hover {
-            background: var(--primary-dark, #094c31);
-            transform: translateY(-2px);
-            box-shadow: 0 4px 12px rgba(0,0,0,0.3);
-        }
-        .download-btn i {
-            font-size: 1.2rem;
-        }
-    `;
-    document.head.appendChild(style);
     
     document.body.appendChild(lightbox);
     currentLightbox = lightbox;
@@ -360,10 +321,13 @@ function createLightbox(src, type, mediaId, title) {
     }
     
     // Close button handler
-    lightbox.querySelector('.lightbox-close').onclick = (e) => {
-        e.stopPropagation();
-        closeLightbox();
-    };
+    const closeBtn = lightbox.querySelector('button');
+    if (closeBtn) {
+        closeBtn.onclick = (e) => {
+            e.stopPropagation();
+            closeLightbox();
+        };
+    }
     
     // Click background to close
     lightbox.addEventListener('click', function(e) {
@@ -379,7 +343,6 @@ function createLightbox(src, type, mediaId, title) {
         if (lightboxActive && currentLightbox) {
             e.preventDefault();
             closeLightbox();
-            window.removeEventListener('popstate', handlePopState);
         }
     };
     
@@ -575,8 +538,9 @@ function createMediaCard(item) {
                 onclick="viewMedia('${item.id}', '${item.media_url}', 'video', '${item.title}')" 
                 controls
                 playsinline
+                webkit-playsinline
                 preload="metadata"
-                style="cursor: pointer; background: #000;">
+                style="cursor: pointer; background: #000; width: 100%; height: 200px; object-fit: cover;">
                 Your browser does not support the video tag.
             </video>`
         }
@@ -597,7 +561,7 @@ function createMediaCard(item) {
                         <i class="fas fa-trash"></i>
                     </button>
                 ` : ''}
-                <a href="${item.media_url}" download="${item.title}.${item.media_type === 'video' ? 'mp4' : 'jpg'}" class="media-btn download-btn" title="Download" style="background: rgba(11,94,59,0.1); color: var(--primary);">
+                <a href="${item.media_url}" download="${item.title}.${item.media_type === 'video' ? 'mp4' : 'jpg'}" class="media-btn download-btn" title="Download" style="background: rgba(11,94,59,0.1); color: var(--primary); text-decoration: none; display: inline-flex; align-items: center; justify-content: center;">
                     <i class="fas fa-download"></i>
                 </a>
             </div>
