@@ -46,10 +46,10 @@ let viewedMedia = new Set();
 let currentLightbox = null;
 let failedImages = new Set();
 let lightboxActive = false;
-let currentTheme = 'dark'; // Default theme
+let currentTheme = 'dark';
 
 // Reaction tracking
-let mediaReactions = new Map(); // Store reactions for each media
+let mediaReactions = new Map();
 
 // Smart scroll variables
 let showJumpToBottom = false;
@@ -70,13 +70,12 @@ let tiktokModal, tiktokTypeImage, tiktokTypeVideo, tiktokMediaTitle, tiktokMedia
 let tiktokDropZone, tiktokPreviewArea, tiktokProgress, tiktokSaveBtn, tiktokCancelBtn;
 let tiktokCloseBtn, tiktokBrowseBtn, tiktokFileHint;
 
-// Delete modal (will be created dynamically)
+// Delete modal
 let deleteModal = null;
 let selectedMediaId = null;
 
 // Context menu
 let contextMenu = null;
-let contextMenuTarget = null;
 let contextMenuMediaId = null;
 let longPressTimer = null;
 
@@ -122,6 +121,7 @@ function createThemeDropdown() {
         themeBtn.onclick = (e) => {
             e.stopPropagation();
             applyTheme(themeKey);
+            themeDropdown.classList.add('hidden');
         };
         dropdown.appendChild(themeBtn);
     });
@@ -135,43 +135,19 @@ function applyTheme(themeKey) {
     currentTheme = themeKey;
     const theme = themes[themeKey];
     
-    // Apply theme to root
     document.documentElement.style.setProperty('--bg', theme.bg);
     document.documentElement.style.setProperty('--text-main', theme.text);
     document.documentElement.style.setProperty('--primary', theme.primary);
     
-    // Update body background
     document.body.style.background = theme.bg;
     document.body.setAttribute('data-theme', themeKey);
     
-    // Update header
     const topBar = document.querySelector('.top-bar');
     if (topBar) {
         topBar.style.background = theme.headerBg;
     }
     
-    // Update active state in dropdown
-    const dropdown = document.getElementById('themeDropdown');
-    if (dropdown) {
-        const options = dropdown.querySelectorAll('.theme-option');
-        options.forEach(opt => {
-            const themeValue = opt.getAttribute('data-theme');
-            if (themeValue === themeKey) {
-                opt.classList.add('active');
-                if (!opt.querySelector('.fa-check')) {
-                    opt.innerHTML += '<i class="fas fa-check"></i>';
-                }
-            } else {
-                opt.classList.remove('active');
-                const check = opt.querySelector('.fa-check');
-                if (check) check.remove();
-            }
-        });
-    }
-    
-    // Save theme preference
     localStorage.setItem('selectedTheme', themeKey);
-    
     showNotification(`Theme changed to ${theme.name}`, 'success');
 }
 
@@ -184,43 +160,26 @@ function toggleThemeDropdown(event) {
     }
     
     const btnPos = event.target.getBoundingClientRect();
-    
     themeDropdown.style.top = (btnPos.bottom + 8) + 'px';
     themeDropdown.style.right = (window.innerWidth - btnPos.right) + 'px';
-    
     themeDropdown.classList.toggle('hidden');
-    
-    // Close when clicking outside
-    setTimeout(() => {
-        document.addEventListener('click', closeThemeDropdown);
-    }, 100);
-}
-
-function closeThemeDropdown(e) {
-    if (themeDropdown && !themeDropdown.contains(e.target) && !e.target.closest('#themeBtn')) {
-        themeDropdown.classList.add('hidden');
-        document.removeEventListener('click', closeThemeDropdown);
-    }
 }
 
 // ================= SIDEBAR TOGGLE =================
-openSidebar.onclick = () => {
+openSidebar.addEventListener('click', () => {
     sidebar.classList.add("active");
     overlay.classList.add("active");
-    // Add to history for back button handling
-    history.pushState({ sidebar: true }, '');
-};
+});
 
-closeSidebar.onclick = () => {
+closeSidebar.addEventListener('click', () => {
     sidebar.classList.remove("active");
     overlay.classList.remove("active");
-};
+});
 
-// FIXED: Overlay click should ONLY close sidebar
-overlay.onclick = () => {
+overlay.addEventListener('click', () => {
     sidebar.classList.remove("active");
     overlay.classList.remove("active");
-};
+});
 
 // ================= NOTIFICATION FUNCTION =================
 function showNotification(message, type = 'success') {
@@ -237,7 +196,7 @@ function showNotification(message, type = 'success') {
     }, 3000);
 }
 
-// ================= JUMP TO BOTTOM BUTTON FUNCTIONS =================
+// ================= JUMP TO BOTTOM BUTTON =================
 function createJumpToBottomButton() {
     const existingBtn = document.getElementById('jumpToBottomBtn');
     if (existingBtn) existingBtn.remove();
@@ -249,70 +208,13 @@ function createJumpToBottomButton() {
     button.title = 'Jump to latest media';
     
     button.addEventListener('click', () => {
-        scrollToBottom();
-        button.style.display = 'none';
-        showJumpToBottom = false;
+        galleryGrid.scrollTo({
+            top: galleryGrid.scrollHeight,
+            behavior: 'smooth'
+        });
     });
     
     document.body.appendChild(button);
-}
-
-function scrollToBottom() {
-    galleryGrid.scrollTo({
-        top: galleryGrid.scrollHeight,
-        behavior: 'smooth'
-    });
-}
-
-function setupScrollListener() {
-    galleryGrid.addEventListener('scroll', () => {
-        const scrollPosition = galleryGrid.scrollTop;
-        const scrollHeight = galleryGrid.scrollHeight;
-        const clientHeight = galleryGrid.clientHeight;
-        
-        const isNearBottom = scrollPosition + clientHeight >= scrollHeight - 100;
-        const jumpBtn = document.getElementById('jumpToBottomBtn');
-        
-        if (jumpBtn) {
-            if (!isNearBottom && scrollPosition > 200) {
-                jumpBtn.style.display = 'flex';
-                showJumpToBottom = true;
-            } else {
-                jumpBtn.style.display = 'none';
-                showJumpToBottom = false;
-            }
-        }
-    });
-}
-
-// ================= SMART SCROLL FUNCTIONS =================
-function findFirstUnseenMedia() {
-    const mediaCards = document.querySelectorAll('.media-card');
-    firstUnseenMediaId = null;
-    hasUnseenMedia = false;
-    
-    for (let card of mediaCards) {
-        const mediaId = card.dataset.mediaId;
-        if (!viewedMedia.has(mediaId)) {
-            firstUnseenMediaId = mediaId;
-            hasUnseenMedia = true;
-            card.classList.add('unseen');
-            break;
-        }
-    }
-    
-    return firstUnseenMediaId;
-}
-
-function scrollToFirstUnseen() {
-    if (firstUnseenMediaId) {
-        const mediaElement = document.querySelector(`.media-card[data-media-id="${firstUnseenMediaId}"]`);
-        if (mediaElement) {
-            mediaElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
-        }
-    } else {
-        scrollToBottom();
-    }
 }
 
 // ================= TRACK MEDIA VIEW =================
@@ -337,7 +239,7 @@ function markMediaAsViewed(mediaId) {
     }
 }
 
-// ================= LOAD VIEWED MEDIA FROM STORAGE =================
+// ================= LOAD VIEWED MEDIA =================
 function loadViewedMedia() {
     try {
         const viewed = JSON.parse(localStorage.getItem('viewedGalleryMedia') || '[]');
@@ -347,7 +249,7 @@ function loadViewedMedia() {
     }
 }
 
-// ================= LOAD REACTIONS FROM STORAGE =================
+// ================= LOAD REACTIONS =================
 function loadReactions() {
     try {
         const saved = localStorage.getItem('mediaReactions');
@@ -360,7 +262,7 @@ function loadReactions() {
     }
 }
 
-// ================= SAVE REACTIONS TO STORAGE =================
+// ================= SAVE REACTIONS =================
 function saveReactions() {
     try {
         const obj = Object.fromEntries(mediaReactions);
@@ -378,19 +280,15 @@ function addReaction(mediaId, reactionType) {
     
     const reactions = mediaReactions.get(mediaId);
     
-    // Check if user already reacted
     if (reactions.userReacted === reactionType) {
-        // Remove reaction (toggle off)
         reactions[reactionType] = Math.max(0, (reactions[reactionType] || 0) - 1);
         reactions.userReacted = null;
         showNotification(`${reactionType} removed`, 'info');
     } else {
-        // If user had different reaction, remove that first
         if (reactions.userReacted) {
             reactions[reactions.userReacted] = Math.max(0, (reactions[reactions.userReacted] || 0) - 1);
         }
         
-        // Add new reaction
         reactions[reactionType] = (reactions[reactionType] || 0) + 1;
         reactions.userReacted = reactionType;
         showNotification(`Added ${reactionType}`, 'success');
@@ -400,7 +298,7 @@ function addReaction(mediaId, reactionType) {
     updateMediaReactions(mediaId);
 }
 
-// ================= UPDATE MEDIA REACTIONS DISPLAY =================
+// ================= UPDATE MEDIA REACTIONS =================
 function updateMediaReactions(mediaId) {
     const mediaCard = document.querySelector(`.media-card[data-media-id="${mediaId}"]`);
     if (!mediaCard) return;
@@ -464,12 +362,12 @@ function createDeleteModal() {
     document.body.insertAdjacentHTML('beforeend', deleteModalHTML);
     deleteModal = document.getElementById('deleteModal');
     
-    document.getElementById('cancelDeleteBtn').onclick = () => {
+    document.getElementById('cancelDeleteBtn').addEventListener('click', () => {
         deleteModal.classList.add('hidden');
         selectedMediaId = null;
-    };
+    });
     
-    document.getElementById('confirmDeleteBtn').onclick = confirmDelete;
+    document.getElementById('confirmDeleteBtn').addEventListener('click', confirmDelete);
 }
 
 // ================= DOWNLOAD MEDIA =================
@@ -477,11 +375,9 @@ async function downloadMedia(url, filename) {
     try {
         showNotification('Downloading...', 'info');
         
-        // Fetch the file
         const response = await fetch(url);
         const blob = await response.blob();
         
-        // Create download link
         const downloadUrl = window.URL.createObjectURL(blob);
         const link = document.createElement('a');
         link.href = downloadUrl;
@@ -490,9 +386,7 @@ async function downloadMedia(url, filename) {
         link.click();
         document.body.removeChild(link);
         
-        // Clean up
         window.URL.revokeObjectURL(downloadUrl);
-        
         showNotification('Download complete!', 'success');
     } catch (error) {
         console.error('Download error:', error);
@@ -505,7 +399,6 @@ function createContextMenu() {
     const menu = document.createElement('div');
     menu.className = 'longpress-menu hidden';
     menu.id = 'contextMenu';
-    
     document.body.appendChild(menu);
     return menu;
 }
@@ -515,13 +408,11 @@ function showContextMenu(event, mediaId) {
     event.preventDefault();
     event.stopPropagation();
     
-    // Pause video if it's playing
     const video = event.target.closest('.media-card')?.querySelector('video');
     if (video && !video.paused) {
         video.pause();
     }
     
-    // Add a class to block video clicks
     const mediaCard = event.target.closest('.media-card');
     if (mediaCard) {
         mediaCard.classList.add('menu-open');
@@ -537,7 +428,6 @@ function showContextMenu(event, mediaId) {
     const media = allMedia.find(m => m.id === mediaId);
     const canDelete = isAdmin || (media && media.uploaded_by === currentUser?.id);
     
-    // Get filename for download
     let filename = media?.title || 'media';
     filename += media?.media_type === 'image' ? '.jpg' : '.mp4';
     
@@ -567,7 +457,6 @@ function showContextMenu(event, mediaId) {
     
     contextMenu.innerHTML = menuItems;
     
-    // Add click event listeners to menu items
     contextMenu.querySelectorAll('.longpress-menu-item').forEach(item => {
         item.addEventListener('click', (e) => {
             e.preventDefault();
@@ -599,7 +488,6 @@ function showContextMenu(event, mediaId) {
         });
     });
     
-    // Get coordinates
     let clientX, clientY;
     
     if (event.touches) {
@@ -610,12 +498,10 @@ function showContextMenu(event, mediaId) {
         clientY = event.clientY;
     }
     
-    // Position menu
     contextMenu.style.left = clientX + 'px';
     contextMenu.style.top = clientY + 'px';
     contextMenu.style.transform = 'translate(-50%, -50%)';
     
-    // Adjust if menu goes off screen
     setTimeout(() => {
         const rect = contextMenu.getBoundingClientRect();
         
@@ -647,7 +533,6 @@ function hideContextMenu() {
     if (contextMenu) {
         contextMenu.classList.add('hidden');
         
-        // Remove the menu-open class from all media cards
         document.querySelectorAll('.media-card').forEach(card => {
             card.classList.remove('menu-open');
         });
@@ -667,9 +552,7 @@ function setupContextMenu(element, mediaId) {
     let touchStart = 0;
     let touchStartX, touchStartY;
     let longPressTriggered = false;
-    let longPressTimer;
     
-    // Desktop: Right-click
     element.addEventListener('contextmenu', (e) => {
         e.preventDefault();
         e.stopPropagation();
@@ -677,7 +560,6 @@ function setupContextMenu(element, mediaId) {
         return false;
     });
     
-    // Mobile: Long press - FIXED for Android
     element.addEventListener('touchstart', (e) => {
         touchStart = Date.now();
         touchStartX = e.touches[0].clientX;
@@ -686,13 +568,12 @@ function setupContextMenu(element, mediaId) {
         
         longPressTimer = setTimeout(() => {
             longPressTriggered = true;
-            // Vibrate if supported (gives haptic feedback)
             if (navigator.vibrate) {
                 navigator.vibrate(50);
             }
             showContextMenu(e, mediaId);
         }, 500);
-    }, { passive: false });
+    }, { passive: true });
     
     element.addEventListener('touchmove', (e) => {
         if (touchStartX && touchStartY) {
@@ -708,7 +589,6 @@ function setupContextMenu(element, mediaId) {
     element.addEventListener('touchend', (e) => {
         clearTimeout(longPressTimer);
         
-        // If it was a long press, prevent any other actions
         if (longPressTriggered) {
             e.preventDefault();
             e.stopPropagation();
@@ -769,16 +649,11 @@ function createLightbox(src, type, mediaId, title) {
         markMediaAsViewed(mediaId);
     }
     
-    // Add to history for back button
-    history.pushState({ lightbox: true }, '');
-    
-    // Close button
     const closeBtn = lightbox.querySelector('.lightbox-close');
     if (closeBtn) {
         closeBtn.onclick = closeLightbox;
     }
     
-    // Click background to close
     lightbox.addEventListener('click', function(e) {
         if (e.target === lightbox) {
             closeLightbox();
@@ -792,10 +667,6 @@ function closeLightbox() {
         currentLightbox.remove();
         currentLightbox = null;
         lightboxActive = false;
-        
-        if (history.state && history.state.lightbox) {
-            history.back();
-        }
     }
 }
 
@@ -813,7 +684,7 @@ function handleImageError(mediaId) {
     }
 }
 
-// ================= CREATE MEDIA CARD WITH TIKTOK VIDEO CONTROLS =================
+// ================= CREATE MEDIA CARD =================
 function createMediaCard(item) {
     const card = document.createElement("div");
     card.className = `media-card ${item.media_type}`;
@@ -856,7 +727,6 @@ function createMediaCard(item) {
             </div>
         `;
         
-        // Setup context menu for image
         const img = card.querySelector('img');
         if (img) {
             setupContextMenu(img, item.id);
@@ -876,7 +746,6 @@ function createMediaCard(item) {
                     Your browser does not support the video tag.
                 </video>
                 
-                <!-- TikTok-style seek control -->
                 <div class="seek-control">
                     <div class="seek-progress">
                         <div class="seek-progress-fill"></div>
@@ -887,7 +756,6 @@ function createMediaCard(item) {
                     <div class="seek-time">0:00 / 0:00</div>
                 </div>
                 
-                <!-- Play/Pause button -->
                 <div class="play-pause-btn">
                     <i class="fas fa-play"></i>
                 </div>
@@ -906,13 +774,11 @@ function createMediaCard(item) {
             </div>
         `;
         
-        // Setup context menu for video container
         const videoContainer = card.querySelector('.video-container');
         if (videoContainer) {
             setupContextMenu(videoContainer, item.id);
         }
         
-        // Setup TikTok-style video controls after adding to DOM
         setTimeout(() => {
             setupTikTokVideoControls(card, item.id);
         }, 100);
@@ -921,7 +787,7 @@ function createMediaCard(item) {
     return card;
 }
 
-// ================= SETUP TIKTOK-STYLE VIDEO CONTROLS =================
+// ================= SETUP TIKTOK VIDEO CONTROLS =================
 function setupTikTokVideoControls(card, mediaId) {
     const video = card.querySelector('video');
     const videoContainer = card.querySelector('.video-container');
@@ -935,9 +801,7 @@ function setupTikTokVideoControls(card, mediaId) {
     
     let isSeeking = false;
     let hideControlsTimeout;
-    let controlsVisible = false;
     
-    // Format time helper
     function formatTime(seconds) {
         if (isNaN(seconds)) return '0:00';
         const mins = Math.floor(seconds / 60);
@@ -945,7 +809,6 @@ function setupTikTokVideoControls(card, mediaId) {
         return `${mins}:${secs.toString().padStart(2, '0')}`;
     }
     
-    // Update seek bar and time
     function updateSeekBar() {
         if (!isSeeking && video.duration) {
             const percent = (video.currentTime / video.duration) * 100;
@@ -955,28 +818,21 @@ function setupTikTokVideoControls(card, mediaId) {
         }
     }
     
-    // Show controls temporarily
     function showControls() {
         seekControl.classList.add('visible');
         playPauseBtn.classList.add('visible');
-        controlsVisible = true;
         
         clearTimeout(hideControlsTimeout);
         hideControlsTimeout = setTimeout(() => {
             if (!isSeeking && !card.classList.contains('menu-open')) {
                 seekControl.classList.remove('visible');
                 playPauseBtn.classList.remove('visible');
-                controlsVisible = false;
             }
         }, 3000);
     }
     
-    // Handle play/pause - CHECK IF MENU IS OPEN
     function togglePlay() {
-        // Don't play if menu is open
-        if (card.classList.contains('menu-open')) {
-            return;
-        }
+        if (card.classList.contains('menu-open')) return;
         
         if (video.paused) {
             video.play();
@@ -988,7 +844,6 @@ function setupTikTokVideoControls(card, mediaId) {
         showControls();
     }
     
-    // Video event listeners
     video.addEventListener('timeupdate', updateSeekBar);
     
     video.addEventListener('loadedmetadata', () => {
@@ -1005,29 +860,23 @@ function setupTikTokVideoControls(card, mediaId) {
         showControls();
     });
     
-    // Click on video to toggle play/pause - CHECK IF MENU IS OPEN
     videoContainer.addEventListener('click', (e) => {
-        // Don't toggle if menu is open
         if (card.classList.contains('menu-open')) {
             e.preventDefault();
             e.stopPropagation();
             return;
         }
         
-        // Don't toggle if clicking on seek control
-        if (e.target.closest('.seek-control')) return;
-        if (e.target.closest('.seek-handle')) return;
+        if (e.target.closest('.seek-control') || e.target.closest('.seek-handle')) return;
         togglePlay();
     });
     
-    // Seek control touch/mouse handling
     function handleSeekStart(e) {
         e.preventDefault();
         e.stopPropagation();
         isSeeking = true;
         seekControl.classList.add('seeking');
         
-        // Pause video while seeking
         if (!video.paused) {
             video.pause();
         }
@@ -1039,7 +888,6 @@ function setupTikTokVideoControls(card, mediaId) {
         e.preventDefault();
         e.stopPropagation();
         
-        // Get touch/mouse position
         let clientX;
         if (e.touches) {
             clientX = e.touches[0].clientX;
@@ -1051,11 +899,9 @@ function setupTikTokVideoControls(card, mediaId) {
         let percent = (clientX - rect.left) / rect.width;
         percent = Math.max(0, Math.min(1, percent));
         
-        // Update UI
         seekProgress.style.width = (percent * 100) + '%';
         seekHandle.style.left = (percent * 100) + '%';
         
-        // Update video time
         if (video.duration) {
             const newTime = percent * video.duration;
             video.currentTime = newTime;
@@ -1072,7 +918,6 @@ function setupTikTokVideoControls(card, mediaId) {
         isSeeking = false;
         seekControl.classList.remove('seeking');
         
-        // Resume playback if it was playing before and menu is not open
         if (playPauseBtn.innerHTML.includes('pause') && !card.classList.contains('menu-open')) {
             video.play();
         }
@@ -1080,7 +925,6 @@ function setupTikTokVideoControls(card, mediaId) {
         showControls();
     }
     
-    // Add seek control event listeners
     seekControl.addEventListener('touchstart', handleSeekStart, { passive: false });
     seekControl.addEventListener('touchmove', handleSeekMove, { passive: false });
     seekControl.addEventListener('touchend', handleSeekEnd);
@@ -1090,14 +934,8 @@ function setupTikTokVideoControls(card, mediaId) {
     window.addEventListener('mousemove', handleSeekMove);
     window.addEventListener('mouseup', handleSeekEnd);
     
-    // Show controls on tap/click - CHECK IF MENU IS OPEN
-    videoContainer.addEventListener('touchstart', (e) => {
-        if (card.classList.contains('menu-open')) {
-            return;
-        }
-        
-        // Don't show controls if it's a long press (will be handled by context menu)
-        if (e.touches.length === 1) {
+    videoContainer.addEventListener('touchstart', () => {
+        if (!card.classList.contains('menu-open')) {
             setTimeout(() => {
                 if (!contextMenu) {
                     showControls();
@@ -1106,11 +944,10 @@ function setupTikTokVideoControls(card, mediaId) {
         }
     }, { passive: true });
     
-    // Initial show
     showControls();
 }
 
-// ================= TIKTOK-STYLE UPLOAD MODAL FUNCTIONS =================
+// ================= TIKTOK UPLOAD MODAL FUNCTIONS =================
 function initTikTokModal() {
     tiktokModal = document.getElementById('tiktokUploadModal');
     tiktokTypeImage = document.getElementById('tiktokTypeImage');
@@ -1126,7 +963,10 @@ function initTikTokModal() {
     tiktokBrowseBtn = document.getElementById('tiktokBrowseBtn');
     tiktokFileHint = document.getElementById('tiktokFileHint');
     
-    if (!tiktokModal) return;
+    if (!tiktokModal) {
+        console.error("TikTok modal not found!");
+        return;
+    }
     
     setupTikTokEventListeners();
 }
@@ -1144,18 +984,45 @@ function setupTikTokEventListeners() {
     
     tiktokMediaFile.addEventListener('change', handleTikTokFileSelect);
     
-    tiktokDropZone.addEventListener('dragover', handleDragOver);
-    tiktokDropZone.addEventListener('dragleave', handleDragLeave);
-    tiktokDropZone.addEventListener('drop', handleDrop);
+    tiktokDropZone.addEventListener('dragover', (e) => {
+        e.preventDefault();
+        tiktokDropZone.classList.add('dragover');
+    });
+    
+    tiktokDropZone.addEventListener('dragleave', () => {
+        tiktokDropZone.classList.remove('dragover');
+    });
+    
+    tiktokDropZone.addEventListener('drop', (e) => {
+        e.preventDefault();
+        tiktokDropZone.classList.remove('dragover');
+        
+        const files = e.dataTransfer.files;
+        if (files.length > 0) {
+            tiktokMediaFile.files = files;
+            handleTikTokFileSelect({ target: { files: files } });
+        }
+    });
     
     tiktokBrowseBtn.addEventListener('click', (e) => {
         e.preventDefault();
         tiktokMediaFile.click();
     });
     
-    tiktokSaveBtn.addEventListener('click', saveTikTokMedia);
-    tiktokCancelBtn.addEventListener('click', closeTikTokModal);
-    tiktokCloseBtn.addEventListener('click', closeTikTokModal);
+    tiktokSaveBtn.addEventListener('click', (e) => {
+        e.preventDefault();
+        saveTikTokMedia();
+    });
+    
+    tiktokCancelBtn.addEventListener('click', (e) => {
+        e.preventDefault();
+        closeTikTokModal();
+    });
+    
+    tiktokCloseBtn.addEventListener('click', (e) => {
+        e.preventDefault();
+        closeTikTokModal();
+    });
     
     tiktokModal.addEventListener('click', (e) => {
         if (e.target === tiktokModal) {
@@ -1180,30 +1047,6 @@ function setMediaType(type) {
     tiktokMediaFile.value = '';
     tiktokPreviewArea.innerHTML = '';
     selectedFile = null;
-}
-
-function handleDragOver(e) {
-    e.preventDefault();
-    e.stopPropagation();
-    tiktokDropZone.classList.add('dragover');
-}
-
-function handleDragLeave(e) {
-    e.preventDefault();
-    e.stopPropagation();
-    tiktokDropZone.classList.remove('dragover');
-}
-
-function handleDrop(e) {
-    e.preventDefault();
-    e.stopPropagation();
-    tiktokDropZone.classList.remove('dragover');
-    
-    const files = e.dataTransfer.files;
-    if (files.length > 0) {
-        tiktokMediaFile.files = files;
-        handleTikTokFileSelect({ target: { files: files } });
-    }
 }
 
 function handleTikTokFileSelect(e) {
@@ -1258,9 +1101,7 @@ function displayTikTokPreview(file) {
                     <i class="fas fa-weight-hanging"></i> ${fileSize} MB
                 </div>
             </div>
-            <button class="tiktok-change-file" onclick="document.getElementById('tiktokMediaFile').click()">
-                Change
-            </button>
+            <button class="tiktok-change-file" type="button">Change</button>
         </div>
     `;
     
@@ -1273,6 +1114,13 @@ function displayTikTokPreview(file) {
                 </div>
             `;
             tiktokPreviewArea.innerHTML = previewHTML;
+            
+            const changeBtn = tiktokPreviewArea.querySelector('.tiktok-change-file');
+            if (changeBtn) {
+                changeBtn.addEventListener('click', () => {
+                    tiktokMediaFile.click();
+                });
+            }
         };
         reader.readAsDataURL(file);
     } else {
@@ -1283,6 +1131,13 @@ function displayTikTokPreview(file) {
             </div>
         `;
         tiktokPreviewArea.innerHTML = previewHTML;
+        
+        const changeBtn = tiktokPreviewArea.querySelector('.tiktok-change-file');
+        if (changeBtn) {
+            changeBtn.addEventListener('click', () => {
+                tiktokMediaFile.click();
+            });
+        }
     }
 }
 
@@ -1298,9 +1153,6 @@ function openAddModal() {
     selectedFile = null;
     
     tiktokModal.classList.remove('hidden');
-    
-    // Add to history for back button
-    history.pushState({ modal: true }, '');
 }
 
 // ================= SAVE MEDIA =================
@@ -1395,12 +1247,10 @@ function closeTikTokModal() {
     setMediaType('image');
 }
 
-// ================= UPLOAD FILE TO CLOUDINARY =================
+// ================= UPLOAD TO CLOUDINARY =================
 async function uploadFileToCloudinary(file, type) {
     try {
         if (!file) throw new Error("No file to upload");
-        
-        console.log("📤 Uploading to Cloudinary:", file.name, file.type);
         
         let folder = CLOUDINARY_CONFIG.folder;
         if (type === 'image') {
@@ -1427,8 +1277,6 @@ async function uploadFileToCloudinary(file, type) {
         }
         
         const data = await response.json();
-        console.log("✅ Cloudinary upload successful:", data.secure_url);
-        
         showNotification('✅ Uploaded to Cloudinary', 'success');
         
         return data.secure_url;
@@ -1442,15 +1290,12 @@ async function uploadFileToCloudinary(file, type) {
 
 // ================= INITIALIZATION =================
 document.addEventListener("DOMContentLoaded", async () => {
-    console.log("DOM loaded, initializing...");
-    
-    // Force show upload button immediately as fallback
+    // Force show upload button
     if (addMediaBtn) {
         addMediaBtn.classList.remove("hidden");
         addMediaBtn.style.display = "inline-flex";
     }
     
-    // Small delay to ensure Supabase is ready
     setTimeout(async () => {
         await init();
     }, 100);
@@ -1458,29 +1303,19 @@ document.addEventListener("DOMContentLoaded", async () => {
 
 async function init() {
     try {
-        console.log("Initializing gallery...");
-        
-        // Check if supabase is defined
         if (typeof supabase === 'undefined') {
             console.error("Supabase not loaded");
-            // Still show upload button even if Supabase fails
-            if (addMediaBtn) {
-                addMediaBtn.classList.remove("hidden");
-                addMediaBtn.style.display = "inline-flex";
-            }
             return;
         }
 
         const { data: { user }, error: userError } = await supabase.auth.getUser();
         
         if (userError || !user) {
-            console.log("No user found, redirecting...");
             window.location.href = "../index.html";
             return;
         }
 
         currentUser = user;
-        console.log("Current user:", user.email);
 
         const { data: profile, error: profileError } = await supabase
             .from("profiles")
@@ -1495,67 +1330,43 @@ async function init() {
 
         currentProfile = profile;
         isAdmin = profile.role === "admin";
-        console.log("Is admin:", isAdmin);
 
         const userNameEl = document.getElementById('userName');
         if (userNameEl) {
             userNameEl.textContent = profile.full_name || 'Member';
         }
 
-        // FORCE SHOW UPLOAD BUTTON
+        // Ensure upload button is visible
         if (addMediaBtn) {
             addMediaBtn.classList.remove("hidden");
             addMediaBtn.style.display = "inline-flex";
-            console.log("Upload button should now be visible");
-        } else {
-            console.error("Add media button not found!");
+            addMediaBtn.onclick = openAddModal;
         }
 
-        // Initialize all components
+        // Initialize components
         createDeleteModal();
         createJumpToBottomButton();
-        setupScrollListener();
-        setupEventListeners();
         loadViewedMedia();
         loadReactions();
         initTikTokModal();
         
-        // Load saved theme
         const savedTheme = localStorage.getItem('selectedTheme') || 'dark';
         applyTheme(savedTheme);
         
-        // Add theme button to header
         addThemeButton();
-        
-        // Android back button handling
-        setupBackButtonHandling();
-        
-        // Update add media button click handler
-        addMediaBtn.onclick = openAddModal;
-        
-        window.addEventListener('popstate', handleBackButton);
-        
-        window.addEventListener('scroll', hideContextMenu);
-        window.addEventListener('resize', hideContextMenu);
 
         await loadGallery();
 
     } catch (err) {
         console.error("Initialization error:", err);
-        // Still show upload button even if there's an error
-        if (addMediaBtn) {
-            addMediaBtn.classList.remove("hidden");
-            addMediaBtn.style.display = "inline-flex";
-        }
     }
 }
 
-// ================= ADD THEME BUTTON TO HEADER =================
+// ================= ADD THEME BUTTON =================
 function addThemeButton() {
     const topBar = document.querySelector('.top-bar');
-    const addBtn = document.getElementById('addMediaBtn');
+    if (!topBar) return;
     
-    // Check if theme button already exists
     if (document.getElementById('themeBtn')) return;
     
     const themeBtn = document.createElement('button');
@@ -1566,39 +1377,8 @@ function addThemeButton() {
     
     themeBtn.addEventListener('click', toggleThemeDropdown);
     
-    // Insert theme button before add button
+    const addBtn = document.getElementById('addMediaBtn');
     topBar.insertBefore(themeBtn, addBtn);
-}
-
-// ================= SETUP BACK BUTTON HANDLING =================
-function setupBackButtonHandling() {
-    // Initial state
-    history.replaceState({ page: 'gallery' }, '');
-}
-
-function handleBackButton(e) {
-    e.preventDefault();
-    
-    // Check what's currently open
-    if (tiktokModal && !tiktokModal.classList.contains('hidden')) {
-        closeTikTokModal();
-    } else if (sidebar && sidebar.classList.contains('active')) {
-        sidebar.classList.remove('active');
-        overlay.classList.remove('active');
-    } else if (deleteModal && !deleteModal.classList.contains('hidden')) {
-        deleteModal.classList.add('hidden');
-        selectedMediaId = null;
-    } else if (lightboxActive && currentLightbox) {
-        closeLightbox();
-    } else {
-        // If nothing is open, maybe exit or go to previous page
-        if (history.length > 1) {
-            history.back();
-        } else {
-            // Stay on current page
-            history.pushState({ page: 'gallery' }, '');
-        }
-    }
 }
 
 // ================= LOAD GALLERY =================
@@ -1622,15 +1402,6 @@ async function loadGallery() {
 
         allMedia = data || [];
         displayGallery(allMedia);
-        
-        setTimeout(() => {
-            findFirstUnseenMedia();
-            if (firstUnseenMediaId) {
-                scrollToFirstUnseen();
-            } else {
-                scrollToBottom();
-            }
-        }, 500);
 
     } catch (err) {
         console.error("Error loading gallery:", err);
@@ -1666,21 +1437,16 @@ function displayGallery(media) {
 }
 
 // ================= SETUP EVENT LISTENERS =================
-function setupEventListeners() {
-    logoutBtn.onclick = async () => {
-        await supabase.auth.signOut();
-        window.location.href = "../index.html";
-    };
-}
+logoutBtn.addEventListener('click', async () => {
+    await supabase.auth.signOut();
+    window.location.href = "../index.html";
+});
 
 // ================= OPEN DELETE MODAL =================
 window.openDeleteModal = function(id) {
     selectedMediaId = id;
     deleteModal.classList.remove('hidden');
     hideContextMenu();
-    
-    // Add to history for back button
-    history.pushState({ modal: true }, '');
 };
 
 // ================= CONFIRM DELETE =================
@@ -1696,11 +1462,6 @@ async function confirmDelete() {
             .eq('id', selectedMediaId);
 
         if (error) throw error;
-
-        if (media?.media_url && isCloudinaryUrl(media.media_url)) {
-            console.log("Cloudinary file deleted from gallery:", media.media_url);
-            showNotification('Media deleted from gallery.', 'info');
-        }
 
         deleteModal.classList.add('hidden');
         showNotification('Media deleted successfully');
