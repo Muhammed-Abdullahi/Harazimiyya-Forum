@@ -2233,3 +2233,29 @@ body[data-theme="nature"] .seek-progress-fill {
 body[data-theme="nature"] .seek-handle i {
     color: #4caf50;
 }
+
+
+
+/* ================= ULTIMATE MODAL FIX ================= */
+.tiktok-upload-modal {
+    display: none !important;
+}
+
+.tiktok-upload-modal:not(.hidden) {
+    display: flex !important;
+    position: fixed !important;
+    top: 0 !important;
+    left: 0 !important;
+    right: 0 !important;
+    bottom: 0 !important;
+    width: 100% !important;
+    height: 100% !important;
+    background: rgba(0, 0, 0, 0.95) !important;
+    z-index: 999999 !important;
+    align-items: center !important;
+    justify-content: center !important;
+}
+
+.tiktok-upload-modal.hidden {
+    display: none !important;
+}

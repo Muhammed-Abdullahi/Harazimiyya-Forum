@@ -91,8 +91,10 @@
                     </a>
                 </li>
             </ul>
-
-            <div class="sidebar-footer">
+        </div>
+    </div>
+    
+    <div class="sidebar-footer">
         <button class="logout-btn-sidebar" id="logoutBtn">
             <i class="fas fa-sign-out-alt"></i>
             <span>Logout</span>
@@ -100,32 +102,25 @@
     </div>
 </div>
 
-        </div>
-    </div>
-    
-    
-
 <!-- Overlay -->
 <div class="overlay" id="overlay"></div>
 
 <!-- MAIN -->
 <main class="main-content">
-
     <div class="top-bar">
         <div class="top-bar-left">
             <button id="openSidebar" class="menu-btn"><i class="fas fa-bars"></i></button>
             <h1>Gallery</h1>
         </div>
-        <button id="addMediaBtn" class="primary-btn hidden">
+        <button id="addMediaBtn" class="primary-btn">
             <i class="fas fa-plus"></i> Add
         </button>
     </div>
 
     <section id="galleryGrid" class="gallery-grid"></section>
-
 </main>
 
-<!-- TIKTOK-STYLE UPLOAD MODAL -->
+<!-- TIKTOK-STYLE UPLOAD MODAL - CORRECTLY PLACED OUTSIDE SIDEBAR -->
 <div id="tiktokUploadModal" class="tiktok-upload-modal hidden">
     <div class="tiktok-upload-container">
         <div class="tiktok-upload-header">
@@ -230,5 +225,8 @@
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="../js/supabase.js"></script>
 <script src="../js/gallery.js"></script>
+
+
+
 </body>
 </html>

@@ -1,8 +1,7 @@
 // ============================================
 // HARAZIMIYYA FORUM - GALLERY
-// Features: Right-click (desktop) or Long-press (mobile) menu
-// Menu: Love, Like, Download, Delete (owners/admins only)
-// TikTok-style video controls with seek bar
+// Complete Working Version with Upload Functionality
+// Features: Upload to Cloudinary, Love/Like reactions per user, Long press menu
 // ============================================
 
 // ================= CLOUDINARY CONFIGURATION =================
@@ -50,11 +49,6 @@ let currentTheme = 'dark';
 
 // Reaction tracking
 let mediaReactions = new Map();
-
-// Smart scroll variables
-let showJumpToBottom = false;
-let firstUnseenMediaId = null;
-let hasUnseenMedia = false;
 
 // DOM Elements
 const sidebar = document.getElementById("sidebar");
@@ -166,20 +160,26 @@ function toggleThemeDropdown(event) {
 }
 
 // ================= SIDEBAR TOGGLE =================
-openSidebar.addEventListener('click', () => {
-    sidebar.classList.add("active");
-    overlay.classList.add("active");
-});
+if (openSidebar) {
+    openSidebar.addEventListener('click', () => {
+        sidebar.classList.add("active");
+        overlay.classList.add("active");
+    });
+}
 
-closeSidebar.addEventListener('click', () => {
-    sidebar.classList.remove("active");
-    overlay.classList.remove("active");
-});
+if (closeSidebar) {
+    closeSidebar.addEventListener('click', () => {
+        sidebar.classList.remove("active");
+        overlay.classList.remove("active");
+    });
+}
 
-overlay.addEventListener('click', () => {
-    sidebar.classList.remove("active");
-    overlay.classList.remove("active");
-});
+if (overlay) {
+    overlay.addEventListener('click', () => {
+        sidebar.classList.remove("active");
+        overlay.classList.remove("active");
+    });
+}
 
 // ================= NOTIFICATION FUNCTION =================
 function showNotification(message, type = 'success') {
@@ -249,56 +249,125 @@ function loadViewedMedia() {
     }
 }
 
-// ================= LOAD REACTIONS =================
-function loadReactions() {
+// ================= LOAD REACTIONS FROM SUPABASE =================
+async function loadReactions() {
     try {
-        const saved = localStorage.getItem('mediaReactions');
-        if (saved) {
-            const parsed = JSON.parse(saved);
-            mediaReactions = new Map(Object.entries(parsed));
-        }
+        const { data, error } = await supabase
+            .from('media_reactions')
+            .select('*');
+        
+        if (error) throw error;
+        
+        // Group reactions by media_id
+        const reactionsMap = new Map();
+        data.forEach(reaction => {
+            if (!reactionsMap.has(reaction.media_id)) {
+                reactionsMap.set(reaction.media_id, {
+                    love: 0,
+                    like: 0,
+                    userReacted: null
+                });
+            }
+            
+            const mediaReaction = reactionsMap.get(reaction.media_id);
+            if (reaction.reaction_type === 'love') {
+                mediaReaction.love++;
+            } else if (reaction.reaction_type === 'like') {
+                mediaReaction.like++;
+            }
+            
+            // Check if current user reacted
+            if (reaction.user_id === currentUser?.id) {
+                mediaReaction.userReacted = reaction.reaction_type;
+            }
+        });
+        
+        mediaReactions = reactionsMap;
+        
+        // Update UI for all media cards
+        allMedia.forEach(item => {
+            updateMediaReactions(item.id);
+        });
+        
     } catch (e) {
-        console.log("Could not load reactions", e);
+        console.error("Error loading reactions:", e);
     }
 }
 
-// ================= SAVE REACTIONS =================
-function saveReactions() {
+// ================= ADD REACTION TO SUPABASE =================
+async function addReaction(mediaId, reactionType) {
+    if (!currentUser) {
+        showNotification('Please login to react', 'error');
+        return;
+    }
+    
     try {
-        const obj = Object.fromEntries(mediaReactions);
-        localStorage.setItem('mediaReactions', JSON.stringify(obj));
-    } catch (e) {
-        console.log("Could not save reactions", e);
-    }
-}
-
-// ================= ADD REACTION =================
-function addReaction(mediaId, reactionType) {
-    if (!mediaReactions.has(mediaId)) {
-        mediaReactions.set(mediaId, { love: 0, like: 0, userReacted: null });
-    }
-    
-    const reactions = mediaReactions.get(mediaId);
-    
-    if (reactions.userReacted === reactionType) {
-        reactions[reactionType] = Math.max(0, (reactions[reactionType] || 0) - 1);
-        reactions.userReacted = null;
-        showNotification(`${reactionType} removed`, 'info');
-    } else {
-        if (reactions.userReacted) {
-            reactions[reactions.userReacted] = Math.max(0, (reactions[reactions.userReacted] || 0) - 1);
+        // Check if user already reacted
+        const { data: existing, error: checkError } = await supabase
+            .from('media_reactions')
+            .select('*')
+            .eq('media_id', mediaId)
+            .eq('user_id', currentUser.id)
+            .eq('reaction_type', reactionType)
+            .maybeSingle();
+        
+        if (checkError) throw checkError;
+        
+        if (existing) {
+            // User already has this reaction - remove it
+            const { error: deleteError } = await supabase
+                .from('media_reactions')
+                .delete()
+                .eq('id', existing.id);
+            
+            if (deleteError) throw deleteError;
+            
+            showNotification(`${reactionType} removed`, 'info');
+        } else {
+            // Check if user has any other reaction on this media
+            const { data: otherReaction, error: otherError } = await supabase
+                .from('media_reactions')
+                .select('*')
+                .eq('media_id', mediaId)
+                .eq('user_id', currentUser.id)
+                .maybeSingle();
+            
+            if (otherError) throw otherError;
+            
+            if (otherReaction) {
+                // Remove other reaction first
+                const { error: deleteOtherError } = await supabase
+                    .from('media_reactions')
+                    .delete()
+                    .eq('id', otherReaction.id);
+                
+                if (deleteOtherError) throw deleteOtherError;
+            }
+            
+            // Add new reaction
+            const { error: insertError } = await supabase
+                .from('media_reactions')
+                .insert([{
+                    media_id: mediaId,
+                    user_id: currentUser.id,
+                    reaction_type: reactionType
+                }]);
+            
+            if (insertError) throw insertError;
+            
+            showNotification(`Added ${reactionType}`, 'success');
         }
         
-        reactions[reactionType] = (reactions[reactionType] || 0) + 1;
-        reactions.userReacted = reactionType;
-        showNotification(`Added ${reactionType}`, 'success');
+        // Reload reactions to update UI
+        await loadReactions();
+        
+    } catch (err) {
+        console.error("Error adding reaction:", err);
+        showNotification('Error adding reaction', 'error');
     }
-    
-    saveReactions();
-    updateMediaReactions(mediaId);
 }
 
-// ================= UPDATE MEDIA REACTIONS =================
+// ================= UPDATE MEDIA REACTIONS UI =================
 function updateMediaReactions(mediaId) {
     const mediaCard = document.querySelector(`.media-card[data-media-id="${mediaId}"]`);
     if (!mediaCard) return;
@@ -307,14 +376,14 @@ function updateMediaReactions(mediaId) {
     if (existingReactions) existingReactions.remove();
     
     const reactions = mediaReactions.get(mediaId);
-    if (!reactions) return;
+    if (!reactions || (reactions.love === 0 && reactions.like === 0)) return;
     
     const reactionsDiv = document.createElement('div');
     reactionsDiv.className = 'media-reactions';
     
     if (reactions.love > 0) {
         const loveDiv = document.createElement('div');
-        loveDiv.className = 'reaction-icon love';
+        loveDiv.className = `reaction-icon love ${reactions.userReacted === 'love' ? 'active' : ''}`;
         loveDiv.innerHTML = '❤️';
         if (reactions.love > 1) {
             const count = document.createElement('span');
@@ -327,7 +396,7 @@ function updateMediaReactions(mediaId) {
     
     if (reactions.like > 0) {
         const likeDiv = document.createElement('div');
-        likeDiv.className = 'reaction-icon like';
+        likeDiv.className = `reaction-icon like ${reactions.userReacted === 'like' ? 'active' : ''}`;
         likeDiv.innerHTML = '👍';
         if (reactions.like > 1) {
             const count = document.createElement('span');
@@ -338,9 +407,7 @@ function updateMediaReactions(mediaId) {
         reactionsDiv.appendChild(likeDiv);
     }
     
-    if (reactions.love > 0 || reactions.like > 0) {
-        mediaCard.appendChild(reactionsDiv);
-    }
+    mediaCard.appendChild(reactionsDiv);
 }
 
 // ================= CREATE DELETE MODAL =================
@@ -408,6 +475,9 @@ function showContextMenu(event, mediaId) {
     event.preventDefault();
     event.stopPropagation();
     
+    // Hide any existing menu
+    hideContextMenu();
+    
     const video = event.target.closest('.media-card')?.querySelector('video');
     if (video && !video.paused) {
         video.pause();
@@ -416,10 +486,6 @@ function showContextMenu(event, mediaId) {
     const mediaCard = event.target.closest('.media-card');
     if (mediaCard) {
         mediaCard.classList.add('menu-open');
-    }
-    
-    if (contextMenu) {
-        contextMenu.remove();
     }
     
     contextMenu = createContextMenu();
@@ -538,7 +604,7 @@ function hideContextMenu() {
         });
         
         setTimeout(() => {
-            if (contextMenu) {
+            if (contextMenu && contextMenu.parentNode) {
                 contextMenu.remove();
                 contextMenu = null;
             }
@@ -602,6 +668,19 @@ function setupContextMenu(element, mediaId) {
         longPressTriggered = false;
     });
 }
+
+// ================= CLICK OUTSIDE MENU HANDLER =================
+document.addEventListener('click', function(e) {
+    if (contextMenu && !contextMenu.contains(e.target)) {
+        hideContextMenu();
+    }
+});
+
+document.addEventListener('touchstart', function(e) {
+    if (contextMenu && !contextMenu.contains(e.target)) {
+        hideContextMenu();
+    }
+});
 
 // ================= CREATE LIGHTBOX =================
 function createLightbox(src, type, mediaId, title) {
@@ -972,87 +1051,107 @@ function initTikTokModal() {
 }
 
 function setupTikTokEventListeners() {
-    tiktokTypeImage.addEventListener('click', (e) => {
-        e.preventDefault();
-        setMediaType('image');
-    });
+    if (tiktokTypeImage) {
+        tiktokTypeImage.addEventListener('click', (e) => {
+            e.preventDefault();
+            setMediaType('image');
+        });
+    }
     
-    tiktokTypeVideo.addEventListener('click', (e) => {
-        e.preventDefault();
-        setMediaType('video');
-    });
+    if (tiktokTypeVideo) {
+        tiktokTypeVideo.addEventListener('click', (e) => {
+            e.preventDefault();
+            setMediaType('video');
+        });
+    }
     
-    tiktokMediaFile.addEventListener('change', handleTikTokFileSelect);
+    if (tiktokMediaFile) {
+        tiktokMediaFile.addEventListener('change', handleTikTokFileSelect);
+    }
     
-    tiktokDropZone.addEventListener('dragover', (e) => {
-        e.preventDefault();
-        tiktokDropZone.classList.add('dragover');
-    });
-    
-    tiktokDropZone.addEventListener('dragleave', () => {
-        tiktokDropZone.classList.remove('dragover');
-    });
-    
-    tiktokDropZone.addEventListener('drop', (e) => {
-        e.preventDefault();
-        tiktokDropZone.classList.remove('dragover');
+    if (tiktokDropZone) {
+        tiktokDropZone.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            tiktokDropZone.classList.add('dragover');
+        });
         
-        const files = e.dataTransfer.files;
-        if (files.length > 0) {
-            tiktokMediaFile.files = files;
-            handleTikTokFileSelect({ target: { files: files } });
-        }
-    });
+        tiktokDropZone.addEventListener('dragleave', () => {
+            tiktokDropZone.classList.remove('dragover');
+        });
+        
+        tiktokDropZone.addEventListener('drop', (e) => {
+            e.preventDefault();
+            tiktokDropZone.classList.remove('dragover');
+            
+            const files = e.dataTransfer.files;
+            if (files.length > 0 && tiktokMediaFile) {
+                tiktokMediaFile.files = files;
+                handleTikTokFileSelect({ target: { files: files } });
+            }
+        });
+    }
     
-    tiktokBrowseBtn.addEventListener('click', (e) => {
-        e.preventDefault();
-        tiktokMediaFile.click();
-    });
+    if (tiktokBrowseBtn) {
+        tiktokBrowseBtn.addEventListener('click', (e) => {
+            e.preventDefault();
+            if (tiktokMediaFile) {
+                tiktokMediaFile.click();
+            }
+        });
+    }
     
-    tiktokSaveBtn.addEventListener('click', (e) => {
-        e.preventDefault();
-        saveTikTokMedia();
-    });
+    if (tiktokSaveBtn) {
+        tiktokSaveBtn.addEventListener('click', (e) => {
+            e.preventDefault();
+            saveTikTokMedia();
+        });
+    }
     
-    tiktokCancelBtn.addEventListener('click', (e) => {
-        e.preventDefault();
-        closeTikTokModal();
-    });
-    
-    tiktokCloseBtn.addEventListener('click', (e) => {
-        e.preventDefault();
-        closeTikTokModal();
-    });
-    
-    tiktokModal.addEventListener('click', (e) => {
-        if (e.target === tiktokModal) {
+    if (tiktokCancelBtn) {
+        tiktokCancelBtn.addEventListener('click', (e) => {
+            e.preventDefault();
             closeTikTokModal();
-        }
-    });
+        });
+    }
+    
+    if (tiktokCloseBtn) {
+        tiktokCloseBtn.addEventListener('click', (e) => {
+            e.preventDefault();
+            closeTikTokModal();
+        });
+    }
+    
+    if (tiktokModal) {
+        tiktokModal.addEventListener('click', (e) => {
+            if (e.target === tiktokModal) {
+                closeTikTokModal();
+            }
+        });
+    }
 }
 
 function setMediaType(type) {
     if (type === 'image') {
-        tiktokTypeImage.classList.add('active');
-        tiktokTypeVideo.classList.remove('active');
-        tiktokMediaFile.accept = 'image/*';
-        tiktokFileHint.textContent = 'Supports: JPG, PNG, GIF (Max 50MB)';
+        if (tiktokTypeImage) tiktokTypeImage.classList.add('active');
+        if (tiktokTypeVideo) tiktokTypeVideo.classList.remove('active');
+        if (tiktokMediaFile) tiktokMediaFile.accept = 'image/*';
+        if (tiktokFileHint) tiktokFileHint.textContent = 'Supports: JPG, PNG, GIF (Max 50MB)';
     } else {
-        tiktokTypeVideo.classList.add('active');
-        tiktokTypeImage.classList.remove('active');
-        tiktokMediaFile.accept = 'video/*';
-        tiktokFileHint.textContent = 'Supports: MP4 (Max 50MB)';
+        if (tiktokTypeVideo) tiktokTypeVideo.classList.add('active');
+        if (tiktokTypeImage) tiktokTypeImage.classList.remove('active');
+        if (tiktokMediaFile) tiktokMediaFile.accept = 'video/*';
+        if (tiktokFileHint) tiktokFileHint.textContent = 'Supports: MP4 (Max 50MB)';
     }
     
-    tiktokMediaFile.value = '';
-    tiktokPreviewArea.innerHTML = '';
+    if (tiktokMediaFile) tiktokMediaFile.value = '';
+    if (tiktokPreviewArea) tiktokPreviewArea.innerHTML = '';
     selectedFile = null;
 }
 
 function handleTikTokFileSelect(e) {
     const file = e.target.files[0];
     if (!file) {
-        tiktokPreviewArea.innerHTML = '';
+        if (tiktokPreviewArea) tiktokPreviewArea.innerHTML = '';
         selectedFile = null;
         return;
     }
@@ -1061,21 +1160,21 @@ function handleTikTokFileSelect(e) {
     
     if (file.size > 50 * 1024 * 1024) {
         showNotification('File too large. Maximum size is 50MB.', 'error');
-        tiktokMediaFile.value = '';
+        if (tiktokMediaFile) tiktokMediaFile.value = '';
         selectedFile = null;
         return;
     }
     
-    const isImage = tiktokTypeImage.classList.contains('active');
+    const isImage = tiktokTypeImage ? tiktokTypeImage.classList.contains('active') : true;
     if (isImage && !file.type.startsWith('image/')) {
         showNotification('Please select an image file', 'error');
-        tiktokMediaFile.value = '';
+        if (tiktokMediaFile) tiktokMediaFile.value = '';
         selectedFile = null;
         return;
     }
     if (!isImage && !file.type.startsWith('video/')) {
         showNotification('Please select a video file', 'error');
-        tiktokMediaFile.value = '';
+        if (tiktokMediaFile) tiktokMediaFile.value = '';
         selectedFile = null;
         return;
     }
@@ -1113,12 +1212,12 @@ function displayTikTokPreview(file) {
                     <img src="${e.target.result}" alt="Full preview">
                 </div>
             `;
-            tiktokPreviewArea.innerHTML = previewHTML;
+            if (tiktokPreviewArea) tiktokPreviewArea.innerHTML = previewHTML;
             
-            const changeBtn = tiktokPreviewArea.querySelector('.tiktok-change-file');
+            const changeBtn = tiktokPreviewArea ? tiktokPreviewArea.querySelector('.tiktok-change-file') : null;
             if (changeBtn) {
                 changeBtn.addEventListener('click', () => {
-                    tiktokMediaFile.click();
+                    if (tiktokMediaFile) tiktokMediaFile.click();
                 });
             }
         };
@@ -1130,12 +1229,12 @@ function displayTikTokPreview(file) {
                 <video src="${videoURL}" controls preload="metadata"></video>
             </div>
         `;
-        tiktokPreviewArea.innerHTML = previewHTML;
+        if (tiktokPreviewArea) tiktokPreviewArea.innerHTML = previewHTML;
         
-        const changeBtn = tiktokPreviewArea.querySelector('.tiktok-change-file');
+        const changeBtn = tiktokPreviewArea ? tiktokPreviewArea.querySelector('.tiktok-change-file') : null;
         if (changeBtn) {
             changeBtn.addEventListener('click', () => {
-                tiktokMediaFile.click();
+                if (tiktokMediaFile) tiktokMediaFile.click();
             });
         }
     }
@@ -1143,21 +1242,28 @@ function displayTikTokPreview(file) {
 
 // ================= OPEN ADD MODAL =================
 function openAddModal() {
-    tiktokMediaTitle.value = '';
+    console.log("Opening add modal");
+    
+    if (tiktokMediaTitle) tiktokMediaTitle.value = '';
     setMediaType('image');
-    tiktokMediaFile.value = '';
-    tiktokPreviewArea.innerHTML = '';
-    tiktokProgress.classList.add('hidden');
-    tiktokSaveBtn.disabled = false;
-    tiktokSaveBtn.innerHTML = '<i class="fas fa-cloud-upload-alt"></i><span>Upload to Cloudinary</span>';
+    if (tiktokMediaFile) tiktokMediaFile.value = '';
+    if (tiktokPreviewArea) tiktokPreviewArea.innerHTML = '';
+    if (tiktokProgress) tiktokProgress.classList.add('hidden');
+    if (tiktokSaveBtn) {
+        tiktokSaveBtn.disabled = false;
+        tiktokSaveBtn.innerHTML = '<i class="fas fa-cloud-upload-alt"></i><span>Upload to Cloudinary</span>';
+    }
     selectedFile = null;
     
-    tiktokModal.classList.remove('hidden');
+    if (tiktokModal) {
+        tiktokModal.classList.remove('hidden');
+        tiktokModal.style.display = 'flex';
+    }
 }
 
 // ================= SAVE MEDIA =================
 async function saveTikTokMedia() {
-    const title = tiktokMediaTitle.value.trim();
+    const title = tiktokMediaTitle ? tiktokMediaTitle.value.trim() : '';
     if (!title) {
         showNotification('Please enter a title', 'error');
         return;
@@ -1173,7 +1279,7 @@ async function saveTikTokMedia() {
         return;
     }
 
-    const type = tiktokTypeImage.classList.contains('active') ? 'image' : 'video';
+    const type = tiktokTypeImage && tiktokTypeImage.classList.contains('active') ? 'image' : 'video';
     if (type === 'image' && !selectedFile.type.startsWith('image/')) {
         showNotification('Please select a valid image file', 'error');
         return;
@@ -1183,9 +1289,11 @@ async function saveTikTokMedia() {
         return;
     }
 
-    tiktokSaveBtn.disabled = true;
-    tiktokSaveBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i><span>Uploading...</span>';
-    tiktokProgress.classList.remove('hidden');
+    if (tiktokSaveBtn) {
+        tiktokSaveBtn.disabled = true;
+        tiktokSaveBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i><span>Uploading...</span>';
+    }
+    if (tiktokProgress) tiktokProgress.classList.remove('hidden');
     
     const progressFill = document.querySelector('.tiktok-progress-fill');
     const progressText = document.querySelector('.tiktok-progress-text');
@@ -1193,8 +1301,8 @@ async function saveTikTokMedia() {
     const interval = setInterval(() => {
         progress += 5;
         if (progress <= 90) {
-            progressFill.style.width = progress + '%';
-            progressText.textContent = progress + '%';
+            if (progressFill) progressFill.style.width = progress + '%';
+            if (progressText) progressText.textContent = progress + '%';
         }
     }, 200);
 
@@ -1202,8 +1310,8 @@ async function saveTikTokMedia() {
         const fileUrl = await uploadFileToCloudinary(selectedFile, type);
         
         clearInterval(interval);
-        progressFill.style.width = '100%';
-        progressText.textContent = '100%';
+        if (progressFill) progressFill.style.width = '100%';
+        if (progressText) progressText.textContent = '100%';
         
         const { error: dbError } = await supabase
             .from('gallery')
@@ -1227,21 +1335,28 @@ async function saveTikTokMedia() {
         clearInterval(interval);
         console.error("Error uploading media:", err);
         showNotification('Error: ' + err.message, 'error');
-        tiktokSaveBtn.disabled = false;
-        tiktokSaveBtn.innerHTML = '<i class="fas fa-cloud-upload-alt"></i><span>Upload to Cloudinary</span>';
-        tiktokProgress.classList.add('hidden');
+        if (tiktokSaveBtn) {
+            tiktokSaveBtn.disabled = false;
+            tiktokSaveBtn.innerHTML = '<i class="fas fa-cloud-upload-alt"></i><span>Upload to Cloudinary</span>';
+        }
+        if (tiktokProgress) tiktokProgress.classList.add('hidden');
     }
 }
 
 // ================= CLOSE MODAL =================
 function closeTikTokModal() {
-    tiktokModal.classList.add('hidden');
-    tiktokMediaTitle.value = '';
-    tiktokMediaFile.value = '';
-    tiktokPreviewArea.innerHTML = '';
-    tiktokProgress.classList.add('hidden');
-    tiktokSaveBtn.disabled = false;
-    tiktokSaveBtn.innerHTML = '<i class="fas fa-cloud-upload-alt"></i><span>Upload to Cloudinary</span>';
+    if (tiktokModal) {
+        tiktokModal.classList.add('hidden');
+        tiktokModal.style.display = 'none';
+    }
+    if (tiktokMediaTitle) tiktokMediaTitle.value = '';
+    if (tiktokMediaFile) tiktokMediaFile.value = '';
+    if (tiktokPreviewArea) tiktokPreviewArea.innerHTML = '';
+    if (tiktokProgress) tiktokProgress.classList.add('hidden');
+    if (tiktokSaveBtn) {
+        tiktokSaveBtn.disabled = false;
+        tiktokSaveBtn.innerHTML = '<i class="fas fa-cloud-upload-alt"></i><span>Upload to Cloudinary</span>';
+    }
     selectedFile = null;
     
     setMediaType('image');
@@ -1286,6 +1401,91 @@ async function uploadFileToCloudinary(file, type) {
         showNotification('Failed to upload to Cloudinary: ' + err.message, 'error');
         throw err;
     }
+}
+
+// ================= ADD THEME BUTTON =================
+function addThemeButton() {
+    const topBar = document.querySelector('.top-bar');
+    if (!topBar) return;
+    
+    if (document.getElementById('themeBtn')) return;
+    
+    const themeBtn = document.createElement('button');
+    themeBtn.id = 'themeBtn';
+    themeBtn.className = 'theme-btn';
+    themeBtn.innerHTML = '<i class="fas fa-palette"></i>';
+    themeBtn.title = 'Change Theme';
+    
+    themeBtn.addEventListener('click', toggleThemeDropdown);
+    
+    const addBtn = document.getElementById('addMediaBtn');
+    if (addBtn) {
+        topBar.insertBefore(themeBtn, addBtn);
+    } else {
+        topBar.appendChild(themeBtn);
+    }
+}
+
+// ================= LOAD GALLERY =================
+async function loadGallery() {
+    if (!galleryGrid) return;
+    
+    galleryGrid.innerHTML = `
+        <div class="loading-spinner">
+            <i class="fas fa-spinner fa-spin"></i> Loading gallery...
+        </div>
+    `;
+
+    try {
+        const { data, error } = await supabase
+            .from("gallery")
+            .select(`
+                *,
+                uploader:profiles!uploaded_by(full_name, email, role)
+            `)
+            .order("created_at", { ascending: true });
+
+        if (error) throw error;
+
+        allMedia = data || [];
+        displayGallery(allMedia);
+        
+        // Load reactions after gallery is loaded
+        await loadReactions();
+
+    } catch (err) {
+        console.error("Error loading gallery:", err);
+        galleryGrid.innerHTML = `
+            <div class="empty-state">
+                <i class="fas fa-exclamation-circle"></i>
+                <h3>Error Loading Gallery</h3>
+                <p>Please try again later</p>
+            </div>
+        `;
+    }
+}
+
+// ================= DISPLAY GALLERY =================
+function displayGallery(media) {
+    if (!galleryGrid) return;
+    
+    galleryGrid.innerHTML = "";
+
+    if (!media || media.length === 0) {
+        galleryGrid.innerHTML = `
+            <div class="empty-state">
+                <i class="fas fa-images"></i>
+                <h3>No Media Yet</h3>
+                <p>Be the first to share an image or video from our programs!</p>
+            </div>
+        `;
+        return;
+    }
+
+    media.forEach(item => {
+        const card = createMediaCard(item);
+        galleryGrid.appendChild(card);
+    });
 }
 
 // ================= INITIALIZATION =================
@@ -1336,7 +1536,7 @@ async function init() {
             userNameEl.textContent = profile.full_name || 'Member';
         }
 
-        // Ensure upload button is visible
+        // Ensure upload button is visible and has click handler
         if (addMediaBtn) {
             addMediaBtn.classList.remove("hidden");
             addMediaBtn.style.display = "inline-flex";
@@ -1347,14 +1547,12 @@ async function init() {
         createDeleteModal();
         createJumpToBottomButton();
         loadViewedMedia();
-        loadReactions();
-        initTikTokModal();
         
         const savedTheme = localStorage.getItem('selectedTheme') || 'dark';
         applyTheme(savedTheme);
         
         addThemeButton();
-
+        initTikTokModal();
         await loadGallery();
 
     } catch (err) {
@@ -1362,90 +1560,18 @@ async function init() {
     }
 }
 
-// ================= ADD THEME BUTTON =================
-function addThemeButton() {
-    const topBar = document.querySelector('.top-bar');
-    if (!topBar) return;
-    
-    if (document.getElementById('themeBtn')) return;
-    
-    const themeBtn = document.createElement('button');
-    themeBtn.id = 'themeBtn';
-    themeBtn.className = 'theme-btn';
-    themeBtn.innerHTML = '<i class="fas fa-palette"></i>';
-    themeBtn.title = 'Change Theme';
-    
-    themeBtn.addEventListener('click', toggleThemeDropdown);
-    
-    const addBtn = document.getElementById('addMediaBtn');
-    topBar.insertBefore(themeBtn, addBtn);
-}
-
-// ================= LOAD GALLERY =================
-async function loadGallery() {
-    galleryGrid.innerHTML = `
-        <div class="loading-spinner">
-            <i class="fas fa-spinner fa-spin"></i> Loading gallery...
-        </div>
-    `;
-
-    try {
-        const { data, error } = await supabase
-            .from("gallery")
-            .select(`
-                *,
-                uploader:profiles!uploaded_by(full_name, email, role)
-            `)
-            .order("created_at", { ascending: true });
-
-        if (error) throw error;
-
-        allMedia = data || [];
-        displayGallery(allMedia);
-
-    } catch (err) {
-        console.error("Error loading gallery:", err);
-        galleryGrid.innerHTML = `
-            <div class="empty-state">
-                <i class="fas fa-exclamation-circle"></i>
-                <h3>Error Loading Gallery</h3>
-                <p>Please try again later</p>
-            </div>
-        `;
-    }
-}
-
-// ================= DISPLAY GALLERY =================
-function displayGallery(media) {
-    galleryGrid.innerHTML = "";
-
-    if (!media || media.length === 0) {
-        galleryGrid.innerHTML = `
-            <div class="empty-state">
-                <i class="fas fa-images"></i>
-                <h3>No Media Yet</h3>
-                <p>Be the first to share an image or video from our programs!</p>
-            </div>
-        `;
-        return;
-    }
-
-    media.forEach(item => {
-        const card = createMediaCard(item);
-        galleryGrid.appendChild(card);
+// ================= SETUP EVENT LISTENERS =================
+if (logoutBtn) {
+    logoutBtn.addEventListener('click', async () => {
+        await supabase.auth.signOut();
+        window.location.href = "../index.html";
     });
 }
-
-// ================= SETUP EVENT LISTENERS =================
-logoutBtn.addEventListener('click', async () => {
-    await supabase.auth.signOut();
-    window.location.href = "../index.html";
-});
 
 // ================= OPEN DELETE MODAL =================
 window.openDeleteModal = function(id) {
     selectedMediaId = id;
-    deleteModal.classList.remove('hidden');
+    if (deleteModal) deleteModal.classList.remove('hidden');
     hideContextMenu();
 };
 
@@ -1454,8 +1580,15 @@ async function confirmDelete() {
     if (!selectedMediaId) return;
 
     try {
-        const media = allMedia.find(m => m.id === selectedMediaId);
+        // Delete reactions first
+        const { error: reactionsError } = await supabase
+            .from('media_reactions')
+            .delete()
+            .eq('media_id', selectedMediaId);
         
+        if (reactionsError) throw reactionsError;
+        
+        // Then delete media
         const { error } = await supabase
             .from('gallery')
             .delete()
@@ -1463,11 +1596,10 @@ async function confirmDelete() {
 
         if (error) throw error;
 
-        deleteModal.classList.add('hidden');
+        if (deleteModal) deleteModal.classList.add('hidden');
         showNotification('Media deleted successfully');
         
         mediaReactions.delete(selectedMediaId);
-        saveReactions();
         
         await loadGallery();
 
@@ -1480,3 +1612,105 @@ async function confirmDelete() {
 // Make functions globally available
 window.handleImageError = handleImageError;
 window.downloadMedia = downloadMedia;
+
+// ================= FORCE UPLOAD BUTTON TO WORK =================
+window.addEventListener('load', function() {
+    console.log("🔧 Applying final fixes...");
+    
+    const modal = document.getElementById('tiktokUploadModal');
+    const addBtn = document.getElementById('addMediaBtn');
+    const closeBtn = document.getElementById('closeTiktokModal');
+    const cancelBtn = document.getElementById('tiktokCancelBtn');
+    const uploadBtn = document.getElementById('tiktokSaveMediaBtn');
+    
+    if (!modal) {
+        console.error("❌ Modal not found!");
+        return;
+    }
+    
+    if (!addBtn) {
+        console.error("❌ Add button not found!");
+        return;
+    }
+    
+    // Make sure add button is visible
+    addBtn.classList.remove('hidden');
+    addBtn.style.display = 'inline-flex';
+    
+    // Remove all existing click handlers by cloning and replacing
+    const newAddBtn = addBtn.cloneNode(true);
+    addBtn.parentNode.replaceChild(newAddBtn, addBtn);
+    
+    // Attach our working click handler
+    newAddBtn.onclick = function(e) {
+        e.preventDefault();
+        e.stopPropagation();
+        console.log("✅ Add button clicked - opening modal");
+        
+        // Reset form
+        const titleInput = document.getElementById('tiktokMediaTitle');
+        const fileInput = document.getElementById('tiktokMediaFile');
+        const previewArea = document.getElementById('tiktokPreviewArea');
+        const progress = document.getElementById('tiktokProgress');
+        
+        if (titleInput) titleInput.value = '';
+        if (fileInput) fileInput.value = '';
+        if (previewArea) previewArea.innerHTML = '';
+        if (progress) progress.classList.add('hidden');
+        
+        // Show modal
+        modal.classList.remove('hidden');
+        modal.style.display = 'flex';
+        
+        return false;
+    };
+    
+    // Close modal function
+    function closeModal() {
+        console.log("Closing modal");
+        modal.classList.add('hidden');
+        modal.style.display = 'none';
+    }
+    
+    // Attach close handlers
+    if (closeBtn) {
+        closeBtn.onclick = function(e) {
+            e.preventDefault();
+            closeModal();
+            return false;
+        };
+    }
+    
+    if (cancelBtn) {
+        cancelBtn.onclick = function(e) {
+            e.preventDefault();
+            closeModal();
+            return false;
+        };
+    }
+    
+    // Close on backdrop click
+    modal.onclick = function(e) {
+        if (e.target === modal) {
+            closeModal();
+        }
+    };
+    
+    console.log("✅ Final fixes applied - upload button should now work!");
+});
+
+// Also run a backup fix after a delay
+setTimeout(function() {
+    const addBtn = document.getElementById('addMediaBtn');
+    const modal = document.getElementById('tiktokUploadModal');
+    
+    if (addBtn && modal) {
+        addBtn.onclick = function(e) {
+            e.preventDefault();
+            e.stopPropagation();
+            modal.classList.remove('hidden');
+            modal.style.display = 'flex';
+            return false;
+        };
+    }
+}, 2000);
