@@ -4,7 +4,7 @@
 // Members can delete their own content
 // Admins can delete any content
 // Features: Smart scroll, Jump to bottom, Vertical mobile layout
-// UPDATED: Video playback fixed with controls
+// UPDATED: Video fullscreen and download functionality
 // ============================================
 
 // ================= CLOUDINARY CONFIGURATION =================
@@ -47,6 +47,7 @@ let selectedFile = null;
 let viewedMedia = new Set();
 let currentLightbox = null;
 let failedImages = new Set();
+let lightboxActive = false;
 
 // Smart scroll variables
 let showJumpToBottom = false;
@@ -245,33 +246,111 @@ function createDeleteModal() {
     document.getElementById('confirmDeleteBtn').onclick = confirmDelete;
 }
 
-// ================= CREATE LIGHTBOX WITH HISTORY API =================
-function createLightbox(src, type, mediaId) {
+// ================= CREATE DOWNLOAD BUTTON =================
+function createDownloadButton(url, filename) {
+    const button = document.createElement('a');
+    button.href = url;
+    button.download = filename || 'video.mp4';
+    button.className = 'download-btn';
+    button.innerHTML = '<i class="fas fa-download"></i> Download';
+    button.style.cssText = `
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        padding: 10px 20px;
+        background: var(--primary);
+        color: white;
+        border: none;
+        border-radius: 8px;
+        cursor: pointer;
+        font-size: 1rem;
+        text-decoration: none;
+        margin-top: 15px;
+        transition: all 0.3s;
+    `;
+    button.onmouseover = () => {
+        button.style.background = 'var(--primary-dark)';
+        button.style.transform = 'translateY(-2px)';
+    };
+    button.onmouseout = () => {
+        button.style.background = 'var(--primary)';
+        button.style.transform = 'translateY(0)';
+    };
+    return button;
+}
+
+// ================= CREATE LIGHTBOX WITH FULLSCREEN AND DOWNLOAD =================
+function createLightbox(src, type, mediaId, title) {
     if (currentLightbox) {
-        currentLightbox.remove();
+        closeLightbox();
     }
     
-    history.pushState({ lightbox: true, mediaId: mediaId }, '', window.location.href);
+    lightboxActive = true;
     
     const lightbox = document.createElement('div');
     lightbox.className = 'lightbox-modal';
     lightbox.setAttribute('data-media-id', mediaId);
+    
+    // Get filename from URL
+    const filename = src.split('/').pop() || 'video.mp4';
     
     if (type === 'image') {
         lightbox.innerHTML = `
             <div class="lightbox-content">
                 <img src="${src}" alt="Gallery image" onerror="this.onerror=null; this.src='${getFallbackImageUrl()}';">
                 <button class="lightbox-close">&times;</button>
+                <div class="lightbox-download">
+                    <a href="${src}" download="${filename}" class="download-btn">
+                        <i class="fas fa-download"></i> Download Image
+                    </a>
+                </div>
             </div>
         `;
     } else {
         lightbox.innerHTML = `
             <div class="lightbox-content">
-                <video src="${src}" controls autoplay playsinline style="max-width: 100%; max-height: 90vh;"></video>
+                <video src="${src}" controls autoplay playsinline style="max-width: 100%; max-height: 80vh;"></video>
                 <button class="lightbox-close">&times;</button>
+                <div class="lightbox-download">
+                    <a href="${src}" download="${filename}" class="download-btn">
+                        <i class="fas fa-download"></i> Download Video
+                    </a>
+                </div>
             </div>
         `;
     }
+    
+    // Add download button styles
+    const style = document.createElement('style');
+    style.textContent = `
+        .lightbox-download {
+            text-align: center;
+            margin-top: 20px;
+        }
+        .download-btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 12px 24px;
+            background: var(--primary, #0b5e3b);
+            color: white;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 1rem;
+            text-decoration: none;
+            transition: all 0.3s;
+        }
+        .download-btn:hover {
+            background: var(--primary-dark, #094c31);
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+        }
+        .download-btn i {
+            font-size: 1.2rem;
+        }
+    `;
+    document.head.appendChild(style);
     
     document.body.appendChild(lightbox);
     currentLightbox = lightbox;
@@ -280,18 +359,24 @@ function createLightbox(src, type, mediaId) {
         markMediaAsViewed(mediaId);
     }
     
-    lightbox.querySelector('.lightbox-close').onclick = () => {
+    // Close button handler
+    lightbox.querySelector('.lightbox-close').onclick = (e) => {
+        e.stopPropagation();
         closeLightbox();
     };
     
-    lightbox.onclick = (e) => {
+    // Click background to close
+    lightbox.addEventListener('click', function(e) {
         if (e.target === lightbox) {
             closeLightbox();
         }
-    };
+    });
+    
+    // Handle Android back button
+    history.pushState({ lightbox: true }, '');
     
     const handlePopState = (e) => {
-        if (currentLightbox) {
+        if (lightboxActive && currentLightbox) {
             e.preventDefault();
             closeLightbox();
             window.removeEventListener('popstate', handlePopState);
@@ -299,13 +384,20 @@ function createLightbox(src, type, mediaId) {
     };
     
     window.addEventListener('popstate', handlePopState);
+    lightbox._popStateHandler = handlePopState;
 }
 
 // ================= CLOSE LIGHTBOX =================
 function closeLightbox() {
     if (currentLightbox) {
+        if (currentLightbox._popStateHandler) {
+            window.removeEventListener('popstate', currentLightbox._popStateHandler);
+        }
+        
         currentLightbox.remove();
         currentLightbox = null;
+        lightboxActive = false;
+        
         if (history.state && history.state.lightbox) {
             history.back();
         }
@@ -336,7 +428,8 @@ document.addEventListener("DOMContentLoaded", async () => {
     loadViewedMedia();
     
     window.addEventListener('popstate', (e) => {
-        if (currentLightbox) {
+        if (lightboxActive && currentLightbox) {
+            e.preventDefault();
             closeLightbox();
         }
     });
@@ -475,11 +568,11 @@ function createMediaCard(item) {
     card.innerHTML = `
         <span class="media-badge">${item.media_type}</span>
         ${item.media_type === 'image' 
-            ? `<img src="${item.media_url}" alt="${item.title}" class="media-preview" onclick="viewMedia('${item.id}', '${item.media_url}', 'image')" loading="lazy" onerror="handleImageError('${item.id}')">`
+            ? `<img src="${item.media_url}" alt="${item.title}" class="media-preview" onclick="viewMedia('${item.id}', '${item.media_url}', 'image', '${item.title}')" loading="lazy" onerror="handleImageError('${item.id}')">`
             : `<video 
                 src="${item.media_url}" 
                 class="media-preview" 
-                onclick="viewMedia('${item.id}', '${item.media_url}', 'video')" 
+                onclick="viewMedia('${item.id}', '${item.media_url}', 'video', '${item.title}')" 
                 controls
                 playsinline
                 preload="metadata"
@@ -498,13 +591,16 @@ function createMediaCard(item) {
                 <i class="fas fa-user"></i>
                 <span>Uploaded by: <strong>${uploaderName}</strong></span>
             </div>
-            ${canDelete ? `
-                <div class="media-actions">
+            <div class="media-actions">
+                ${canDelete ? `
                     <button class="media-btn delete-btn" onclick="openDeleteModal('${item.id}')" title="Delete">
                         <i class="fas fa-trash"></i>
                     </button>
-                </div>
-            ` : ''}
+                ` : ''}
+                <a href="${item.media_url}" download="${item.title}.${item.media_type === 'video' ? 'mp4' : 'jpg'}" class="media-btn download-btn" title="Download" style="background: rgba(11,94,59,0.1); color: var(--primary);">
+                    <i class="fas fa-download"></i>
+                </a>
+            </div>
         </div>
     `;
     
@@ -512,8 +608,8 @@ function createMediaCard(item) {
 }
 
 // ================= VIEW MEDIA =================
-window.viewMedia = function(id, url, type) {
-    createLightbox(url, type, id);
+window.viewMedia = function(id, url, type, title) {
+    createLightbox(url, type, id, title);
     
     markMediaAsViewed(id);
     
