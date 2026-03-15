@@ -1,7 +1,8 @@
 // ============================================
 // HARAZIMIYYA FORUM - GALLERY
 // Features: Right-click (desktop) or Long-press (mobile) menu
-// Menu: Love, Like, Delete (owners/admins only)
+// Menu: Love, Like, Download, Delete (owners/admins only)
+// TikTok-style video controls with seek bar
 // ============================================
 
 // ================= CLOUDINARY CONFIGURATION =================
@@ -45,6 +46,7 @@ let viewedMedia = new Set();
 let currentLightbox = null;
 let failedImages = new Set();
 let lightboxActive = false;
+let currentTheme = 'dark'; // Default theme
 
 // Reaction tracking
 let mediaReactions = new Map(); // Store reactions for each media
@@ -62,12 +64,11 @@ const closeSidebar = document.getElementById("closeSidebar");
 const logoutBtn = document.getElementById("logoutBtn");
 const addMediaBtn = document.getElementById("addMediaBtn");
 const galleryGrid = document.getElementById("galleryGrid");
-const galleryModal = document.getElementById("galleryModal");
-const closeGalleryModalBtn = document.getElementById("closeGalleryModalBtn");
-const saveMediaBtn = document.getElementById("saveMediaBtn");
-const mediaType = document.getElementById("mediaType");
-const mediaTitle = document.getElementById("mediaTitle");
-const mediaFile = document.getElementById("mediaFile");
+
+// TikTok Modal Elements
+let tiktokModal, tiktokTypeImage, tiktokTypeVideo, tiktokMediaTitle, tiktokMediaFile;
+let tiktokDropZone, tiktokPreviewArea, tiktokProgress, tiktokSaveBtn, tiktokCancelBtn;
+let tiktokCloseBtn, tiktokBrowseBtn, tiktokFileHint;
 
 // Delete modal (will be created dynamically)
 let deleteModal = null;
@@ -79,20 +80,144 @@ let contextMenuTarget = null;
 let contextMenuMediaId = null;
 let longPressTimer = null;
 
+// Theme dropdown
+let themeDropdown = null;
+
+// ================= THEME CONFIGURATION =================
+const themes = {
+    dark: {
+        name: 'Dark',
+        bg: '#000000',
+        surface: '#1a1a1a',
+        text: '#ffffff',
+        primary: '#0b5e3b',
+        headerBg: 'linear-gradient(180deg, rgba(0,0,0,0.8) 0%, rgba(0,0,0,0.4) 100%)'
+    },
+    nature: {
+        name: 'Nature',
+        bg: '#0a2f1f',
+        surface: '#1a3a2a',
+        text: '#e8f5e9',
+        primary: '#4caf50',
+        headerBg: 'linear-gradient(180deg, rgba(10,47,31,0.9) 0%, rgba(10,47,31,0.7) 100%)'
+    }
+};
+
+// ================= CREATE THEME DROPDOWN =================
+function createThemeDropdown() {
+    const dropdown = document.createElement('div');
+    dropdown.className = 'theme-dropdown hidden';
+    dropdown.id = 'themeDropdown';
+    
+    Object.keys(themes).forEach(themeKey => {
+        const theme = themes[themeKey];
+        const themeBtn = document.createElement('button');
+        themeBtn.className = `theme-option ${currentTheme === themeKey ? 'active' : ''}`;
+        themeBtn.innerHTML = `
+            <span class="theme-color" style="background: ${theme.primary}"></span>
+            <span>${theme.name}</span>
+            ${currentTheme === themeKey ? '<i class="fas fa-check"></i>' : ''}
+        `;
+        themeBtn.onclick = () => applyTheme(themeKey);
+        dropdown.appendChild(themeBtn);
+    });
+    
+    document.body.appendChild(dropdown);
+    return dropdown;
+}
+
+// ================= APPLY THEME =================
+function applyTheme(themeKey) {
+    currentTheme = themeKey;
+    const theme = themes[themeKey];
+    
+    // Apply theme to root
+    document.documentElement.style.setProperty('--bg', theme.bg);
+    document.documentElement.style.setProperty('--text-main', theme.text);
+    document.documentElement.style.setProperty('--primary', theme.primary);
+    
+    // Update body background
+    document.body.style.background = theme.bg;
+    
+    // Update header
+    const topBar = document.querySelector('.top-bar');
+    if (topBar) {
+        topBar.style.background = theme.headerBg;
+    }
+    
+    // Update active state in dropdown
+    const dropdown = document.getElementById('themeDropdown');
+    if (dropdown) {
+        const options = dropdown.querySelectorAll('.theme-option');
+        options.forEach(opt => {
+            const isActive = opt.querySelector('span:last-child').textContent === theme.name;
+            if (isActive) {
+                opt.classList.add('active');
+                if (!opt.querySelector('.fa-check')) {
+                    opt.innerHTML += '<i class="fas fa-check"></i>';
+                }
+            } else {
+                opt.classList.remove('active');
+                const check = opt.querySelector('.fa-check');
+                if (check) check.remove();
+            }
+        });
+    }
+    
+    // Save theme preference
+    localStorage.setItem('selectedTheme', themeKey);
+    
+    showNotification(`Theme changed to ${theme.name}`, 'success');
+}
+
+// ================= TOGGLE THEME DROPDOWN =================
+function toggleThemeDropdown(event) {
+    event.stopPropagation();
+    
+    if (!themeDropdown) {
+        themeDropdown = createThemeDropdown();
+    }
+    
+    const btnPos = event.target.getBoundingClientRect();
+    
+    themeDropdown.style.top = (btnPos.bottom + 8) + 'px';
+    themeDropdown.style.right = (window.innerWidth - btnPos.right) + 'px';
+    
+    themeDropdown.classList.toggle('hidden');
+    
+    // Close when clicking outside
+    setTimeout(() => {
+        document.addEventListener('click', closeThemeDropdown);
+    }, 100);
+}
+
+function closeThemeDropdown(e) {
+    if (themeDropdown && !themeDropdown.contains(e.target) && !e.target.closest('#themeBtn')) {
+        themeDropdown.classList.add('hidden');
+        document.removeEventListener('click', closeThemeDropdown);
+    }
+}
+
 // ================= SIDEBAR TOGGLE =================
 openSidebar.onclick = () => {
     sidebar.classList.add("active");
     overlay.classList.add("active");
+    // Add to history for back button handling
+    history.pushState({ sidebar: true }, '');
 };
 
 closeSidebar.onclick = () => {
     sidebar.classList.remove("active");
     overlay.classList.remove("active");
+    // Don't call history.back() here - just close
 };
 
+// FIXED: Overlay click should ONLY close sidebar, not navigate
 overlay.onclick = () => {
     sidebar.classList.remove("active");
     overlay.classList.remove("active");
+    // REMOVED: if (history.state && history.state.sidebar) { history.back(); }
+    // Just close the sidebar, don't navigate
 };
 
 // ================= NOTIFICATION FUNCTION =================
@@ -100,7 +225,7 @@ function showNotification(message, type = 'success') {
     const notification = document.createElement('div');
     notification.className = `notification ${type}`;
     notification.innerHTML = `
-        <i class="fas ${type === 'success' ? 'fa-check-circle' : 'fa-exclamation-circle'}"></i>
+        <i class="fas ${type === 'success' ? 'fa-check-circle' : type === 'error' ? 'fa-exclamation-circle' : 'fa-info-circle'}"></i>
         <span>${message}</span>
     `;
     document.body.appendChild(notification);
@@ -131,19 +256,19 @@ function createJumpToBottomButton() {
 }
 
 function scrollToBottom() {
-    window.scrollTo({
-        top: document.body.scrollHeight,
+    galleryGrid.scrollTo({
+        top: galleryGrid.scrollHeight,
         behavior: 'smooth'
     });
 }
 
 function setupScrollListener() {
-    window.addEventListener('scroll', () => {
-        const scrollPosition = window.scrollY;
-        const windowHeight = window.innerHeight;
-        const documentHeight = document.documentElement.scrollHeight;
+    galleryGrid.addEventListener('scroll', () => {
+        const scrollPosition = galleryGrid.scrollTop;
+        const scrollHeight = galleryGrid.scrollHeight;
+        const clientHeight = galleryGrid.clientHeight;
         
-        const isNearBottom = scrollPosition + windowHeight >= documentHeight - 100;
+        const isNearBottom = scrollPosition + clientHeight >= scrollHeight - 100;
         const jumpBtn = document.getElementById('jumpToBottomBtn');
         
         if (jumpBtn) {
@@ -182,11 +307,6 @@ function scrollToFirstUnseen() {
         const mediaElement = document.querySelector(`.media-card[data-media-id="${firstUnseenMediaId}"]`);
         if (mediaElement) {
             mediaElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
-            
-            mediaElement.style.backgroundColor = 'rgba(11, 94, 59, 0.1)';
-            setTimeout(() => {
-                mediaElement.style.backgroundColor = '';
-            }, 2000);
         }
     } else {
         scrollToBottom();
@@ -255,7 +375,6 @@ function addReaction(mediaId, reactionType) {
     }
     
     const reactions = mediaReactions.get(mediaId);
-    const userId = currentUser?.id;
     
     // Check if user already reacted
     if (reactions.userReacted === reactionType) {
@@ -324,6 +443,65 @@ function updateMediaReactions(mediaId) {
     }
 }
 
+// ================= CREATE DELETE MODAL =================
+function createDeleteModal() {
+    const deleteModalHTML = `
+        <div id="deleteModal" class="modal hidden">
+            <div class="modal-content delete-modal">
+                <i class="fas fa-exclamation-triangle" style="font-size: 48px;"></i>
+                <h3>Delete Media?</h3>
+                <p>This action cannot be undone.</p>
+                <div class="modal-actions">
+                    <button id="confirmDeleteBtn" class="primary-btn" style="background: #dc3545;">Delete</button>
+                    <button id="cancelDeleteBtn" class="ghost-btn">Cancel</button>
+                </div>
+            </div>
+        </div>
+    `;
+    
+    document.body.insertAdjacentHTML('beforeend', deleteModalHTML);
+    deleteModal = document.getElementById('deleteModal');
+    
+    document.getElementById('cancelDeleteBtn').onclick = () => {
+        deleteModal.classList.add('hidden');
+        selectedMediaId = null;
+        // Go back in history if modal was opened
+        if (history.state && history.state.modal) {
+            history.back();
+        }
+    };
+    
+    document.getElementById('confirmDeleteBtn').onclick = confirmDelete;
+}
+
+// ================= DOWNLOAD MEDIA =================
+async function downloadMedia(url, filename) {
+    try {
+        showNotification('Downloading...', 'info');
+        
+        // Fetch the file
+        const response = await fetch(url);
+        const blob = await response.blob();
+        
+        // Create download link
+        const downloadUrl = window.URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = downloadUrl;
+        link.download = filename || 'media';
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        
+        // Clean up
+        window.URL.revokeObjectURL(downloadUrl);
+        
+        showNotification('Download complete!', 'success');
+    } catch (error) {
+        console.error('Download error:', error);
+        showNotification('Download failed', 'error');
+    }
+}
+
 // ================= CREATE CONTEXT MENU =================
 function createContextMenu() {
     const menu = document.createElement('div');
@@ -336,7 +514,20 @@ function createContextMenu() {
 
 // ================= SHOW CONTEXT MENU =================
 function showContextMenu(event, mediaId) {
-    event.preventDefault(); // Prevent default right-click menu
+    event.preventDefault();
+    event.stopPropagation();
+    
+    // Pause video if it's playing
+    const video = event.target.closest('.media-card')?.querySelector('video');
+    if (video && !video.paused) {
+        video.pause();
+    }
+    
+    // Add a class to block video clicks
+    const mediaCard = event.target.closest('.media-card');
+    if (mediaCard) {
+        mediaCard.classList.add('menu-open');
+    }
     
     if (contextMenu) {
         contextMenu.remove();
@@ -345,7 +536,12 @@ function showContextMenu(event, mediaId) {
     contextMenu = createContextMenu();
     contextMenuMediaId = mediaId;
     
-    const canDelete = isAdmin || allMedia.find(m => m.id === mediaId)?.uploaded_by === currentUser.id;
+    const media = allMedia.find(m => m.id === mediaId);
+    const canDelete = isAdmin || (media && media.uploaded_by === currentUser?.id);
+    
+    // Get filename for download
+    let filename = media?.title || 'media';
+    filename += media?.media_type === 'image' ? '.jpg' : '.mp4';
     
     let menuItems = `
         <button class="longpress-menu-item love-item" onclick="handleReaction('${mediaId}', 'love')">
@@ -355,6 +551,10 @@ function showContextMenu(event, mediaId) {
         <button class="longpress-menu-item like-item" onclick="handleReaction('${mediaId}', 'like')">
             <i class="fas fa-thumbs-up"></i>
             <span>Like</span>
+        </button>
+        <button class="longpress-menu-item download-item" onclick="handleDownload('${mediaId}', '${filename}')">
+            <i class="fas fa-download"></i>
+            <span>Download</span>
         </button>
     `;
     
@@ -369,42 +569,72 @@ function showContextMenu(event, mediaId) {
     
     contextMenu.innerHTML = menuItems;
     
-    // Position menu near click
-    const x = event.clientX;
-    const y = event.clientY;
+    // Get coordinates
+    let clientX, clientY;
     
-    contextMenu.style.left = x + 'px';
-    contextMenu.style.top = y + 'px';
+    if (event.touches) {
+        clientX = event.touches[0].clientX;
+        clientY = event.touches[0].clientY;
+    } else {
+        clientX = event.clientX;
+        clientY = event.clientY;
+    }
+    
+    // Position menu
+    contextMenu.style.left = clientX + 'px';
+    contextMenu.style.top = clientY + 'px';
+    contextMenu.style.transform = 'translate(-50%, -50%)';
     
     // Adjust if menu goes off screen
     setTimeout(() => {
         const rect = contextMenu.getBoundingClientRect();
+        
         if (rect.right > window.innerWidth) {
             contextMenu.style.left = (window.innerWidth - rect.width - 10) + 'px';
+            contextMenu.style.transform = 'none';
         }
+        
         if (rect.bottom > window.innerHeight) {
             contextMenu.style.top = (window.innerHeight - rect.height - 10) + 'px';
+            contextMenu.style.transform = 'none';
+        }
+        
+        if (rect.left < 0) {
+            contextMenu.style.left = '10px';
+            contextMenu.style.transform = 'none';
+        }
+        
+        if (rect.top < 0) {
+            contextMenu.style.top = '10px';
+            contextMenu.style.transform = 'none';
         }
     }, 10);
     
     contextMenu.classList.remove('hidden');
     
-    // Hide menu when clicking outside
+    // Hide menu when clicking anywhere outside
     setTimeout(() => {
         document.addEventListener('click', hideContextMenuOnce);
+        document.addEventListener('touchstart', hideContextMenuOnce);
     }, 100);
 }
 
 function hideContextMenuOnce(e) {
-    if (contextMenu && !contextMenu.contains(e.target)) {
-        hideContextMenu();
-        document.removeEventListener('click', hideContextMenuOnce);
-    }
+    // Hide menu regardless of what was clicked
+    hideContextMenu();
+    document.removeEventListener('click', hideContextMenuOnce);
+    document.removeEventListener('touchstart', hideContextMenuOnce);
 }
 
 function hideContextMenu() {
     if (contextMenu) {
         contextMenu.classList.add('hidden');
+        
+        // Remove the menu-open class from all media cards
+        document.querySelectorAll('.media-card').forEach(card => {
+            card.classList.remove('menu-open');
+        });
+        
         setTimeout(() => {
             if (contextMenu) {
                 contextMenu.remove();
@@ -421,42 +651,68 @@ window.handleReaction = function(mediaId, type) {
     hideContextMenu();
 };
 
-// ================= SETUP CONTEXT MENU (Right-click + Long press) =================
+// ================= HANDLE DOWNLOAD =================
+window.handleDownload = function(mediaId, filename) {
+    const media = allMedia.find(m => m.id === mediaId);
+    if (media) {
+        downloadMedia(media.media_url, filename);
+    }
+    hideContextMenu();
+};
+
+// ================= SETUP CONTEXT MENU =================
 function setupContextMenu(element, mediaId) {
     let touchStart = 0;
+    let touchStartX, touchStartY;
+    let longPressTriggered = false;
     
-    // For desktop: Right-click
+    // Desktop: Right-click
     element.addEventListener('contextmenu', (e) => {
         e.preventDefault();
+        e.stopPropagation();
         showContextMenu(e, mediaId);
         return false;
     });
     
-    // For mobile: Long press
+    // Mobile: Long press
     element.addEventListener('touchstart', (e) => {
         touchStart = Date.now();
+        touchStartX = e.touches[0].clientX;
+        touchStartY = e.touches[0].clientY;
+        longPressTriggered = false;
+        
         longPressTimer = setTimeout(() => {
+            longPressTriggered = true;
             showContextMenu(e, mediaId);
-        }, 500); // 500ms long press
+        }, 500);
     });
     
-    element.addEventListener('touchend', (e) => {
-        clearTimeout(longPressTimer);
-        if (Date.now() - touchStart < 500) {
-            // Short tap - open lightbox
-            const media = allMedia.find(m => m.id === mediaId);
-            if (media) {
-                viewMedia(mediaId, media.media_url, media.media_type, media.title);
+    element.addEventListener('touchmove', (e) => {
+        if (touchStartX && touchStartY) {
+            const moveX = Math.abs(e.touches[0].clientX - touchStartX);
+            const moveY = Math.abs(e.touches[0].clientY - touchStartY);
+            
+            if (moveX > 20 || moveY > 20) {
+                clearTimeout(longPressTimer);
             }
         }
     });
     
-    element.addEventListener('touchmove', () => {
+    element.addEventListener('touchend', (e) => {
         clearTimeout(longPressTimer);
+        
+        // Don't do anything if it was a long press
+        if (longPressTriggered) {
+            e.preventDefault();
+            e.stopPropagation();
+        }
+        
+        longPressTriggered = false;
     });
     
     element.addEventListener('touchcancel', () => {
         clearTimeout(longPressTimer);
+        longPressTriggered = false;
     });
 }
 
@@ -471,67 +727,31 @@ function createLightbox(src, type, mediaId, title) {
     const lightbox = document.createElement('div');
     lightbox.className = 'lightbox-modal';
     lightbox.setAttribute('data-media-id', mediaId);
-    lightbox.style.cssText = `
-        position: fixed;
-        top: 0;
-        left: 0;
-        width: 100%;
-        height: 100%;
-        background: rgba(0,0,0,0.98);
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        z-index: 10000;
-        padding: 0;
-        box-sizing: border-box;
-    `;
     
-    // Get filename from URL or use title
     let filename = title || 'media';
-    if (type === 'image') {
-        filename += '.jpg';
-    } else {
-        filename += '.mp4';
-    }
+    filename += type === 'image' ? '.jpg' : '.mp4';
     
     if (type === 'image') {
         lightbox.innerHTML = `
-            <div style="position: relative; width: 100%; height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center; background: #000;">
-                <img src="${src}" style="max-width: 100%; max-height: 85vh; width: auto; height: auto; object-fit: contain; border-radius: 0;" onerror="this.onerror=null; this.src='${getFallbackImageUrl()}';">
-                <div style="position: absolute; top: 20px; right: 20px; left: 20px; display: flex; justify-content: space-between; align-items: center; z-index: 10001;">
-                    <button style="background: rgba(255,255,255,0.2); border: none; width: 44px; height: 44px; border-radius: 50%; font-size: 24px; cursor: pointer; color: white; display: flex; align-items: center; justify-content: center; backdrop-filter: blur(5px);">✕</button>
-                    <a href="${src}" download="${filename}" style="display: inline-flex; align-items: center; gap: 8px; padding: 12px 24px; background: #0b5e3b; color: white; border: none; border-radius: 30px; cursor: pointer; font-size: 1rem; text-decoration: none; backdrop-filter: blur(5px);">
-                        <i class="fas fa-download"></i> Download
-                    </a>
-                </div>
-            </div>
+            <img src="${src}" style="width: 100%; height: 100%; object-fit: contain;" onerror="this.onerror=null; this.src='${getFallbackImageUrl()}';">
+            <button class="lightbox-close"><i class="fas fa-times"></i></button>
+            <button class="lightbox-download" onclick="downloadMedia('${src}', '${filename}')">
+                <i class="fas fa-download"></i> Download
+            </button>
         `;
     } else {
         lightbox.innerHTML = `
-            <div style="position: relative; width: 100%; height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center; background: #000;">
-                <video 
-                    src="${src}" 
-                    controls
-                    autoplay
-                    playsinline
-                    webkit-playsinline
-                    x5-playsinline
-                    x5-video-player-type="h5"
-                    x5-video-player-fullscreen="true"
-                    x5-video-orientation="portraint"
-                    style="width: 100%; height: 100%; max-height: 100vh; object-fit: contain; background: #000;"
-                    preload="auto"
-                >
-                    <source src="${src}" type="video/mp4">
-                    Your browser does not support the video tag.
-                </video>
-                <div style="position: absolute; top: 20px; right: 20px; left: 20px; display: flex; justify-content: space-between; align-items: center; z-index: 10001;">
-                    <button style="background: rgba(255,255,255,0.2); border: none; width: 44px; height: 44px; border-radius: 50%; font-size: 24px; cursor: pointer; color: white; display: flex; align-items: center; justify-content: center; backdrop-filter: blur(5px);">✕</button>
-                    <a href="${src}" download="${filename}" style="display: inline-flex; align-items: center; gap: 8px; padding: 12px 24px; background: #0b5e3b; color: white; border: none; border-radius: 30px; cursor: pointer; font-size: 1rem; text-decoration: none; backdrop-filter: blur(5px);">
-                        <i class="fas fa-download"></i> Download
-                    </a>
-                </div>
-            </div>
+            <video 
+                src="${src}" 
+                controls
+                autoplay
+                playsinline
+                style="width: 100%; height: 100%; object-fit: contain;"
+            ></video>
+            <button class="lightbox-close"><i class="fas fa-times"></i></button>
+            <button class="lightbox-download" onclick="downloadMedia('${src}', '${filename}')">
+                <i class="fas fa-download"></i> Download
+            </button>
         `;
     }
     
@@ -542,52 +762,29 @@ function createLightbox(src, type, mediaId, title) {
         markMediaAsViewed(mediaId);
     }
     
-    // Close button handler
-    const closeBtn = lightbox.querySelector('button');
+    // Add to history for back button
+    history.pushState({ lightbox: true }, '');
+    
+    // Close button
+    const closeBtn = lightbox.querySelector('.lightbox-close');
     if (closeBtn) {
-        closeBtn.onclick = (e) => {
-            e.stopPropagation();
-            closeLightbox();
-        };
+        closeBtn.onclick = closeLightbox;
     }
     
-    // Click background to close (but not on video)
+    // Click background to close
     lightbox.addEventListener('click', function(e) {
-        if (e.target === lightbox || e.target.classList.contains('lightbox-modal')) {
+        if (e.target === lightbox) {
             closeLightbox();
         }
     });
-    
-    // Handle Android back button
-    history.pushState({ lightbox: true }, '');
-    
-    const handlePopState = (e) => {
-        if (lightboxActive && currentLightbox) {
-            e.preventDefault();
-            closeLightbox();
-        }
-    };
-    
-    window.addEventListener('popstate', handlePopState);
-    lightbox._popStateHandler = handlePopState;
-    
-    // Prevent body scrolling when lightbox is open
-    document.body.style.overflow = 'hidden';
 }
 
 // ================= CLOSE LIGHTBOX =================
 function closeLightbox() {
     if (currentLightbox) {
-        if (currentLightbox._popStateHandler) {
-            window.removeEventListener('popstate', currentLightbox._popStateHandler);
-        }
-        
         currentLightbox.remove();
         currentLightbox = null;
         lightboxActive = false;
-        
-        // Restore body scrolling
-        document.body.style.overflow = '';
         
         if (history.state && history.state.lightbox) {
             history.back();
@@ -609,6 +806,628 @@ function handleImageError(mediaId) {
     }
 }
 
+// ================= CREATE MEDIA CARD WITH TIKTOK VIDEO CONTROLS =================
+function createMediaCard(item) {
+    const card = document.createElement("div");
+    card.className = `media-card ${item.media_type}`;
+    card.dataset.mediaId = item.id;
+    
+    if (!viewedMedia.has(item.id)) {
+        card.classList.add('unseen');
+    }
+    
+    const date = new Date(item.created_at).toLocaleDateString('en-US', {
+        year: 'numeric',
+        month: 'short',
+        day: 'numeric'
+    });
+    
+    const uploaderName = item.uploader?.full_name || 'Unknown';
+    const isCloudinary = isCloudinaryUrl(item.media_url);
+    
+    if (item.media_type === 'image') {
+        card.innerHTML = `
+            <span class="media-badge"><i class="fas fa-image"></i> Image</span>
+            <img 
+                src="${item.media_url}" 
+                alt="${item.title}" 
+                class="media-preview" 
+                loading="lazy" 
+                onerror="handleImageError('${item.id}')"
+            >
+            <div class="media-info">
+                <h4>${item.title}</h4>
+                <div class="media-meta">
+                    <span><i class="fas fa-calendar"></i> ${date}</span>
+                    <span><i class="fas fa-eye"></i> ${item.views || 0}</span>
+                    ${isCloudinary ? '<span><i class="fas fa-cloud"></i> Cloud</span>' : ''}
+                </div>
+                <div class="media-uploader">
+                    <i class="fas fa-user"></i>
+                    <span>Uploaded by: <strong>${uploaderName}</strong></span>
+                </div>
+            </div>
+        `;
+        
+        // Setup context menu for image
+        const img = card.querySelector('img');
+        if (img) {
+            setupContextMenu(img, item.id);
+        }
+    } else {
+        card.innerHTML = `
+            <span class="media-badge"><i class="fas fa-video"></i> Video</span>
+            <div class="video-container" data-media-id="${item.id}">
+                <video 
+                    src="${item.media_url}" 
+                    class="media-preview" 
+                    playsinline
+                    preload="metadata"
+                    poster="${item.thumbnail_url || ''}"
+                >
+                    <source src="${item.media_url}" type="video/mp4">
+                    Your browser does not support the video tag.
+                </video>
+                
+                <!-- TikTok-style seek control -->
+                <div class="seek-control">
+                    <div class="seek-progress">
+                        <div class="seek-progress-fill"></div>
+                    </div>
+                    <div class="seek-handle">
+                        <i class="fas fa-circle"></i>
+                    </div>
+                    <div class="seek-time">0:00 / 0:00</div>
+                </div>
+                
+                <!-- Play/Pause button -->
+                <div class="play-pause-btn">
+                    <i class="fas fa-play"></i>
+                </div>
+            </div>
+            <div class="media-info">
+                <h4>${item.title}</h4>
+                <div class="media-meta">
+                    <span><i class="fas fa-calendar"></i> ${date}</span>
+                    <span><i class="fas fa-eye"></i> ${item.views || 0}</span>
+                    ${isCloudinary ? '<span><i class="fas fa-cloud"></i> Cloud</span>' : ''}
+                </div>
+                <div class="media-uploader">
+                    <i class="fas fa-user"></i>
+                    <span>Uploaded by: <strong>${uploaderName}</strong></span>
+                </div>
+            </div>
+        `;
+        
+        // Setup context menu for video container
+        const videoContainer = card.querySelector('.video-container');
+        if (videoContainer) {
+            setupContextMenu(videoContainer, item.id);
+        }
+        
+        // Setup TikTok-style video controls after adding to DOM
+        setTimeout(() => {
+            setupTikTokVideoControls(card, item.id);
+        }, 100);
+    }
+    
+    return card;
+}
+
+// ================= SETUP TIKTOK-STYLE VIDEO CONTROLS =================
+function setupTikTokVideoControls(card, mediaId) {
+    const video = card.querySelector('video');
+    const videoContainer = card.querySelector('.video-container');
+    const seekControl = card.querySelector('.seek-control');
+    const seekProgress = card.querySelector('.seek-progress-fill');
+    const seekHandle = card.querySelector('.seek-handle');
+    const seekTime = card.querySelector('.seek-time');
+    const playPauseBtn = card.querySelector('.play-pause-btn');
+    
+    if (!video) return;
+    
+    let isSeeking = false;
+    let hideControlsTimeout;
+    let controlsVisible = false;
+    
+    // Format time helper
+    function formatTime(seconds) {
+        if (isNaN(seconds)) return '0:00';
+        const mins = Math.floor(seconds / 60);
+        const secs = Math.floor(seconds % 60);
+        return `${mins}:${secs.toString().padStart(2, '0')}`;
+    }
+    
+    // Update seek bar and time
+    function updateSeekBar() {
+        if (!isSeeking && video.duration) {
+            const percent = (video.currentTime / video.duration) * 100;
+            seekProgress.style.width = percent + '%';
+            seekHandle.style.left = percent + '%';
+            seekTime.textContent = `${formatTime(video.currentTime)} / ${formatTime(video.duration)}`;
+        }
+    }
+    
+    // Show controls temporarily
+    function showControls() {
+        seekControl.classList.add('visible');
+        playPauseBtn.classList.add('visible');
+        controlsVisible = true;
+        
+        clearTimeout(hideControlsTimeout);
+        hideControlsTimeout = setTimeout(() => {
+            if (!isSeeking) {
+                seekControl.classList.remove('visible');
+                playPauseBtn.classList.remove('visible');
+                controlsVisible = false;
+            }
+        }, 3000);
+    }
+    
+    // Handle play/pause - CHECK IF MENU IS OPEN
+    function togglePlay() {
+        // Don't play if menu is open
+        if (card.classList.contains('menu-open')) {
+            return;
+        }
+        
+        if (video.paused) {
+            video.play();
+            playPauseBtn.innerHTML = '<i class="fas fa-pause"></i>';
+        } else {
+            video.pause();
+            playPauseBtn.innerHTML = '<i class="fas fa-play"></i>';
+        }
+        showControls();
+    }
+    
+    // Video event listeners
+    video.addEventListener('timeupdate', updateSeekBar);
+    
+    video.addEventListener('loadedmetadata', () => {
+        seekTime.textContent = `0:00 / ${formatTime(video.duration)}`;
+    });
+    
+    video.addEventListener('play', () => {
+        playPauseBtn.innerHTML = '<i class="fas fa-pause"></i>';
+        showControls();
+    });
+    
+    video.addEventListener('pause', () => {
+        playPauseBtn.innerHTML = '<i class="fas fa-play"></i>';
+        showControls();
+    });
+    
+    // Click on video to toggle play/pause - CHECK IF MENU IS OPEN
+    videoContainer.addEventListener('click', (e) => {
+        // Don't toggle if menu is open
+        if (card.classList.contains('menu-open')) {
+            e.preventDefault();
+            e.stopPropagation();
+            return;
+        }
+        
+        // Don't toggle if clicking on seek control
+        if (e.target.closest('.seek-control')) return;
+        if (e.target.closest('.seek-handle')) return;
+        togglePlay();
+    });
+    
+    // Seek control touch/mouse handling
+    function handleSeekStart(e) {
+        e.preventDefault();
+        e.stopPropagation();
+        isSeeking = true;
+        seekControl.classList.add('seeking');
+        
+        // Pause video while seeking
+        if (!video.paused) {
+            video.pause();
+        }
+    }
+    
+    function handleSeekMove(e) {
+        if (!isSeeking) return;
+        
+        e.preventDefault();
+        e.stopPropagation();
+        
+        // Get touch/mouse position
+        let clientX;
+        if (e.touches) {
+            clientX = e.touches[0].clientX;
+        } else {
+            clientX = e.clientX;
+        }
+        
+        const rect = seekControl.getBoundingClientRect();
+        let percent = (clientX - rect.left) / rect.width;
+        percent = Math.max(0, Math.min(1, percent));
+        
+        // Update UI
+        seekProgress.style.width = (percent * 100) + '%';
+        seekHandle.style.left = (percent * 100) + '%';
+        
+        // Update video time
+        if (video.duration) {
+            const newTime = percent * video.duration;
+            video.currentTime = newTime;
+            seekTime.textContent = `${formatTime(newTime)} / ${formatTime(video.duration)}`;
+        }
+    }
+    
+    function handleSeekEnd(e) {
+        if (!isSeeking) return;
+        
+        e.preventDefault();
+        e.stopPropagation();
+        
+        isSeeking = false;
+        seekControl.classList.remove('seeking');
+        
+        // Resume playback if it was playing before and menu is not open
+        if (playPauseBtn.innerHTML.includes('pause') && !card.classList.contains('menu-open')) {
+            video.play();
+        }
+        
+        showControls();
+    }
+    
+    // Add seek control event listeners
+    seekControl.addEventListener('touchstart', handleSeekStart);
+    seekControl.addEventListener('touchmove', handleSeekMove);
+    seekControl.addEventListener('touchend', handleSeekEnd);
+    seekControl.addEventListener('touchcancel', handleSeekEnd);
+    
+    seekControl.addEventListener('mousedown', handleSeekStart);
+    window.addEventListener('mousemove', handleSeekMove);
+    window.addEventListener('mouseup', handleSeekEnd);
+    
+    // Show controls on tap/click - CHECK IF MENU IS OPEN
+    videoContainer.addEventListener('touchstart', (e) => {
+        if (card.classList.contains('menu-open')) {
+            return;
+        }
+        
+        // Don't show controls if it's a long press (will be handled by context menu)
+        if (e.touches.length === 1) {
+            setTimeout(() => {
+                if (!contextMenu) {
+                    showControls();
+                }
+            }, 100);
+        }
+    });
+    
+    // Initial show
+    showControls();
+}
+
+// ================= TIKTOK-STYLE UPLOAD MODAL FUNCTIONS =================
+function initTikTokModal() {
+    tiktokModal = document.getElementById('tiktokUploadModal');
+    tiktokTypeImage = document.getElementById('tiktokTypeImage');
+    tiktokTypeVideo = document.getElementById('tiktokTypeVideo');
+    tiktokMediaTitle = document.getElementById('tiktokMediaTitle');
+    tiktokMediaFile = document.getElementById('tiktokMediaFile');
+    tiktokDropZone = document.getElementById('tiktokDropZone');
+    tiktokPreviewArea = document.getElementById('tiktokPreviewArea');
+    tiktokProgress = document.getElementById('tiktokProgress');
+    tiktokSaveBtn = document.getElementById('tiktokSaveMediaBtn');
+    tiktokCancelBtn = document.getElementById('tiktokCancelBtn');
+    tiktokCloseBtn = document.getElementById('closeTiktokModal');
+    tiktokBrowseBtn = document.getElementById('tiktokBrowseBtn');
+    tiktokFileHint = document.getElementById('tiktokFileHint');
+    
+    if (!tiktokModal) return;
+    
+    setupTikTokEventListeners();
+}
+
+function setupTikTokEventListeners() {
+    tiktokTypeImage.addEventListener('click', () => setMediaType('image'));
+    tiktokTypeVideo.addEventListener('click', () => setMediaType('video'));
+    
+    tiktokMediaFile.addEventListener('change', handleTikTokFileSelect);
+    
+    tiktokDropZone.addEventListener('dragover', handleDragOver);
+    tiktokDropZone.addEventListener('dragleave', handleDragLeave);
+    tiktokDropZone.addEventListener('drop', handleDrop);
+    
+    tiktokBrowseBtn.addEventListener('click', () => tiktokMediaFile.click());
+    
+    tiktokSaveBtn.addEventListener('click', saveTikTokMedia);
+    tiktokCancelBtn.addEventListener('click', closeTikTokModal);
+    tiktokCloseBtn.addEventListener('click', closeTikTokModal);
+    
+    tiktokModal.addEventListener('click', (e) => {
+        if (e.target === tiktokModal) {
+            closeTikTokModal();
+        }
+    });
+}
+
+function setMediaType(type) {
+    if (type === 'image') {
+        tiktokTypeImage.classList.add('active');
+        tiktokTypeVideo.classList.remove('active');
+        tiktokMediaFile.accept = 'image/*';
+        tiktokFileHint.textContent = 'Supports: JPG, PNG, GIF (Max 50MB)';
+    } else {
+        tiktokTypeVideo.classList.add('active');
+        tiktokTypeImage.classList.remove('active');
+        tiktokMediaFile.accept = 'video/*';
+        tiktokFileHint.textContent = 'Supports: MP4 (Max 50MB)';
+    }
+    
+    tiktokMediaFile.value = '';
+    tiktokPreviewArea.innerHTML = '';
+    selectedFile = null;
+}
+
+function handleDragOver(e) {
+    e.preventDefault();
+    e.stopPropagation();
+    tiktokDropZone.classList.add('dragover');
+}
+
+function handleDragLeave(e) {
+    e.preventDefault();
+    e.stopPropagation();
+    tiktokDropZone.classList.remove('dragover');
+}
+
+function handleDrop(e) {
+    e.preventDefault();
+    e.stopPropagation();
+    tiktokDropZone.classList.remove('dragover');
+    
+    const files = e.dataTransfer.files;
+    if (files.length > 0) {
+        tiktokMediaFile.files = files;
+        handleTikTokFileSelect({ target: { files: files } });
+    }
+}
+
+function handleTikTokFileSelect(e) {
+    const file = e.target.files[0];
+    if (!file) {
+        tiktokPreviewArea.innerHTML = '';
+        selectedFile = null;
+        return;
+    }
+    
+    selectedFile = file;
+    
+    if (file.size > 50 * 1024 * 1024) {
+        showNotification('File too large. Maximum size is 50MB.', 'error');
+        tiktokMediaFile.value = '';
+        selectedFile = null;
+        return;
+    }
+    
+    const isImage = tiktokTypeImage.classList.contains('active');
+    if (isImage && !file.type.startsWith('image/')) {
+        showNotification('Please select an image file', 'error');
+        tiktokMediaFile.value = '';
+        selectedFile = null;
+        return;
+    }
+    if (!isImage && !file.type.startsWith('video/')) {
+        showNotification('Please select a video file', 'error');
+        tiktokMediaFile.value = '';
+        selectedFile = null;
+        return;
+    }
+    
+    displayTikTokPreview(file);
+}
+
+function displayTikTokPreview(file) {
+    const fileSize = (file.size / 1024 / 1024).toFixed(2);
+    const isImage = file.type.startsWith('image/');
+    
+    let previewHTML = `
+        <div class="tiktok-file-preview">
+            ${isImage ? 
+                `<img src="${URL.createObjectURL(file)}" class="tiktok-preview-thumb" alt="Preview">` : 
+                `<div class="tiktok-preview-thumb" style="background: #0b5e3b; display: flex; align-items: center; justify-content: center;">
+                    <i class="fas fa-video" style="font-size: 30px; color: white;"></i>
+                </div>`
+            }
+            <div class="tiktok-preview-info">
+                <div class="tiktok-preview-name">${file.name}</div>
+                <div class="tiktok-preview-size">
+                    <i class="fas fa-weight-hanging"></i> ${fileSize} MB
+                </div>
+            </div>
+            <button class="tiktok-change-file" onclick="document.getElementById('tiktokMediaFile').click()">
+                Change
+            </button>
+        </div>
+    `;
+    
+    if (isImage) {
+        const reader = new FileReader();
+        reader.onload = (e) => {
+            previewHTML += `
+                <div class="tiktok-image-preview">
+                    <img src="${e.target.result}" alt="Full preview">
+                </div>
+            `;
+            tiktokPreviewArea.innerHTML = previewHTML;
+        };
+        reader.readAsDataURL(file);
+    } else {
+        const videoURL = URL.createObjectURL(file);
+        previewHTML += `
+            <div class="tiktok-video-preview">
+                <video src="${videoURL}" controls preload="metadata"></video>
+            </div>
+        `;
+        tiktokPreviewArea.innerHTML = previewHTML;
+    }
+}
+
+// ================= OPEN ADD MODAL =================
+function openAddModal() {
+    tiktokMediaTitle.value = '';
+    setMediaType('image');
+    tiktokMediaFile.value = '';
+    tiktokPreviewArea.innerHTML = '';
+    tiktokProgress.classList.add('hidden');
+    tiktokSaveBtn.disabled = false;
+    tiktokSaveBtn.innerHTML = '<i class="fas fa-cloud-upload-alt"></i><span>Upload to Cloudinary</span>';
+    selectedFile = null;
+    
+    tiktokModal.classList.remove('hidden');
+    
+    // Add to history for back button
+    history.pushState({ modal: true }, '');
+}
+
+// ================= SAVE MEDIA =================
+async function saveTikTokMedia() {
+    const title = tiktokMediaTitle.value.trim();
+    if (!title) {
+        showNotification('Please enter a title', 'error');
+        return;
+    }
+
+    if (!selectedFile) {
+        showNotification('Please select a file', 'error');
+        return;
+    }
+
+    if (selectedFile.size > 50 * 1024 * 1024) {
+        showNotification('File too large. Maximum size is 50MB.', 'error');
+        return;
+    }
+
+    const type = tiktokTypeImage.classList.contains('active') ? 'image' : 'video';
+    if (type === 'image' && !selectedFile.type.startsWith('image/')) {
+        showNotification('Please select a valid image file', 'error');
+        return;
+    }
+    if (type === 'video' && !selectedFile.type.startsWith('video/')) {
+        showNotification('Please select a valid video file', 'error');
+        return;
+    }
+
+    tiktokSaveBtn.disabled = true;
+    tiktokSaveBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i><span>Uploading...</span>';
+    tiktokProgress.classList.remove('hidden');
+    
+    const progressFill = document.querySelector('.tiktok-progress-fill');
+    const progressText = document.querySelector('.tiktok-progress-text');
+    let progress = 0;
+    const interval = setInterval(() => {
+        progress += 5;
+        if (progress <= 90) {
+            progressFill.style.width = progress + '%';
+            progressText.textContent = progress + '%';
+        }
+    }, 200);
+
+    try {
+        const fileUrl = await uploadFileToCloudinary(selectedFile, type);
+        
+        clearInterval(interval);
+        progressFill.style.width = '100%';
+        progressText.textContent = '100%';
+        
+        const { error: dbError } = await supabase
+            .from('gallery')
+            .insert([{
+                title,
+                media_type: type,
+                media_url: fileUrl,
+                uploaded_by: currentUser.id,
+                uploader_name: currentProfile?.full_name || 'Member'
+            }]);
+        
+        if (dbError) throw dbError;
+        
+        setTimeout(() => {
+            closeTikTokModal();
+            showNotification('Media uploaded to Cloudinary successfully');
+            loadGallery();
+        }, 500);
+        
+    } catch (err) {
+        clearInterval(interval);
+        console.error("Error uploading media:", err);
+        showNotification('Error: ' + err.message, 'error');
+        tiktokSaveBtn.disabled = false;
+        tiktokSaveBtn.innerHTML = '<i class="fas fa-cloud-upload-alt"></i><span>Upload to Cloudinary</span>';
+        tiktokProgress.classList.add('hidden');
+    }
+}
+
+// ================= CLOSE MODAL =================
+function closeTikTokModal() {
+    tiktokModal.classList.add('hidden');
+    tiktokMediaTitle.value = '';
+    tiktokMediaFile.value = '';
+    tiktokPreviewArea.innerHTML = '';
+    tiktokProgress.classList.add('hidden');
+    tiktokSaveBtn.disabled = false;
+    tiktokSaveBtn.innerHTML = '<i class="fas fa-cloud-upload-alt"></i><span>Upload to Cloudinary</span>';
+    selectedFile = null;
+    
+    setMediaType('image');
+    
+    // Go back in history if modal was opened
+    if (history.state && history.state.modal) {
+        history.back();
+    }
+}
+
+// ================= UPLOAD FILE TO CLOUDINARY =================
+async function uploadFileToCloudinary(file, type) {
+    try {
+        if (!file) throw new Error("No file to upload");
+        
+        console.log("📤 Uploading to Cloudinary:", file.name, file.type);
+        
+        let folder = CLOUDINARY_CONFIG.folder;
+        if (type === 'image') {
+            folder += '/' + CLOUDINARY_CONFIG.subFolders.image;
+        } else if (type === 'video') {
+            folder += '/' + CLOUDINARY_CONFIG.subFolders.video;
+        }
+        
+        const formData = new FormData();
+        formData.append('file', file);
+        formData.append('upload_preset', CLOUDINARY_CONFIG.uploadPreset);
+        formData.append('folder', folder);
+        
+        showNotification('📤 Uploading to Cloudinary...', 'info');
+        
+        const response = await fetch(getCloudinaryUploadUrl(), {
+            method: 'POST',
+            body: formData
+        });
+        
+        if (!response.ok) {
+            const errorData = await response.json();
+            throw new Error(errorData.error?.message || 'Cloudinary upload failed');
+        }
+        
+        const data = await response.json();
+        console.log("✅ Cloudinary upload successful:", data.secure_url);
+        
+        showNotification('✅ Uploaded to Cloudinary', 'success');
+        
+        return data.secure_url;
+        
+    } catch (err) {
+        console.error("❌ Error uploading to Cloudinary:", err);
+        showNotification('Failed to upload to Cloudinary: ' + err.message, 'error');
+        throw err;
+    }
+}
+
 // ================= INITIALIZATION =================
 document.addEventListener("DOMContentLoaded", async () => {
     await init();
@@ -618,20 +1437,76 @@ document.addEventListener("DOMContentLoaded", async () => {
     setupEventListeners();
     loadViewedMedia();
     loadReactions();
+    initTikTokModal();
     
-    window.addEventListener('popstate', (e) => {
-        if (lightboxActive && currentLightbox) {
-            e.preventDefault();
-            closeLightbox();
-        }
-    });
+    // Load saved theme
+    const savedTheme = localStorage.getItem('selectedTheme') || 'dark';
+    applyTheme(savedTheme);
     
-    // Hide context menu on scroll
-    window.addEventListener('scroll', () => {
-        hideContextMenu();
-    });
+    // Add theme button to header
+    addThemeButton();
+    
+    // Android back button handling
+    setupBackButtonHandling();
+    
+    // Update add media button click handler
+    addMediaBtn.onclick = openAddModal;
+    
+    window.addEventListener('popstate', handleBackButton);
+    
+    window.addEventListener('scroll', hideContextMenu);
+    window.addEventListener('resize', hideContextMenu);
 });
 
+// ================= ADD THEME BUTTON TO HEADER =================
+function addThemeButton() {
+    const topBar = document.querySelector('.top-bar');
+    const addBtn = document.getElementById('addMediaBtn');
+    
+    const themeBtn = document.createElement('button');
+    themeBtn.id = 'themeBtn';
+    themeBtn.className = 'theme-btn';
+    themeBtn.innerHTML = '<i class="fas fa-palette"></i>';
+    themeBtn.title = 'Change Theme';
+    
+    themeBtn.addEventListener('click', toggleThemeDropdown);
+    
+    // Insert theme button before add button
+    topBar.insertBefore(themeBtn, addBtn);
+}
+
+// ================= SETUP BACK BUTTON HANDLING =================
+function setupBackButtonHandling() {
+    // Initial state
+    history.replaceState({ page: 'gallery' }, '');
+}
+
+function handleBackButton(e) {
+    e.preventDefault();
+    
+    // Check what's currently open
+    if (tiktokModal && !tiktokModal.classList.contains('hidden')) {
+        closeTikTokModal();
+    } else if (sidebar && sidebar.classList.contains('active')) {
+        sidebar.classList.remove('active');
+        overlay.classList.remove('active');
+    } else if (deleteModal && !deleteModal.classList.contains('hidden')) {
+        deleteModal.classList.add('hidden');
+        selectedMediaId = null;
+    } else if (lightboxActive && currentLightbox) {
+        closeLightbox();
+    } else {
+        // If nothing is open, maybe exit or go to previous page
+        if (history.length > 1) {
+            history.back();
+        } else {
+            // Stay on current page
+            history.pushState({ page: 'gallery' }, '');
+        }
+    }
+}
+
+// ================= INIT =================
 async function init() {
     try {
         const { data: { user }, error: userError } = await supabase.auth.getUser();
@@ -736,294 +1611,28 @@ function displayGallery(media) {
     media.forEach(item => {
         const card = createMediaCard(item);
         galleryGrid.appendChild(card);
-        
-        // Setup context menu on media preview
-        const preview = card.querySelector('.media-preview');
-        if (preview) {
-            setupContextMenu(preview, item.id);
-        }
-        
-        // Update reactions display
-        updateMediaReactions(item.id);
     });
 }
 
-// ================= CREATE MEDIA CARD =================
-function createMediaCard(item) {
-    const card = document.createElement("div");
-    card.className = `media-card ${item.media_type}`;
-    card.dataset.mediaId = item.id;
-    
-    if (!viewedMedia.has(item.id)) {
-        card.classList.add('unseen');
-    }
-    
-    const date = new Date(item.created_at).toLocaleDateString('en-US', {
-        year: 'numeric',
-        month: 'short',
-        day: 'numeric'
-    });
-    
-    const uploaderName = item.uploader?.full_name || 'Unknown';
-    const isCloudinary = isCloudinaryUrl(item.media_url);
-    
-    if (item.media_type === 'image') {
-        card.innerHTML = `
-            <span class="media-badge"><i class="fas fa-image"></i> Image</span>
-            <img 
-                src="${item.media_url}" 
-                alt="${item.title}" 
-                class="media-preview" 
-                loading="lazy" 
-                onerror="handleImageError('${item.id}')"
-            >
-            <div class="media-info">
-                <h4>${item.title}</h4>
-                <div class="media-meta">
-                    <span><i class="fas fa-calendar"></i> ${date}</span>
-                    <span><i class="fas fa-eye"></i> ${item.views || 0}</span>
-                    ${isCloudinary ? '<span><i class="fas fa-cloud"></i> Cloud</span>' : ''}
-                </div>
-                <div class="media-uploader">
-                    <i class="fas fa-user"></i>
-                    <span>Uploaded by: <strong>${uploaderName}</strong></span>
-                </div>
-            </div>
-        `;
-    } else {
-        card.innerHTML = `
-            <span class="media-badge"><i class="fas fa-video"></i> Video</span>
-            <video 
-                src="${item.media_url}" 
-                class="media-preview" 
-                controls
-                playsinline
-                preload="metadata"
-                poster="${item.thumbnail_url || ''}"
-            >
-                <source src="${item.media_url}" type="video/mp4">
-                Your browser does not support the video tag.
-            </video>
-            <div class="media-info">
-                <h4>${item.title}</h4>
-                <div class="media-meta">
-                    <span><i class="fas fa-calendar"></i> ${date}</span>
-                    <span><i class="fas fa-eye"></i> ${item.views || 0}</span>
-                    ${isCloudinary ? '<span><i class="fas fa-cloud"></i> Cloud</span>' : ''}
-                </div>
-                <div class="media-uploader">
-                    <i class="fas fa-user"></i>
-                    <span>Uploaded by: <strong>${uploaderName}</strong></span>
-                </div>
-            </div>
-        `;
-    }
-    
-    return card;
-}
-
-// ================= VIEW MEDIA =================
-window.viewMedia = function(id, url, type, title) {
-    createLightbox(url, type, id, title);
-    
-    markMediaAsViewed(id);
-    
-    const media = allMedia.find(m => m.id === id);
-    if (media) {
-        supabase
-            .from('gallery')
-            .update({ views: (media.views || 0) + 1 })
-            .eq('id', media.id)
-            .then(({ error }) => {
-                if (error) console.error("Error updating views:", error);
-            });
-    }
-};
-
-// Make handleImageError available globally
+// Make functions globally available
 window.handleImageError = handleImageError;
-
-// ================= UPLOAD FILE TO CLOUDINARY =================
-async function uploadFileToCloudinary(file, type) {
-    try {
-        if (!file) throw new Error("No file to upload");
-        
-        console.log("📤 Uploading to Cloudinary:", file.name, file.type);
-        
-        let folder = CLOUDINARY_CONFIG.folder;
-        if (type === 'image') {
-            folder += '/' + CLOUDINARY_CONFIG.subFolders.image;
-        } else if (type === 'video') {
-            folder += '/' + CLOUDINARY_CONFIG.subFolders.video;
-        }
-        
-        const formData = new FormData();
-        formData.append('file', file);
-        formData.append('upload_preset', CLOUDINARY_CONFIG.uploadPreset);
-        formData.append('folder', folder);
-        
-        showNotification('📤 Uploading to Cloudinary...', 'info');
-        
-        const response = await fetch(getCloudinaryUploadUrl(), {
-            method: 'POST',
-            body: formData
-        });
-        
-        if (!response.ok) {
-            const errorData = await response.json();
-            throw new Error(errorData.error?.message || 'Cloudinary upload failed');
-        }
-        
-        const data = await response.json();
-        console.log("✅ Cloudinary upload successful:", data.secure_url);
-        
-        showNotification('✅ Uploaded to Cloudinary', 'success');
-        
-        return data.secure_url;
-        
-    } catch (err) {
-        console.error("❌ Error uploading to Cloudinary:", err);
-        showNotification('Failed to upload to Cloudinary: ' + err.message, 'error');
-        throw err;
-    }
-}
+window.downloadMedia = downloadMedia;
+window.openDeleteModal = function(id) {
+    selectedMediaId = id;
+    deleteModal.classList.remove('hidden');
+    hideContextMenu();
+    
+    // Add to history for back button
+    history.pushState({ modal: true }, '');
+};
 
 // ================= SETUP EVENT LISTENERS =================
 function setupEventListeners() {
-    addMediaBtn.onclick = openAddModal;
-    closeGalleryModalBtn.onclick = closeModal;
-    saveMediaBtn.onclick = saveMedia;
-    
-    mediaFile.onchange = (e) => {
-        selectedFile = e.target.files[0];
-        if (selectedFile) {
-            const fileInfo = document.createElement('div');
-            fileInfo.className = 'file-info';
-            fileInfo.innerHTML = `
-                <i class="fas fa-check-circle"></i>
-                <span>Selected: ${selectedFile.name} (${(selectedFile.size / 1024).toFixed(2)} KB) - will upload to Cloudinary</span>
-            `;
-            
-            const existingInfo = document.querySelector('.file-info');
-            if (existingInfo) existingInfo.remove();
-            
-            mediaFile.parentNode.insertBefore(fileInfo, mediaFile.nextSibling);
-            
-            if (mediaType.value === 'image' && selectedFile.type.startsWith('image/')) {
-                const reader = new FileReader();
-                reader.onload = (e) => {
-                    const preview = document.createElement('img');
-                    preview.src = e.target.result;
-                    preview.className = 'preview-image';
-                    
-                    const existingPreview = document.querySelector('.preview-image');
-                    if (existingPreview) existingPreview.remove();
-                    
-                    fileInfo.insertAdjacentElement('afterend', preview);
-                };
-                reader.readAsDataURL(selectedFile);
-            }
-        }
-    };
-    
-    mediaType.onchange = () => {
-        mediaFile.value = '';
-        selectedFile = null;
-        
-        const fileInfo = document.querySelector('.file-info');
-        if (fileInfo) fileInfo.remove();
-        
-        const preview = document.querySelector('.preview-image');
-        if (preview) preview.remove();
-    };
-    
     logoutBtn.onclick = async () => {
         await supabase.auth.signOut();
         window.location.href = "../index.html";
     };
 }
-
-// ================= OPEN ADD MODAL =================
-function openAddModal() {
-    mediaTitle.value = '';
-    mediaType.value = 'image';
-    mediaFile.value = '';
-    selectedFile = null;
-    
-    const fileInfo = document.querySelector('.file-info');
-    if (fileInfo) fileInfo.remove();
-    
-    const preview = document.querySelector('.preview-image');
-    if (preview) preview.remove();
-    
-    galleryModal.classList.remove('hidden');
-}
-
-// ================= SAVE MEDIA =================
-async function saveMedia() {
-    const title = mediaTitle.value.trim();
-    if (!title) {
-        showNotification('Please enter a title', 'error');
-        return;
-    }
-
-    if (!selectedFile) {
-        showNotification('Please select a file', 'error');
-        return;
-    }
-
-    if (selectedFile.size > 50 * 1024 * 1024) {
-        showNotification('File too large. Maximum size is 50MB.', 'error');
-        return;
-    }
-
-    const type = mediaType.value;
-    if (type === 'image' && !selectedFile.type.startsWith('image/')) {
-        showNotification('Please select a valid image file', 'error');
-        return;
-    }
-    if (type === 'video' && !selectedFile.type.startsWith('video/')) {
-        showNotification('Please select a valid video file', 'error');
-        return;
-    }
-
-    saveMediaBtn.disabled = true;
-    saveMediaBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Uploading...';
-
-    try {
-        const fileUrl = await uploadFileToCloudinary(selectedFile, type);
-        
-        const { error: dbError } = await supabase
-            .from('gallery')
-            .insert([{
-                title,
-                media_type: type,
-                media_url: fileUrl,
-                uploaded_by: currentUser.id,
-                uploader_name: currentProfile?.full_name || 'Member'
-            }]);
-        
-        if (dbError) throw dbError;
-        
-        closeModal();
-        showNotification('Media uploaded to Cloudinary successfully');
-        await loadGallery();
-        
-    } catch (err) {
-        console.error("Error uploading media:", err);
-        showNotification('Error: ' + err.message, 'error');
-    } finally {
-        saveMediaBtn.disabled = false;
-        saveMediaBtn.innerHTML = '<i class="fas fa-save"></i> Save';
-    }
-}
-
-// ================= OPEN DELETE MODAL =================
-window.openDeleteModal = function(id) {
-    selectedMediaId = id;
-    deleteModal.classList.remove('hidden');
-    hideContextMenu();
-};
 
 // ================= CONFIRM DELETE =================
 async function confirmDelete() {
@@ -1040,24 +1649,13 @@ async function confirmDelete() {
         if (error) throw error;
 
         if (media?.media_url && isCloudinaryUrl(media.media_url)) {
-            console.log("Cloudinary file would need server-side deletion:", media.media_url);
+            console.log("Cloudinary file deleted from gallery:", media.media_url);
             showNotification('Media deleted from gallery.', 'info');
-        } else {
-            try {
-                const fileName = media.media_url.split('/').pop();
-                const filePath = `${media.uploaded_by}/${fileName}`;
-                await supabase.storage
-                    .from('gallery-media')
-                    .remove([filePath]);
-            } catch (storageErr) {
-                console.log("Could not delete file:", storageErr);
-            }
         }
 
         deleteModal.classList.add('hidden');
         showNotification('Media deleted successfully');
         
-        // Remove reactions for deleted media
         mediaReactions.delete(selectedMediaId);
         saveReactions();
         
@@ -1067,19 +1665,4 @@ async function confirmDelete() {
         console.error("Error deleting media:", err);
         showNotification('Error deleting media', 'error');
     }
-}
-
-// ================= CLOSE MODAL =================
-function closeModal() {
-    galleryModal.classList.add('hidden');
-    mediaTitle.value = '';
-    mediaType.value = 'image';
-    mediaFile.value = '';
-    selectedFile = null;
-    
-    const fileInfo = document.querySelector('.file-info');
-    if (fileInfo) fileInfo.remove();
-    
-    const preview = document.querySelector('.preview-image');
-    if (preview) preview.remove();
 }

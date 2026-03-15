@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <title>Gallery | Harazimiyya Forum</title>
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
 
 <!-- Favicon to prevent 404 error -->
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🖼️</text></svg>">
@@ -15,7 +15,7 @@
 </head>
 <body>
 
-<!-- DeepSeek Sidebar (EXACTLY LIKE HOME DASHBOARD) -->
+<!-- DeepSeek Sidebar -->
 <div class="deepseek-sidebar" id="sidebar">
     <div class="sidebar-header">
         <div class="logo-area">
@@ -114,13 +114,10 @@
     <div class="top-bar">
         <div class="top-bar-left">
             <button id="openSidebar" class="menu-btn"><i class="fas fa-bars"></i></button>
-            <div>
-                <h1>Gallery</h1>
-                <p>Images and videos from our programs and activities</p>
-            </div>
+            <h1>Gallery</h1>
         </div>
         <button id="addMediaBtn" class="primary-btn hidden">
-            <i class="fas fa-plus"></i> Add Media
+            <i class="fas fa-plus"></i> Add
         </button>
     </div>
 
@@ -128,22 +125,104 @@
 
 </main>
 
-<!-- UPLOAD MODAL -->
-<div id="galleryModal" class="modal hidden">
-    <div class="modal-content">
-        <h3>Add Gallery Media</h3>
-
-        <select id="mediaType">
-            <option value="image">Image</option>
-            <option value="video">Video</option>
-        </select>
-
-        <input type="text" id="mediaTitle" placeholder="Title" />
-        <input type="file" id="mediaFile" />
-
-        <div class="modal-actions">
-            <button id="saveMediaBtn" class="primary-btn"><i class="fas fa-save"></i> Save</button>
-            <button id="closeGalleryModalBtn" class="ghost-btn"><i class="fas fa-times"></i> Cancel</button>
+<!-- TIKTOK-STYLE UPLOAD MODAL -->
+<div id="tiktokUploadModal" class="tiktok-upload-modal hidden">
+    <div class="tiktok-upload-container">
+        <div class="tiktok-upload-header">
+            <h3><i class="fas fa-cloud-upload-alt" style="margin-right: 8px;"></i>Upload to Gallery</h3>
+            <button class="tiktok-close-btn" id="closeTiktokModal">
+                <i class="fas fa-times"></i>
+            </button>
+        </div>
+        
+        <div class="tiktok-upload-body">
+            <!-- Media Type Selector -->
+            <div class="tiktok-type-selector">
+                <button class="tiktok-type-btn image active" id="tiktokTypeImage">
+                    <i class="fas fa-image"></i>
+                    <span>Image</span>
+                </button>
+                <button class="tiktok-type-btn video" id="tiktokTypeVideo">
+                    <i class="fas fa-video"></i>
+                    <span>Video</span>
+                </button>
+            </div>
+            
+            <!-- Title Input -->
+            <div class="tiktok-title-input">
+                <label>
+                    <i class="fas fa-heading"></i>
+                    Title
+                </label>
+                <input 
+                    type="text" 
+                    id="tiktokMediaTitle" 
+                    placeholder="Give your media a catchy title..." 
+                    maxlength="100"
+                >
+            </div>
+            
+            <!-- File Upload Area -->
+            <div class="tiktok-file-upload">
+                <label>
+                    <i class="fas fa-file"></i>
+                    Media File
+                </label>
+                <div class="tiktok-drop-zone" id="tiktokDropZone">
+                    <div class="tiktok-drop-icon">
+                        <i class="fas fa-cloud-upload-alt"></i>
+                    </div>
+                    <div class="tiktok-drop-text">
+                        Drag and drop your file here
+                    </div>
+                    <div class="tiktok-drop-subtext" id="tiktokFileHint">
+                        Supports: JPG, PNG, GIF, MP4 (Max 50MB)
+                    </div>
+                    <button class="tiktok-browse-btn" id="tiktokBrowseBtn">
+                        <i class="fas fa-folder-open"></i>
+                        Browse Files
+                    </button>
+                    <input 
+                        type="file" 
+                        id="tiktokMediaFile" 
+                        class="tiktok-file-input" 
+                        accept="image/*,video/*"
+                    >
+                </div>
+            </div>
+            
+            <!-- File Preview Area -->
+            <div id="tiktokPreviewArea"></div>
+            
+            <!-- File Requirements -->
+            <div class="tiktok-file-reqs">
+                <span><i class="fas fa-check-circle"></i> Max size: 50MB</span>
+                <span><i class="fas fa-check-circle"></i> Images: JPG, PNG, GIF</span>
+                <span><i class="fas fa-check-circle"></i> Videos: MP4</span>
+            </div>
+            
+            <!-- Action Buttons -->
+            <div class="tiktok-actions">
+                <button class="tiktok-upload-btn" id="tiktokSaveMediaBtn">
+                    <i class="fas fa-cloud-upload-alt"></i>
+                    <span>Upload to Cloudinary</span>
+                </button>
+                <button class="tiktok-cancel-btn" id="tiktokCancelBtn">
+                    <i class="fas fa-times"></i>
+                    <span>Cancel</span>
+                </button>
+            </div>
+            
+            <!-- Upload Progress -->
+            <div id="tiktokProgress" class="tiktok-progress hidden">
+                <div class="tiktok-progress-icon">
+                    <i class="fas fa-spinner fa-spin"></i>
+                </div>
+                <div class="tiktok-progress-bar">
+                    <div class="tiktok-progress-fill" style="width: 0%;"></div>
+                </div>
+                <div class="tiktok-progress-text">0%</div>
+            </div>
         </div>
     </div>
 </div>
