@@ -2291,23 +2291,23 @@ function renderMessageContent(msg) {
             // Get optimized version for chat (smaller size)
             const optimizedUrl = getOptimizedCloudinaryUrl(imageUrl, { width: 400, height: 400, crop: 'limit' });
             // Add error handling to fallback to original URL if optimized fails
-            return '<img src="' + optimizedUrl + '" alt="Image" onclick="window.open(\'' + imageUrl + '\')" style="cursor: pointer; max-width: 100%;" loading="lazy" onerror="this.onerror=null; this.src=\'' + imageUrl + '\';">';
+            return '<img src="' + optimizedUrl + '" alt="Image" onclick="window.open(\'' + imageUrl + '\')" style="cursor: pointer; max-width: 100%; border-radius: 12px;" loading="lazy" onerror="this.onerror=null; this.src=\'' + imageUrl + '\';">';
         } else {
             // Old Supabase image
-            return '<img src="' + imageUrl + '" alt="Image" onclick="window.open(\'' + imageUrl + '\')" style="cursor: pointer; max-width: 100%;" loading="lazy">';
+            return '<img src="' + imageUrl + '" alt="Image" onclick="window.open(\'' + imageUrl + '\')" style="cursor: pointer; max-width: 100%; border-radius: 12px;" loading="lazy">';
         }
     }
     
     if (msg.message_type === 'video') {
         var videoUrl = safeUrl(msg.file_url);
         if (!videoUrl) return '<p>Video not available</p>';
-        return '<video controls style="max-width: 100%;" preload="metadata"><source src="' + videoUrl + '"></video>';
+        return '<video controls style="max-width: 100%; width: 280px; height: auto; border-radius: 12px; background: #000;" preload="metadata"><source src="' + videoUrl + '"></video>';
     }
     
     if (msg.message_type === 'audio') {
         var audioUrl = safeUrl(msg.file_url);
         if (!audioUrl) return '<p>Audio not available</p>';
-        return '<audio controls src="' + audioUrl + '" style="width: 280px; height: 40px;"></audio>';
+        return '<audio controls src="' + audioUrl + '" style="width: 280px; height: 44px; border-radius: 8px;"></audio>';
     }
     
     return '<p>Unsupported message type</p>';

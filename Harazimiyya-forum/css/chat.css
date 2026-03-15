@@ -2617,9 +2617,20 @@ textarea,
     user-select: none;
 }
 
-/* ===== FIX FOR IMAGE SIZE IN CHAT - MAKE THEM SMALL ===== */
-.message img,
+/* ===== FIX FOR VIDEO SIZE IN CHAT - MAKE THEM LARGER ON MOBILE ===== */
 .message video {
+    max-width: 280px !important;
+    max-height: 200px !important;
+    width: auto !important;
+    height: auto !important;
+    border-radius: 12px;
+    object-fit: contain;
+    display: block;
+    background: #000;
+}
+
+/* For images - keep them smaller */
+.message img {
     max-width: 200px !important;
     max-height: 200px !important;
     width: auto !important;
@@ -2629,21 +2640,36 @@ textarea,
     display: block;
 }
 
-/* Even smaller on mobile */
+/* Even larger on mobile for better touch targets */
 @media (max-width: 768px) {
-    .message img,
     .message video {
-        max-width: 150px !important;
-        max-height: 150px !important;
+        max-width: 280px !important;
+        max-height: 220px !important;
+        min-width: 250px !important;
+    }
+    
+    .message img {
+        max-width: 180px !important;
+        max-height: 180px !important;
     }
 }
 
-/* For very small screens */
+/* For very small screens - make videos full width of message bubble */
 @media (max-width: 480px) {
-    .message img,
+    .message {
+        max-width: 85% !important;
+    }
+    
     .message video {
-        max-width: 120px !important;
-        max-height: 120px !important;
+        max-width: 100% !important;
+        max-height: 240px !important;
+        min-width: 200px !important;
+        width: 100% !important;
+    }
+    
+    .message img {
+        max-width: 100% !important;
+        max-height: 200px !important;
     }
 }
 
@@ -2651,6 +2677,13 @@ textarea,
 .message audio {
     width: 280px !important;
     height: 44px !important;
+}
+
+@media (max-width: 480px) {
+    .message audio {
+        width: 100% !important;
+        max-width: 280px !important;
+    }
 }
 
 /* ================= ANDROID KEYBOARD FIXES - MATCH DESKTOP LAYOUT ================= */

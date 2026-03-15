@@ -4,7 +4,7 @@
 // Admin: Upload/Remove Sheikh Profile Image via Kebab Menu
 // Members: View All Content
 // Features: Resume reading from last position
-// UPDATED: Fixed file input preview
+// UPDATED: Fixed back button behavior for lightbox
 // ============================================
 
 // ================= CLOUDINARY CONFIGURATION =================
@@ -77,6 +77,7 @@ let lastScrollPosition = 0;
 let hasResumeButtonShown = false;
 let failedImages = new Set();
 let currentLightbox = null;
+let lightboxActive = false; // Track if lightbox is open
 
 const PROFILE_PLACEHOLDER = getProfilePlaceholder();
 
@@ -163,11 +164,15 @@ function showNotification(message, type = 'success') {
   }, 3000);
 }
 
-// ================= LIGHTBOX FUNCTION =================
+// ================= LIGHTBOX FUNCTION WITH FIXED BACK BUTTON =================
 function createLightbox(src) {
+    // If lightbox is already open, close it first
     if (currentLightbox) {
-        currentLightbox.remove();
+        closeLightbox();
     }
+    
+    // Set lightbox active flag
+    lightboxActive = true;
     
     const lightbox = document.createElement('div');
     lightbox.className = 'lightbox-modal';
@@ -193,12 +198,47 @@ function createLightbox(src) {
     document.body.appendChild(lightbox);
     currentLightbox = lightbox;
     
+    // Close button handler
+    const closeBtn = lightbox.querySelector('button');
+    closeBtn.onclick = (e) => {
+        e.stopPropagation();
+        closeLightbox();
+    };
+    
+    // Click outside to close
     lightbox.onclick = (e) => {
-        if (e.target === lightbox || e.target.tagName === 'BUTTON') {
-            lightbox.remove();
-            currentLightbox = null;
+        if (e.target === lightbox) {
+            closeLightbox();
         }
     };
+    
+    // Handle Android back button - THIS IS THE KEY FIX
+    const handlePopState = (e) => {
+        if (lightboxActive && currentLightbox) {
+            e.preventDefault();
+            closeLightbox();
+        }
+    };
+    
+    // Add the event listener
+    window.addEventListener('popstate', handlePopState);
+    
+    // Store the handler so we can remove it later
+    lightbox._popStateHandler = handlePopState;
+}
+
+// ================= CLOSE LIGHTBOX =================
+function closeLightbox() {
+    if (currentLightbox) {
+        // Remove the popstate event listener
+        if (currentLightbox._popStateHandler) {
+            window.removeEventListener('popstate', currentLightbox._popStateHandler);
+        }
+        
+        currentLightbox.remove();
+        currentLightbox = null;
+        lightboxActive = false;
+    }
 }
 
 // ================= CREATE DELETE MODAL =================
@@ -691,6 +731,14 @@ document.addEventListener("DOMContentLoaded", async () => {
   setupKebabMenu();
   setupScrollTracking();
   await loadSheikhProfile();
+  
+  // Handle back button when lightbox is open
+  window.addEventListener('popstate', (e) => {
+    if (lightboxActive && currentLightbox) {
+      e.preventDefault();
+      closeLightbox();
+    }
+  });
 });
 
 async function init() {
@@ -895,6 +943,10 @@ function clearModalContent() {
     // Remove preview image
     const preview = document.querySelector('.preview-image');
     if (preview) preview.remove();
+    
+    // Reset file input
+    if (fileInput) fileInput.value = '';
+    selectedFile = null;
 }
 
 // ================= SETUP EVENT LISTENERS =================
@@ -905,15 +957,13 @@ function setupEventListeners() {
   
   if (fileInput) {
     fileInput.onchange = function(e) {
-      console.log('File input changed', e.target.files);
+      // Clear previous content first
+      clearModalContent();
       
       // Check if files exist
       if (e.target.files && e.target.files.length > 0) {
         const file = e.target.files[0];
         selectedFile = file;
-        
-        // Clear old previews
-        clearModalContent();
         
         // Create new file info
         const fileInfo = document.createElement('div');
@@ -961,8 +1011,6 @@ function setupEventListeners() {
         }
         
         // Clear file input and preview when switching types
-        if (fileInput) fileInput.value = '';
-        selectedFile = null;
         clearModalContent();
     };
   }
@@ -988,14 +1036,14 @@ function openAddModal() {
   if (contentType) contentType.value = 'text';
   
   // Clear all modal content
-  if (fileInput) fileInput.value = '';
-  selectedFile = null;
   clearModalContent();
   selectedContentId = null;
   
-  // Set initial UI state
-  if (contentText) contentText.style.display = 'block';
-  if (selectFileBtn) selectFileBtn.style.display = 'none';
+  // Trigger change event to set proper UI
+  if (contentType) {
+    const event = new Event('change');
+    contentType.dispatchEvent(event);
+  }
   
   if (uploadModal) uploadModal.classList.remove('hidden');
 }
@@ -1013,20 +1061,15 @@ window.editContent = function(id) {
   selectedContentId = id;
   
   // Clear any existing modal content first
-  if (fileInput) fileInput.value = '';
-  selectedFile = null;
   clearModalContent();
   
+  // Trigger change event to set proper UI
+  if (contentType) {
+    const event = new Event('change');
+    contentType.dispatchEvent(event);
+  }
+  
   const isText = item.content_type === 'text';
-  
-  // Set UI based on content type
-  if (contentText) {
-    contentText.style.display = isText ? 'block' : 'none';
-  }
-  
-  if (selectFileBtn) {
-    selectFileBtn.style.display = isText ? 'none' : 'inline-block';
-  }
   
   if (!isText && item.media_url && selectFileBtn) {
     const source = isCloudinaryUrl(item.media_url) ? 'Cloudinary' : 'Supabase';
@@ -1185,12 +1228,12 @@ function closeModal() {
   if (contentType) contentType.value = 'text';
   
   // Clear all modal content
-  if (fileInput) fileInput.value = '';
-  selectedFile = null;
   clearModalContent();
   selectedContentId = null;
   
-  // Reset UI
-  if (contentText) contentText.style.display = 'block';
-  if (selectFileBtn) selectFileBtn.style.display = 'none';
+  // Trigger change event to reset UI
+  if (contentType) {
+    const event = new Event('change');
+    contentType.dispatchEvent(event);
+  }
 }
