@@ -1,10 +1,7 @@
 // ============================================
 // HARAZIMIYYA FORUM - GALLERY
-// All members can upload images/videos
-// Members can delete their own content
-// Admins can delete any content
-// Features: Smart scroll, Jump to bottom, Vertical mobile layout
-// UPDATED: Fixed video fullscreen and download for Android
+// Features: Right-click (desktop) or Long-press (mobile) menu
+// Menu: Love, Like, Delete (owners/admins only)
 // ============================================
 
 // ================= CLOUDINARY CONFIGURATION =================
@@ -49,6 +46,9 @@ let currentLightbox = null;
 let failedImages = new Set();
 let lightboxActive = false;
 
+// Reaction tracking
+let mediaReactions = new Map(); // Store reactions for each media
+
 // Smart scroll variables
 let showJumpToBottom = false;
 let firstUnseenMediaId = null;
@@ -72,6 +72,12 @@ const mediaFile = document.getElementById("mediaFile");
 // Delete modal (will be created dynamically)
 let deleteModal = null;
 let selectedMediaId = null;
+
+// Context menu
+let contextMenu = null;
+let contextMenuTarget = null;
+let contextMenuMediaId = null;
+let longPressTimer = null;
 
 // ================= SIDEBAR TOGGLE =================
 openSidebar.onclick = () => {
@@ -219,34 +225,242 @@ function loadViewedMedia() {
     }
 }
 
-// ================= CREATE DELETE MODAL =================
-function createDeleteModal() {
-    const deleteModalHTML = `
-        <div id="deleteModal" class="modal hidden">
-            <div class="modal-content delete-modal">
-                <i class="fas fa-exclamation-triangle" style="font-size: 48px;"></i>
-                <h3>Delete Media?</h3>
-                <p>This action cannot be undone.</p>
-                <div class="modal-actions">
-                    <button id="confirmDeleteBtn" class="primary-btn" style="background: #dc3545;">Delete</button>
-                    <button id="cancelDeleteBtn" class="ghost-btn">Cancel</button>
-                </div>
-            </div>
-        </div>
-    `;
-    
-    document.body.insertAdjacentHTML('beforeend', deleteModalHTML);
-    deleteModal = document.getElementById('deleteModal');
-    
-    document.getElementById('cancelDeleteBtn').onclick = () => {
-        deleteModal.classList.add('hidden');
-        selectedMediaId = null;
-    };
-    
-    document.getElementById('confirmDeleteBtn').onclick = confirmDelete;
+// ================= LOAD REACTIONS FROM STORAGE =================
+function loadReactions() {
+    try {
+        const saved = localStorage.getItem('mediaReactions');
+        if (saved) {
+            const parsed = JSON.parse(saved);
+            mediaReactions = new Map(Object.entries(parsed));
+        }
+    } catch (e) {
+        console.log("Could not load reactions", e);
+    }
 }
 
-// ================= CREATE LIGHTBOX WITH FULLSCREEN AND DOWNLOAD FIXED FOR ANDROID =================
+// ================= SAVE REACTIONS TO STORAGE =================
+function saveReactions() {
+    try {
+        const obj = Object.fromEntries(mediaReactions);
+        localStorage.setItem('mediaReactions', JSON.stringify(obj));
+    } catch (e) {
+        console.log("Could not save reactions", e);
+    }
+}
+
+// ================= ADD REACTION =================
+function addReaction(mediaId, reactionType) {
+    if (!mediaReactions.has(mediaId)) {
+        mediaReactions.set(mediaId, { love: 0, like: 0, userReacted: null });
+    }
+    
+    const reactions = mediaReactions.get(mediaId);
+    const userId = currentUser?.id;
+    
+    // Check if user already reacted
+    if (reactions.userReacted === reactionType) {
+        // Remove reaction (toggle off)
+        reactions[reactionType] = Math.max(0, (reactions[reactionType] || 0) - 1);
+        reactions.userReacted = null;
+        showNotification(`${reactionType} removed`, 'info');
+    } else {
+        // If user had different reaction, remove that first
+        if (reactions.userReacted) {
+            reactions[reactions.userReacted] = Math.max(0, (reactions[reactions.userReacted] || 0) - 1);
+        }
+        
+        // Add new reaction
+        reactions[reactionType] = (reactions[reactionType] || 0) + 1;
+        reactions.userReacted = reactionType;
+        showNotification(`Added ${reactionType}`, 'success');
+    }
+    
+    saveReactions();
+    updateMediaReactions(mediaId);
+}
+
+// ================= UPDATE MEDIA REACTIONS DISPLAY =================
+function updateMediaReactions(mediaId) {
+    const mediaCard = document.querySelector(`.media-card[data-media-id="${mediaId}"]`);
+    if (!mediaCard) return;
+    
+    const existingReactions = mediaCard.querySelector('.media-reactions');
+    if (existingReactions) existingReactions.remove();
+    
+    const reactions = mediaReactions.get(mediaId);
+    if (!reactions) return;
+    
+    const reactionsDiv = document.createElement('div');
+    reactionsDiv.className = 'media-reactions';
+    
+    if (reactions.love > 0) {
+        const loveDiv = document.createElement('div');
+        loveDiv.className = 'reaction-icon love';
+        loveDiv.innerHTML = '❤️';
+        if (reactions.love > 1) {
+            const count = document.createElement('span');
+            count.className = 'reaction-count';
+            count.textContent = reactions.love;
+            loveDiv.appendChild(count);
+        }
+        reactionsDiv.appendChild(loveDiv);
+    }
+    
+    if (reactions.like > 0) {
+        const likeDiv = document.createElement('div');
+        likeDiv.className = 'reaction-icon like';
+        likeDiv.innerHTML = '👍';
+        if (reactions.like > 1) {
+            const count = document.createElement('span');
+            count.className = 'reaction-count';
+            count.textContent = reactions.like;
+            likeDiv.appendChild(count);
+        }
+        reactionsDiv.appendChild(likeDiv);
+    }
+    
+    if (reactions.love > 0 || reactions.like > 0) {
+        mediaCard.appendChild(reactionsDiv);
+    }
+}
+
+// ================= CREATE CONTEXT MENU =================
+function createContextMenu() {
+    const menu = document.createElement('div');
+    menu.className = 'longpress-menu hidden';
+    menu.id = 'contextMenu';
+    
+    document.body.appendChild(menu);
+    return menu;
+}
+
+// ================= SHOW CONTEXT MENU =================
+function showContextMenu(event, mediaId) {
+    event.preventDefault(); // Prevent default right-click menu
+    
+    if (contextMenu) {
+        contextMenu.remove();
+    }
+    
+    contextMenu = createContextMenu();
+    contextMenuMediaId = mediaId;
+    
+    const canDelete = isAdmin || allMedia.find(m => m.id === mediaId)?.uploaded_by === currentUser.id;
+    
+    let menuItems = `
+        <button class="longpress-menu-item love-item" onclick="handleReaction('${mediaId}', 'love')">
+            <i class="fas fa-heart"></i>
+            <span>Love</span>
+        </button>
+        <button class="longpress-menu-item like-item" onclick="handleReaction('${mediaId}', 'like')">
+            <i class="fas fa-thumbs-up"></i>
+            <span>Like</span>
+        </button>
+    `;
+    
+    if (canDelete) {
+        menuItems += `
+            <button class="longpress-menu-item delete-item" onclick="openDeleteModal('${mediaId}')">
+                <i class="fas fa-trash"></i>
+                <span>Delete</span>
+            </button>
+        `;
+    }
+    
+    contextMenu.innerHTML = menuItems;
+    
+    // Position menu near click
+    const x = event.clientX;
+    const y = event.clientY;
+    
+    contextMenu.style.left = x + 'px';
+    contextMenu.style.top = y + 'px';
+    
+    // Adjust if menu goes off screen
+    setTimeout(() => {
+        const rect = contextMenu.getBoundingClientRect();
+        if (rect.right > window.innerWidth) {
+            contextMenu.style.left = (window.innerWidth - rect.width - 10) + 'px';
+        }
+        if (rect.bottom > window.innerHeight) {
+            contextMenu.style.top = (window.innerHeight - rect.height - 10) + 'px';
+        }
+    }, 10);
+    
+    contextMenu.classList.remove('hidden');
+    
+    // Hide menu when clicking outside
+    setTimeout(() => {
+        document.addEventListener('click', hideContextMenuOnce);
+    }, 100);
+}
+
+function hideContextMenuOnce(e) {
+    if (contextMenu && !contextMenu.contains(e.target)) {
+        hideContextMenu();
+        document.removeEventListener('click', hideContextMenuOnce);
+    }
+}
+
+function hideContextMenu() {
+    if (contextMenu) {
+        contextMenu.classList.add('hidden');
+        setTimeout(() => {
+            if (contextMenu) {
+                contextMenu.remove();
+                contextMenu = null;
+            }
+        }, 300);
+    }
+    contextMenuMediaId = null;
+}
+
+// ================= HANDLE REACTION =================
+window.handleReaction = function(mediaId, type) {
+    addReaction(mediaId, type);
+    hideContextMenu();
+};
+
+// ================= SETUP CONTEXT MENU (Right-click + Long press) =================
+function setupContextMenu(element, mediaId) {
+    let touchStart = 0;
+    
+    // For desktop: Right-click
+    element.addEventListener('contextmenu', (e) => {
+        e.preventDefault();
+        showContextMenu(e, mediaId);
+        return false;
+    });
+    
+    // For mobile: Long press
+    element.addEventListener('touchstart', (e) => {
+        touchStart = Date.now();
+        longPressTimer = setTimeout(() => {
+            showContextMenu(e, mediaId);
+        }, 500); // 500ms long press
+    });
+    
+    element.addEventListener('touchend', (e) => {
+        clearTimeout(longPressTimer);
+        if (Date.now() - touchStart < 500) {
+            // Short tap - open lightbox
+            const media = allMedia.find(m => m.id === mediaId);
+            if (media) {
+                viewMedia(mediaId, media.media_url, media.media_type, media.title);
+            }
+        }
+    });
+    
+    element.addEventListener('touchmove', () => {
+        clearTimeout(longPressTimer);
+    });
+    
+    element.addEventListener('touchcancel', () => {
+        clearTimeout(longPressTimer);
+    });
+}
+
+// ================= CREATE LIGHTBOX =================
 function createLightbox(src, type, mediaId, title) {
     if (currentLightbox) {
         closeLightbox();
@@ -263,12 +477,12 @@ function createLightbox(src, type, mediaId, title) {
         left: 0;
         width: 100%;
         height: 100%;
-        background: rgba(0,0,0,0.95);
+        background: rgba(0,0,0,0.98);
         display: flex;
         align-items: center;
         justify-content: center;
         z-index: 10000;
-        padding: 20px;
+        padding: 0;
         box-sizing: border-box;
     `;
     
@@ -282,40 +496,39 @@ function createLightbox(src, type, mediaId, title) {
     
     if (type === 'image') {
         lightbox.innerHTML = `
-            <div style="position: relative; max-width: 100%; max-height: 100%; display: flex; flex-direction: column; align-items: center;">
-                <img src="${src}" style="max-width: 100%; max-height: 80vh; object-fit: contain; border-radius: 8px;" onerror="this.onerror=null; this.src='${getFallbackImageUrl()}';">
-                <button style="position: absolute; top: 10px; right: 10px; background: white; border: none; width: 44px; height: 44px; border-radius: 50%; font-size: 24px; cursor: pointer; box-shadow: 0 2px 10px rgba(0,0,0,0.3); display: flex; align-items: center; justify-content: center; z-index: 10001;">✕</button>
-                <a href="${src}" download="${filename}" style="display: inline-flex; align-items: center; gap: 8px; padding: 12px 24px; background: #0b5e3b; color: white; border: none; border-radius: 8px; cursor: pointer; font-size: 1rem; text-decoration: none; margin-top: 20px;">
-                    <i class="fas fa-download"></i> Download Image
-                </a>
+            <div style="position: relative; width: 100%; height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center; background: #000;">
+                <img src="${src}" style="max-width: 100%; max-height: 85vh; width: auto; height: auto; object-fit: contain; border-radius: 0;" onerror="this.onerror=null; this.src='${getFallbackImageUrl()}';">
+                <div style="position: absolute; top: 20px; right: 20px; left: 20px; display: flex; justify-content: space-between; align-items: center; z-index: 10001;">
+                    <button style="background: rgba(255,255,255,0.2); border: none; width: 44px; height: 44px; border-radius: 50%; font-size: 24px; cursor: pointer; color: white; display: flex; align-items: center; justify-content: center; backdrop-filter: blur(5px);">✕</button>
+                    <a href="${src}" download="${filename}" style="display: inline-flex; align-items: center; gap: 8px; padding: 12px 24px; background: #0b5e3b; color: white; border: none; border-radius: 30px; cursor: pointer; font-size: 1rem; text-decoration: none; backdrop-filter: blur(5px);">
+                        <i class="fas fa-download"></i> Download
+                    </a>
+                </div>
             </div>
         `;
     } else {
         lightbox.innerHTML = `
-            <div style="position: relative; max-width: 100%; max-height: 100%; display: flex; flex-direction: column; align-items: center;">
+            <div style="position: relative; width: 100%; height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center; background: #000;">
                 <video 
                     src="${src}" 
-                    controls 
-                    autoplay 
+                    controls
+                    autoplay
                     playsinline
                     webkit-playsinline
                     x5-playsinline
                     x5-video-player-type="h5"
                     x5-video-player-fullscreen="true"
-                    x5-video-orientation="portrait"
-                    style="max-width: 100%; max-height: 70vh; border-radius: 8px; background: #000; width: 100%;"
+                    x5-video-orientation="portraint"
+                    style="width: 100%; height: 100%; max-height: 100vh; object-fit: contain; background: #000;"
                     preload="auto"
-                    controlsList="nodownload"
                 >
+                    <source src="${src}" type="video/mp4">
                     Your browser does not support the video tag.
                 </video>
-                <button style="position: absolute; top: 10px; right: 10px; background: white; border: none; width: 44px; height: 44px; border-radius: 50%; font-size: 24px; cursor: pointer; box-shadow: 0 2px 10px rgba(0,0,0,0.3); display: flex; align-items: center; justify-content: center; z-index: 10001;">✕</button>
-                <div style="display: flex; gap: 10px; margin-top: 20px; flex-wrap: wrap; justify-content: center;">
-                    <button onclick="this.nextElementSibling.requestFullscreen()" style="display: inline-flex; align-items: center; gap: 8px; padding: 12px 24px; background: #0b5e3b; color: white; border: none; border-radius: 8px; cursor: pointer; font-size: 1rem;">
-                        <i class="fas fa-expand"></i> Fullscreen
-                    </button>
-                    <a href="${src}" download="${filename}" style="display: inline-flex; align-items: center; gap: 8px; padding: 12px 24px; background: #0b5e3b; color: white; border: none; border-radius: 8px; cursor: pointer; font-size: 1rem; text-decoration: none;">
-                        <i class="fas fa-download"></i> Download Video
+                <div style="position: absolute; top: 20px; right: 20px; left: 20px; display: flex; justify-content: space-between; align-items: center; z-index: 10001;">
+                    <button style="background: rgba(255,255,255,0.2); border: none; width: 44px; height: 44px; border-radius: 50%; font-size: 24px; cursor: pointer; color: white; display: flex; align-items: center; justify-content: center; backdrop-filter: blur(5px);">✕</button>
+                    <a href="${src}" download="${filename}" style="display: inline-flex; align-items: center; gap: 8px; padding: 12px 24px; background: #0b5e3b; color: white; border: none; border-radius: 30px; cursor: pointer; font-size: 1rem; text-decoration: none; backdrop-filter: blur(5px);">
+                        <i class="fas fa-download"></i> Download
                     </a>
                 </div>
             </div>
@@ -338,9 +551,9 @@ function createLightbox(src, type, mediaId, title) {
         };
     }
     
-    // Click background to close
+    // Click background to close (but not on video)
     lightbox.addEventListener('click', function(e) {
-        if (e.target === lightbox) {
+        if (e.target === lightbox || e.target.classList.contains('lightbox-modal')) {
             closeLightbox();
         }
     });
@@ -357,6 +570,9 @@ function createLightbox(src, type, mediaId, title) {
     
     window.addEventListener('popstate', handlePopState);
     lightbox._popStateHandler = handlePopState;
+    
+    // Prevent body scrolling when lightbox is open
+    document.body.style.overflow = 'hidden';
 }
 
 // ================= CLOSE LIGHTBOX =================
@@ -369,6 +585,9 @@ function closeLightbox() {
         currentLightbox.remove();
         currentLightbox = null;
         lightboxActive = false;
+        
+        // Restore body scrolling
+        document.body.style.overflow = '';
         
         if (history.state && history.state.lightbox) {
             history.back();
@@ -398,12 +617,18 @@ document.addEventListener("DOMContentLoaded", async () => {
     setupScrollListener();
     setupEventListeners();
     loadViewedMedia();
+    loadReactions();
     
     window.addEventListener('popstate', (e) => {
         if (lightboxActive && currentLightbox) {
             e.preventDefault();
             closeLightbox();
         }
+    });
+    
+    // Hide context menu on scroll
+    window.addEventListener('scroll', () => {
+        hideContextMenu();
     });
 });
 
@@ -511,6 +736,15 @@ function displayGallery(media) {
     media.forEach(item => {
         const card = createMediaCard(item);
         galleryGrid.appendChild(card);
+        
+        // Setup context menu on media preview
+        const preview = card.querySelector('.media-preview');
+        if (preview) {
+            setupContextMenu(preview, item.id);
+        }
+        
+        // Update reactions display
+        updateMediaReactions(item.id);
     });
 }
 
@@ -531,54 +765,59 @@ function createMediaCard(item) {
     });
     
     const uploaderName = item.uploader?.full_name || 'Unknown';
-    const canDelete = isAdmin || item.uploaded_by === currentUser.id;
-    
-    // Check if URL is from Cloudinary
     const isCloudinary = isCloudinaryUrl(item.media_url);
-    const cloudBadge = isCloudinary ? '<span><i class="fas fa-cloud"></i> Cloud</span>' : '';
     
-    card.innerHTML = `
-        <span class="media-badge">${item.media_type}</span>
-        ${item.media_type === 'image' 
-            ? `<img src="${item.media_url}" alt="${item.title}" class="media-preview" onclick="viewMedia('${item.id}', '${item.media_url}', 'image', '${item.title}')" loading="lazy" onerror="handleImageError('${item.id}')">`
-            : `<video 
+    if (item.media_type === 'image') {
+        card.innerHTML = `
+            <span class="media-badge"><i class="fas fa-image"></i> Image</span>
+            <img 
+                src="${item.media_url}" 
+                alt="${item.title}" 
+                class="media-preview" 
+                loading="lazy" 
+                onerror="handleImageError('${item.id}')"
+            >
+            <div class="media-info">
+                <h4>${item.title}</h4>
+                <div class="media-meta">
+                    <span><i class="fas fa-calendar"></i> ${date}</span>
+                    <span><i class="fas fa-eye"></i> ${item.views || 0}</span>
+                    ${isCloudinary ? '<span><i class="fas fa-cloud"></i> Cloud</span>' : ''}
+                </div>
+                <div class="media-uploader">
+                    <i class="fas fa-user"></i>
+                    <span>Uploaded by: <strong>${uploaderName}</strong></span>
+                </div>
+            </div>
+        `;
+    } else {
+        card.innerHTML = `
+            <span class="media-badge"><i class="fas fa-video"></i> Video</span>
+            <video 
                 src="${item.media_url}" 
                 class="media-preview" 
-                onclick="viewMedia('${item.id}', '${item.media_url}', 'video', '${item.title}')" 
                 controls
                 playsinline
-                webkit-playsinline
-                x5-playsinline
-                x5-video-player-type="h5"
-                x5-video-player-fullscreen="true"
                 preload="metadata"
-                style="cursor: pointer; background: #000; width: 100%; height: 200px; object-fit: cover;">
+                poster="${item.thumbnail_url || ''}"
+            >
+                <source src="${item.media_url}" type="video/mp4">
                 Your browser does not support the video tag.
-            </video>`
-        }
-        <div class="media-info">
-            <h4>${item.title}</h4>
-            <div class="media-meta">
-                <span><i class="fas fa-calendar"></i> ${date}</span>
-                <span><i class="fas fa-eye"></i> ${item.views || 0}</span>
-                ${isCloudinary ? '<span><i class="fas fa-cloud"></i> Cloud</span>' : ''}
+            </video>
+            <div class="media-info">
+                <h4>${item.title}</h4>
+                <div class="media-meta">
+                    <span><i class="fas fa-calendar"></i> ${date}</span>
+                    <span><i class="fas fa-eye"></i> ${item.views || 0}</span>
+                    ${isCloudinary ? '<span><i class="fas fa-cloud"></i> Cloud</span>' : ''}
+                </div>
+                <div class="media-uploader">
+                    <i class="fas fa-user"></i>
+                    <span>Uploaded by: <strong>${uploaderName}</strong></span>
+                </div>
             </div>
-            <div class="media-uploader">
-                <i class="fas fa-user"></i>
-                <span>Uploaded by: <strong>${uploaderName}</strong></span>
-            </div>
-            <div class="media-actions">
-                ${canDelete ? `
-                    <button class="media-btn delete-btn" onclick="openDeleteModal('${item.id}')" title="Delete">
-                        <i class="fas fa-trash"></i>
-                    </button>
-                ` : ''}
-                <a href="${item.media_url}" download="${item.title}.${item.media_type === 'video' ? 'mp4' : 'jpg'}" class="media-btn download-btn" title="Download" style="background: rgba(11,94,59,0.1); color: var(--primary); text-decoration: none; display: inline-flex; align-items: center; justify-content: center;">
-                    <i class="fas fa-download"></i>
-                </a>
-            </div>
-        </div>
-    `;
+        `;
+    }
     
     return card;
 }
@@ -783,6 +1022,7 @@ async function saveMedia() {
 window.openDeleteModal = function(id) {
     selectedMediaId = id;
     deleteModal.classList.remove('hidden');
+    hideContextMenu();
 };
 
 // ================= CONFIRM DELETE =================
@@ -816,6 +1056,11 @@ async function confirmDelete() {
 
         deleteModal.classList.add('hidden');
         showNotification('Media deleted successfully');
+        
+        // Remove reactions for deleted media
+        mediaReactions.delete(selectedMediaId);
+        saveReactions();
+        
         await loadGallery();
 
     } catch (err) {
