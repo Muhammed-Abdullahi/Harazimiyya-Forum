@@ -300,15 +300,24 @@ function createLightbox(src, type, mediaId, title) {
                     playsinline
                     webkit-playsinline
                     x5-playsinline
-                    style="max-width: 100%; max-height: 70vh; border-radius: 8px; background: #000;"
+                    x5-video-player-type="h5"
+                    x5-video-player-fullscreen="true"
+                    x5-video-orientation="portrait"
+                    style="max-width: 100%; max-height: 70vh; border-radius: 8px; background: #000; width: 100%;"
                     preload="auto"
+                    controlsList="nodownload"
                 >
                     Your browser does not support the video tag.
                 </video>
                 <button style="position: absolute; top: 10px; right: 10px; background: white; border: none; width: 44px; height: 44px; border-radius: 50%; font-size: 24px; cursor: pointer; box-shadow: 0 2px 10px rgba(0,0,0,0.3); display: flex; align-items: center; justify-content: center; z-index: 10001;">✕</button>
-                <a href="${src}" download="${filename}" style="display: inline-flex; align-items: center; gap: 8px; padding: 12px 24px; background: #0b5e3b; color: white; border: none; border-radius: 8px; cursor: pointer; font-size: 1rem; text-decoration: none; margin-top: 20px;">
-                    <i class="fas fa-download"></i> Download Video
-                </a>
+                <div style="display: flex; gap: 10px; margin-top: 20px; flex-wrap: wrap; justify-content: center;">
+                    <button onclick="this.nextElementSibling.requestFullscreen()" style="display: inline-flex; align-items: center; gap: 8px; padding: 12px 24px; background: #0b5e3b; color: white; border: none; border-radius: 8px; cursor: pointer; font-size: 1rem;">
+                        <i class="fas fa-expand"></i> Fullscreen
+                    </button>
+                    <a href="${src}" download="${filename}" style="display: inline-flex; align-items: center; gap: 8px; padding: 12px 24px; background: #0b5e3b; color: white; border: none; border-radius: 8px; cursor: pointer; font-size: 1rem; text-decoration: none;">
+                        <i class="fas fa-download"></i> Download Video
+                    </a>
+                </div>
             </div>
         `;
     }
@@ -539,6 +548,9 @@ function createMediaCard(item) {
                 controls
                 playsinline
                 webkit-playsinline
+                x5-playsinline
+                x5-video-player-type="h5"
+                x5-video-player-fullscreen="true"
                 preload="metadata"
                 style="cursor: pointer; background: #000; width: 100%; height: 200px; object-fit: cover;">
                 Your browser does not support the video tag.
