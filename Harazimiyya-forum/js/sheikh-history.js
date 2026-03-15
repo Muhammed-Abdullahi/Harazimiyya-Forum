@@ -4,7 +4,7 @@
 // Admin: Upload/Remove Sheikh Profile Image via Kebab Menu
 // Members: View All Content
 // Features: Resume reading from last position
-// UPDATED: Fixed back button behavior for lightbox
+// UPDATED: Fixed Android back button behavior for lightbox
 // ============================================
 
 // ================= CLOUDINARY CONFIGURATION =================
@@ -77,7 +77,7 @@ let lastScrollPosition = 0;
 let hasResumeButtonShown = false;
 let failedImages = new Set();
 let currentLightbox = null;
-let lightboxActive = false; // Track if lightbox is open
+let lightboxActive = false;
 
 const PROFILE_PLACEHOLDER = getProfilePlaceholder();
 
@@ -164,7 +164,7 @@ function showNotification(message, type = 'success') {
   }, 3000);
 }
 
-// ================= LIGHTBOX FUNCTION WITH FIXED BACK BUTTON =================
+// ================= LIGHTBOX FUNCTION WITH ANDROID BACK BUTTON FIX =================
 function createLightbox(src) {
     // If lightbox is already open, close it first
     if (currentLightbox) {
@@ -187,7 +187,6 @@ function createLightbox(src) {
         align-items: center;
         justify-content: center;
         z-index: 10000;
-        cursor: pointer;
     `;
     
     lightbox.innerHTML = `
@@ -205,25 +204,29 @@ function createLightbox(src) {
         closeLightbox();
     };
     
-    // Click outside to close
-    lightbox.onclick = (e) => {
+    // Click background to close
+    lightbox.addEventListener('click', function(e) {
         if (e.target === lightbox) {
             closeLightbox();
         }
-    };
+    });
     
-    // Handle Android back button - THIS IS THE KEY FIX
+    // ANDROID BACK BUTTON FIX - Add a dummy history state
+    history.pushState({ lightbox: true }, '');
+    
+    // Handle back button
     const handlePopState = (e) => {
         if (lightboxActive && currentLightbox) {
             e.preventDefault();
             closeLightbox();
+            // Remove this event listener after handling
+            window.removeEventListener('popstate', handlePopState);
         }
     };
     
-    // Add the event listener
     window.addEventListener('popstate', handlePopState);
     
-    // Store the handler so we can remove it later
+    // Store the handler for cleanup
     lightbox._popStateHandler = handlePopState;
 }
 
@@ -238,6 +241,11 @@ function closeLightbox() {
         currentLightbox.remove();
         currentLightbox = null;
         lightboxActive = false;
+        
+        // Go back to remove the dummy history state
+        if (history.state && history.state.lightbox) {
+            history.back();
+        }
     }
 }
 
@@ -731,14 +739,6 @@ document.addEventListener("DOMContentLoaded", async () => {
   setupKebabMenu();
   setupScrollTracking();
   await loadSheikhProfile();
-  
-  // Handle back button when lightbox is open
-  window.addEventListener('popstate', (e) => {
-    if (lightboxActive && currentLightbox) {
-      e.preventDefault();
-      closeLightbox();
-    }
-  });
 });
 
 async function init() {
@@ -936,15 +936,12 @@ window.viewImage = function(url) {
 
 // ================= CLEAR MODAL CONTENT HELPER =================
 function clearModalContent() {
-    // Remove file info
     const fileInfo = document.querySelector('.file-info');
     if (fileInfo) fileInfo.remove();
     
-    // Remove preview image
     const preview = document.querySelector('.preview-image');
     if (preview) preview.remove();
     
-    // Reset file input
     if (fileInput) fileInput.value = '';
     selectedFile = null;
 }
@@ -957,15 +954,12 @@ function setupEventListeners() {
   
   if (fileInput) {
     fileInput.onchange = function(e) {
-      // Clear previous content first
       clearModalContent();
       
-      // Check if files exist
       if (e.target.files && e.target.files.length > 0) {
         const file = e.target.files[0];
         selectedFile = file;
         
-        // Create new file info
         const fileInfo = document.createElement('div');
         fileInfo.className = 'file-info';
         fileInfo.innerHTML = `
@@ -977,7 +971,6 @@ function setupEventListeners() {
           selectFileBtn.parentNode.insertBefore(fileInfo, selectFileBtn.nextSibling);
         }
         
-        // Show preview for images
         if (contentType && contentType.value === 'image' && file.type.startsWith('image/')) {
           const reader = new FileReader();
           reader.onload = function(readerEvent) {
@@ -1000,17 +993,14 @@ function setupEventListeners() {
     contentType.onchange = () => {
         const isText = contentType.value === 'text';
         
-        // Show/hide textarea
         if (contentText) {
             contentText.style.display = isText ? 'block' : 'none';
         }
         
-        // Show/hide select file button
         if (selectFileBtn) {
             selectFileBtn.style.display = isText ? 'none' : 'inline-block';
         }
         
-        // Clear file input and preview when switching types
         clearModalContent();
     };
   }
@@ -1035,11 +1025,9 @@ function openAddModal() {
   if (contentText) contentText.value = '';
   if (contentType) contentType.value = 'text';
   
-  // Clear all modal content
   clearModalContent();
   selectedContentId = null;
   
-  // Trigger change event to set proper UI
   if (contentType) {
     const event = new Event('change');
     contentType.dispatchEvent(event);
@@ -1060,10 +1048,8 @@ window.editContent = function(id) {
   if (contentType) contentType.value = item.content_type;
   selectedContentId = id;
   
-  // Clear any existing modal content first
   clearModalContent();
   
-  // Trigger change event to set proper UI
   if (contentType) {
     const event = new Event('change');
     contentType.dispatchEvent(event);
@@ -1227,11 +1213,9 @@ function closeModal() {
   if (contentText) contentText.value = '';
   if (contentType) contentType.value = 'text';
   
-  // Clear all modal content
   clearModalContent();
   selectedContentId = null;
   
-  // Trigger change event to reset UI
   if (contentType) {
     const event = new Event('change');
     contentType.dispatchEvent(event);
