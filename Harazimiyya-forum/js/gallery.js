@@ -113,12 +113,16 @@ function createThemeDropdown() {
         const theme = themes[themeKey];
         const themeBtn = document.createElement('button');
         themeBtn.className = `theme-option ${currentTheme === themeKey ? 'active' : ''}`;
+        themeBtn.setAttribute('data-theme', themeKey);
         themeBtn.innerHTML = `
             <span class="theme-color" style="background: ${theme.primary}"></span>
             <span>${theme.name}</span>
             ${currentTheme === themeKey ? '<i class="fas fa-check"></i>' : ''}
         `;
-        themeBtn.onclick = () => applyTheme(themeKey);
+        themeBtn.onclick = (e) => {
+            e.stopPropagation();
+            applyTheme(themeKey);
+        };
         dropdown.appendChild(themeBtn);
     });
     
@@ -138,6 +142,7 @@ function applyTheme(themeKey) {
     
     // Update body background
     document.body.style.background = theme.bg;
+    document.body.setAttribute('data-theme', themeKey);
     
     // Update header
     const topBar = document.querySelector('.top-bar');
@@ -150,8 +155,8 @@ function applyTheme(themeKey) {
     if (dropdown) {
         const options = dropdown.querySelectorAll('.theme-option');
         options.forEach(opt => {
-            const isActive = opt.querySelector('span:last-child').textContent === theme.name;
-            if (isActive) {
+            const themeValue = opt.getAttribute('data-theme');
+            if (themeValue === themeKey) {
                 opt.classList.add('active');
                 if (!opt.querySelector('.fa-check')) {
                     opt.innerHTML += '<i class="fas fa-check"></i>';
@@ -209,15 +214,12 @@ openSidebar.onclick = () => {
 closeSidebar.onclick = () => {
     sidebar.classList.remove("active");
     overlay.classList.remove("active");
-    // Don't call history.back() here - just close
 };
 
-// FIXED: Overlay click should ONLY close sidebar, not navigate
+// FIXED: Overlay click should ONLY close sidebar
 overlay.onclick = () => {
     sidebar.classList.remove("active");
     overlay.classList.remove("active");
-    // REMOVED: if (history.state && history.state.sidebar) { history.back(); }
-    // Just close the sidebar, don't navigate
 };
 
 // ================= NOTIFICATION FUNCTION =================
@@ -465,10 +467,6 @@ function createDeleteModal() {
     document.getElementById('cancelDeleteBtn').onclick = () => {
         deleteModal.classList.add('hidden');
         selectedMediaId = null;
-        // Go back in history if modal was opened
-        if (history.state && history.state.modal) {
-            history.back();
-        }
     };
     
     document.getElementById('confirmDeleteBtn').onclick = confirmDelete;
@@ -544,15 +542,15 @@ function showContextMenu(event, mediaId) {
     filename += media?.media_type === 'image' ? '.jpg' : '.mp4';
     
     let menuItems = `
-        <button class="longpress-menu-item love-item" onclick="handleReaction('${mediaId}', 'love')">
+        <button class="longpress-menu-item love-item" data-action="love" data-media-id="${mediaId}">
             <i class="fas fa-heart"></i>
             <span>Love</span>
         </button>
-        <button class="longpress-menu-item like-item" onclick="handleReaction('${mediaId}', 'like')">
+        <button class="longpress-menu-item like-item" data-action="like" data-media-id="${mediaId}">
             <i class="fas fa-thumbs-up"></i>
             <span>Like</span>
         </button>
-        <button class="longpress-menu-item download-item" onclick="handleDownload('${mediaId}', '${filename}')">
+        <button class="longpress-menu-item download-item" data-action="download" data-media-id="${mediaId}" data-filename="${filename}">
             <i class="fas fa-download"></i>
             <span>Download</span>
         </button>
@@ -560,7 +558,7 @@ function showContextMenu(event, mediaId) {
     
     if (canDelete) {
         menuItems += `
-            <button class="longpress-menu-item delete-item" onclick="openDeleteModal('${mediaId}')">
+            <button class="longpress-menu-item delete-item" data-action="delete" data-media-id="${mediaId}">
                 <i class="fas fa-trash"></i>
                 <span>Delete</span>
             </button>
@@ -568,6 +566,38 @@ function showContextMenu(event, mediaId) {
     }
     
     contextMenu.innerHTML = menuItems;
+    
+    // Add click event listeners to menu items
+    contextMenu.querySelectorAll('.longpress-menu-item').forEach(item => {
+        item.addEventListener('click', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            
+            const action = item.dataset.action;
+            const mediaId = item.dataset.mediaId;
+            const filename = item.dataset.filename;
+            
+            switch(action) {
+                case 'love':
+                    addReaction(mediaId, 'love');
+                    break;
+                case 'like':
+                    addReaction(mediaId, 'like');
+                    break;
+                case 'download':
+                    const media = allMedia.find(m => m.id === mediaId);
+                    if (media) {
+                        downloadMedia(media.media_url, filename);
+                    }
+                    break;
+                case 'delete':
+                    openDeleteModal(mediaId);
+                    break;
+            }
+            
+            hideContextMenu();
+        });
+    });
     
     // Get coordinates
     let clientX, clientY;
@@ -611,19 +641,6 @@ function showContextMenu(event, mediaId) {
     }, 10);
     
     contextMenu.classList.remove('hidden');
-    
-    // Hide menu when clicking anywhere outside
-    setTimeout(() => {
-        document.addEventListener('click', hideContextMenuOnce);
-        document.addEventListener('touchstart', hideContextMenuOnce);
-    }, 100);
-}
-
-function hideContextMenuOnce(e) {
-    // Hide menu regardless of what was clicked
-    hideContextMenu();
-    document.removeEventListener('click', hideContextMenuOnce);
-    document.removeEventListener('touchstart', hideContextMenuOnce);
 }
 
 function hideContextMenu() {
@@ -645,26 +662,12 @@ function hideContextMenu() {
     contextMenuMediaId = null;
 }
 
-// ================= HANDLE REACTION =================
-window.handleReaction = function(mediaId, type) {
-    addReaction(mediaId, type);
-    hideContextMenu();
-};
-
-// ================= HANDLE DOWNLOAD =================
-window.handleDownload = function(mediaId, filename) {
-    const media = allMedia.find(m => m.id === mediaId);
-    if (media) {
-        downloadMedia(media.media_url, filename);
-    }
-    hideContextMenu();
-};
-
 // ================= SETUP CONTEXT MENU =================
 function setupContextMenu(element, mediaId) {
     let touchStart = 0;
     let touchStartX, touchStartY;
     let longPressTriggered = false;
+    let longPressTimer;
     
     // Desktop: Right-click
     element.addEventListener('contextmenu', (e) => {
@@ -674,7 +677,7 @@ function setupContextMenu(element, mediaId) {
         return false;
     });
     
-    // Mobile: Long press
+    // Mobile: Long press - FIXED for Android
     element.addEventListener('touchstart', (e) => {
         touchStart = Date.now();
         touchStartX = e.touches[0].clientX;
@@ -683,9 +686,13 @@ function setupContextMenu(element, mediaId) {
         
         longPressTimer = setTimeout(() => {
             longPressTriggered = true;
+            // Vibrate if supported (gives haptic feedback)
+            if (navigator.vibrate) {
+                navigator.vibrate(50);
+            }
             showContextMenu(e, mediaId);
         }, 500);
-    });
+    }, { passive: false });
     
     element.addEventListener('touchmove', (e) => {
         if (touchStartX && touchStartY) {
@@ -696,19 +703,19 @@ function setupContextMenu(element, mediaId) {
                 clearTimeout(longPressTimer);
             }
         }
-    });
+    }, { passive: true });
     
     element.addEventListener('touchend', (e) => {
         clearTimeout(longPressTimer);
         
-        // Don't do anything if it was a long press
+        // If it was a long press, prevent any other actions
         if (longPressTriggered) {
             e.preventDefault();
             e.stopPropagation();
         }
         
         longPressTriggered = false;
-    });
+    }, { passive: false });
     
     element.addEventListener('touchcancel', () => {
         clearTimeout(longPressTimer);
@@ -956,7 +963,7 @@ function setupTikTokVideoControls(card, mediaId) {
         
         clearTimeout(hideControlsTimeout);
         hideControlsTimeout = setTimeout(() => {
-            if (!isSeeking) {
+            if (!isSeeking && !card.classList.contains('menu-open')) {
                 seekControl.classList.remove('visible');
                 playPauseBtn.classList.remove('visible');
                 controlsVisible = false;
@@ -1074,8 +1081,8 @@ function setupTikTokVideoControls(card, mediaId) {
     }
     
     // Add seek control event listeners
-    seekControl.addEventListener('touchstart', handleSeekStart);
-    seekControl.addEventListener('touchmove', handleSeekMove);
+    seekControl.addEventListener('touchstart', handleSeekStart, { passive: false });
+    seekControl.addEventListener('touchmove', handleSeekMove, { passive: false });
     seekControl.addEventListener('touchend', handleSeekEnd);
     seekControl.addEventListener('touchcancel', handleSeekEnd);
     
@@ -1097,7 +1104,7 @@ function setupTikTokVideoControls(card, mediaId) {
                 }
             }, 100);
         }
-    });
+    }, { passive: true });
     
     // Initial show
     showControls();
@@ -1125,8 +1132,15 @@ function initTikTokModal() {
 }
 
 function setupTikTokEventListeners() {
-    tiktokTypeImage.addEventListener('click', () => setMediaType('image'));
-    tiktokTypeVideo.addEventListener('click', () => setMediaType('video'));
+    tiktokTypeImage.addEventListener('click', (e) => {
+        e.preventDefault();
+        setMediaType('image');
+    });
+    
+    tiktokTypeVideo.addEventListener('click', (e) => {
+        e.preventDefault();
+        setMediaType('video');
+    });
     
     tiktokMediaFile.addEventListener('change', handleTikTokFileSelect);
     
@@ -1134,7 +1148,10 @@ function setupTikTokEventListeners() {
     tiktokDropZone.addEventListener('dragleave', handleDragLeave);
     tiktokDropZone.addEventListener('drop', handleDrop);
     
-    tiktokBrowseBtn.addEventListener('click', () => tiktokMediaFile.click());
+    tiktokBrowseBtn.addEventListener('click', (e) => {
+        e.preventDefault();
+        tiktokMediaFile.click();
+    });
     
     tiktokSaveBtn.addEventListener('click', saveTikTokMedia);
     tiktokCancelBtn.addEventListener('click', closeTikTokModal);
@@ -1376,11 +1393,6 @@ function closeTikTokModal() {
     selectedFile = null;
     
     setMediaType('image');
-    
-    // Go back in history if modal was opened
-    if (history.state && history.state.modal) {
-        history.back();
-    }
 }
 
 // ================= UPLOAD FILE TO CLOUDINARY =================
@@ -1430,38 +1442,121 @@ async function uploadFileToCloudinary(file, type) {
 
 // ================= INITIALIZATION =================
 document.addEventListener("DOMContentLoaded", async () => {
-    await init();
-    createDeleteModal();
-    createJumpToBottomButton();
-    setupScrollListener();
-    setupEventListeners();
-    loadViewedMedia();
-    loadReactions();
-    initTikTokModal();
+    console.log("DOM loaded, initializing...");
     
-    // Load saved theme
-    const savedTheme = localStorage.getItem('selectedTheme') || 'dark';
-    applyTheme(savedTheme);
+    // Force show upload button immediately as fallback
+    if (addMediaBtn) {
+        addMediaBtn.classList.remove("hidden");
+        addMediaBtn.style.display = "inline-flex";
+    }
     
-    // Add theme button to header
-    addThemeButton();
-    
-    // Android back button handling
-    setupBackButtonHandling();
-    
-    // Update add media button click handler
-    addMediaBtn.onclick = openAddModal;
-    
-    window.addEventListener('popstate', handleBackButton);
-    
-    window.addEventListener('scroll', hideContextMenu);
-    window.addEventListener('resize', hideContextMenu);
+    // Small delay to ensure Supabase is ready
+    setTimeout(async () => {
+        await init();
+    }, 100);
 });
+
+async function init() {
+    try {
+        console.log("Initializing gallery...");
+        
+        // Check if supabase is defined
+        if (typeof supabase === 'undefined') {
+            console.error("Supabase not loaded");
+            // Still show upload button even if Supabase fails
+            if (addMediaBtn) {
+                addMediaBtn.classList.remove("hidden");
+                addMediaBtn.style.display = "inline-flex";
+            }
+            return;
+        }
+
+        const { data: { user }, error: userError } = await supabase.auth.getUser();
+        
+        if (userError || !user) {
+            console.log("No user found, redirecting...");
+            window.location.href = "../index.html";
+            return;
+        }
+
+        currentUser = user;
+        console.log("Current user:", user.email);
+
+        const { data: profile, error: profileError } = await supabase
+            .from("profiles")
+            .select("*")
+            .eq("id", user.id)
+            .single();
+
+        if (profileError) {
+            console.error("Profile error:", profileError);
+            return;
+        }
+
+        currentProfile = profile;
+        isAdmin = profile.role === "admin";
+        console.log("Is admin:", isAdmin);
+
+        const userNameEl = document.getElementById('userName');
+        if (userNameEl) {
+            userNameEl.textContent = profile.full_name || 'Member';
+        }
+
+        // FORCE SHOW UPLOAD BUTTON
+        if (addMediaBtn) {
+            addMediaBtn.classList.remove("hidden");
+            addMediaBtn.style.display = "inline-flex";
+            console.log("Upload button should now be visible");
+        } else {
+            console.error("Add media button not found!");
+        }
+
+        // Initialize all components
+        createDeleteModal();
+        createJumpToBottomButton();
+        setupScrollListener();
+        setupEventListeners();
+        loadViewedMedia();
+        loadReactions();
+        initTikTokModal();
+        
+        // Load saved theme
+        const savedTheme = localStorage.getItem('selectedTheme') || 'dark';
+        applyTheme(savedTheme);
+        
+        // Add theme button to header
+        addThemeButton();
+        
+        // Android back button handling
+        setupBackButtonHandling();
+        
+        // Update add media button click handler
+        addMediaBtn.onclick = openAddModal;
+        
+        window.addEventListener('popstate', handleBackButton);
+        
+        window.addEventListener('scroll', hideContextMenu);
+        window.addEventListener('resize', hideContextMenu);
+
+        await loadGallery();
+
+    } catch (err) {
+        console.error("Initialization error:", err);
+        // Still show upload button even if there's an error
+        if (addMediaBtn) {
+            addMediaBtn.classList.remove("hidden");
+            addMediaBtn.style.display = "inline-flex";
+        }
+    }
+}
 
 // ================= ADD THEME BUTTON TO HEADER =================
 function addThemeButton() {
     const topBar = document.querySelector('.top-bar');
     const addBtn = document.getElementById('addMediaBtn');
+    
+    // Check if theme button already exists
+    if (document.getElementById('themeBtn')) return;
     
     const themeBtn = document.createElement('button');
     themeBtn.id = 'themeBtn';
@@ -1503,50 +1598,6 @@ function handleBackButton(e) {
             // Stay on current page
             history.pushState({ page: 'gallery' }, '');
         }
-    }
-}
-
-// ================= INIT =================
-async function init() {
-    try {
-        const { data: { user }, error: userError } = await supabase.auth.getUser();
-        
-        if (userError || !user) {
-            window.location.href = "../index.html";
-            return;
-        }
-
-        currentUser = user;
-        console.log("Current user:", user.email);
-
-        const { data: profile, error: profileError } = await supabase
-            .from("profiles")
-            .select("*")
-            .eq("id", user.id)
-            .single();
-
-        if (profileError) {
-            console.error("Profile error:", profileError);
-            return;
-        }
-
-        currentProfile = profile;
-        isAdmin = profile.role === "admin";
-        console.log("Is admin:", isAdmin);
-
-        const userNameEl = document.getElementById('userName');
-        if (userNameEl) {
-            userNameEl.textContent = profile.full_name || 'Member';
-        }
-
-        if (addMediaBtn) {
-            addMediaBtn.classList.remove("hidden");
-        }
-
-        await loadGallery();
-
-    } catch (err) {
-        console.error("Initialization error:", err);
     }
 }
 
@@ -1614,9 +1665,15 @@ function displayGallery(media) {
     });
 }
 
-// Make functions globally available
-window.handleImageError = handleImageError;
-window.downloadMedia = downloadMedia;
+// ================= SETUP EVENT LISTENERS =================
+function setupEventListeners() {
+    logoutBtn.onclick = async () => {
+        await supabase.auth.signOut();
+        window.location.href = "../index.html";
+    };
+}
+
+// ================= OPEN DELETE MODAL =================
 window.openDeleteModal = function(id) {
     selectedMediaId = id;
     deleteModal.classList.remove('hidden');
@@ -1625,14 +1682,6 @@ window.openDeleteModal = function(id) {
     // Add to history for back button
     history.pushState({ modal: true }, '');
 };
-
-// ================= SETUP EVENT LISTENERS =================
-function setupEventListeners() {
-    logoutBtn.onclick = async () => {
-        await supabase.auth.signOut();
-        window.location.href = "../index.html";
-    };
-}
 
 // ================= CONFIRM DELETE =================
 async function confirmDelete() {
@@ -1666,3 +1715,7 @@ async function confirmDelete() {
         showNotification('Error deleting media', 'error');
     }
 }
+
+// Make functions globally available
+window.handleImageError = handleImageError;
+window.downloadMedia = downloadMedia;
