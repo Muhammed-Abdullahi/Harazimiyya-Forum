@@ -4,7 +4,66 @@
 // Admin: Upload/Remove Sheikh Profile Image via Kebab Menu
 // Members: View All Content
 // Features: Resume reading from last position
+// UPDATED: Fixed file input preview
 // ============================================
+
+// ================= CLOUDINARY CONFIGURATION =================
+const CLOUDINARY_CONFIG = {
+    cloudName: 'df3koezfk',
+    uploadPreset: 'community_upload',
+    folder: 'community-app',
+    subFolders: {
+        image: 'Image',
+        video: 'Video',
+        profile: 'profile-images'
+    }
+};
+
+// Helper function to get Cloudinary upload URL
+function getCloudinaryUploadUrl() {
+    return `https://api.cloudinary.com/v1_1/${CLOUDINARY_CONFIG.cloudName}/auto/upload`;
+}
+
+// ================= CHECK IF URL IS FROM CLOUDINARY =================
+function isCloudinaryUrl(url) {
+    return url && url.includes('cloudinary.com');
+}
+
+// ================= CHECK IF URL IS FROM SUPABASE =================
+function isSupabaseUrl(url) {
+    return url && url.includes('supabase.co');
+}
+
+// ================= GET OPTIMIZED CLOUDINARY URL =================
+function getOptimizedCloudinaryUrl(url, options = {}) {
+    if (!url || !isCloudinaryUrl(url)) return url;
+    
+    if (options.width || options.height) {
+        const parts = url.split('/upload/');
+        if (parts.length === 2) {
+            let transformation = '';
+            if (options.width) transformation += `w_${options.width},`;
+            if (options.height) transformation += `h_${options.height},`;
+            if (options.crop) transformation += `c_${options.crop},`;
+            
+            if (transformation) {
+                transformation = transformation.replace(/,$/, '') + '/';
+                return parts[0] + '/upload/' + transformation + parts[1];
+            }
+        }
+    }
+    return url;
+}
+
+// ================= GET FALLBACK IMAGE =================
+function getFallbackImageUrl() {
+    return 'data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' width=\'400\' height=\'300\' viewBox=\'0 0 400 300\'%3E%3Crect width=\'400\' height=\'300\' fill=\'%230b5e3b\'/%3E%3Ctext x=\'50\' y=\'150\' font-family=\'Arial\' font-size=\'20\' fill=\'%23ffffff\'%3EImage failed to load%3C/text%3E%3C/svg%3E';
+}
+
+// ================= GET PROFILE PLACEHOLDER =================
+function getProfilePlaceholder() {
+    return 'data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' width=\'150\' height=\'150\' viewBox=\'0 0 150 150\'%3E%3Ccircle cx=\'75\' cy=\'75\' r=\'75\' fill=\'%230b5e3b\'/%3E%3Ctext x=\'75\' y=\'90\' font-family=\'Arial\' font-size=\'40\' fill=\'%23ffffff\' text-anchor=\'middle\'%3E👤%3C/text%3E%3C/svg%3E';
+}
 
 // Global variables
 let currentUser = null;
@@ -16,18 +75,19 @@ let selectedFile = null;
 let scrollTimer = null;
 let lastScrollPosition = 0;
 let hasResumeButtonShown = false;
+let failedImages = new Set();
+let currentLightbox = null;
 
-// Use a CDN placeholder to avoid 404
-const DEFAULT_PLACEHOLDER = 'https://placehold.co/150x150/0b5e3b/white?text=Sheikh+Mahadi';
+const PROFILE_PLACEHOLDER = getProfilePlaceholder();
 
 let sheikhProfile = {
-  image_url: DEFAULT_PLACEHOLDER,
+  image_url: PROFILE_PLACEHOLDER,
   name: 'Sheikh Mahadi',
   title: 'Spiritual Leader of Harazimiyya Forum',
   quote: 'Knowledge without sincerity is a burden; sincerity without knowledge is blind.'
 };
 
-// DOM Elements
+// DOM Elements with null checks
 const sidebar = document.getElementById("sidebar");
 const overlay = document.getElementById("overlay");
 const openSidebar = document.getElementById("openSidebar");
@@ -43,8 +103,6 @@ const fileInput = document.getElementById("fileInput");
 const contentType = document.getElementById("contentType");
 const contentTitle = document.getElementById("contentTitle");
 const contentText = document.getElementById("contentText");
-
-// Profile elements
 const sheikhProfileImage = document.getElementById("sheikhProfileImage");
 const sheikhName = document.getElementById("sheikhName");
 const sheikhTitle = document.getElementById("sheikhTitle");
@@ -54,41 +112,41 @@ const profileMenuBtn = document.getElementById("profileMenuBtn");
 const profileMenuDropdown = document.getElementById("profileMenuDropdown");
 const uploadProfileImageBtn = document.getElementById("uploadProfileImageBtn");
 const removeProfileImageBtn = document.getElementById("removeProfileImageBtn");
-
-// Profile upload modal
 const profileImageUploadModal = document.getElementById("profileImageUploadModal");
 const closeProfileUploadModalBtn = document.getElementById("closeProfileUploadModalBtn");
 const profileImageFile = document.getElementById("profileImageFile");
 const profileImagePreview = document.getElementById("profileImagePreview");
 const saveProfileImageBtn = document.getElementById("saveProfileImageBtn");
-
-// Confirm remove modal
 const confirmRemoveModal = document.getElementById("confirmRemoveModal");
 const confirmRemoveBtn = document.getElementById("confirmRemoveBtn");
 const cancelRemoveBtn = document.getElementById("cancelRemoveBtn");
-
-// Resume elements
 const resumeContainer = document.getElementById("resumeButtonContainer");
 const resumeBtn = document.getElementById("resumeReadingBtn");
 
 // Delete modal (will be created dynamically)
 let deleteModal = null;
 
-// ================= SIDEBAR TOGGLE =================
-openSidebar.onclick = () => {
-  sidebar.classList.add("active");
-  overlay.classList.add("active");
-};
+// ================= SIDEBAR TOGGLE WITH NULL CHECKS =================
+if (openSidebar) {
+    openSidebar.onclick = () => {
+        if (sidebar) sidebar.classList.add("active");
+        if (overlay) overlay.classList.add("active");
+    };
+}
 
-closeSidebar.onclick = () => {
-  sidebar.classList.remove("active");
-  overlay.classList.remove("active");
-};
+if (closeSidebar) {
+    closeSidebar.onclick = () => {
+        if (sidebar) sidebar.classList.remove("active");
+        if (overlay) overlay.classList.remove("active");
+    };
+}
 
-overlay.onclick = () => {
-  sidebar.classList.remove("active");
-  overlay.classList.remove("active");
-};
+if (overlay) {
+    overlay.onclick = () => {
+        if (sidebar) sidebar.classList.remove("active");
+        if (overlay) overlay.classList.remove("active");
+    };
+}
 
 // ================= NOTIFICATION FUNCTION =================
 function showNotification(message, type = 'success') {
@@ -103,6 +161,44 @@ function showNotification(message, type = 'success') {
   setTimeout(() => {
     notification.remove();
   }, 3000);
+}
+
+// ================= LIGHTBOX FUNCTION =================
+function createLightbox(src) {
+    if (currentLightbox) {
+        currentLightbox.remove();
+    }
+    
+    const lightbox = document.createElement('div');
+    lightbox.className = 'lightbox-modal';
+    lightbox.style.cssText = `
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background: rgba(0,0,0,0.95);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        z-index: 10000;
+        cursor: pointer;
+    `;
+    
+    lightbox.innerHTML = `
+        <img src="${src}" style="max-width: 90%; max-height: 90%; object-fit: contain; border-radius: 8px; box-shadow: 0 10px 40px rgba(0,0,0,0.5);">
+        <button style="position: absolute; top: 20px; right: 20px; background: white; border: none; width: 44px; height: 44px; border-radius: 50%; font-size: 24px; cursor: pointer; box-shadow: 0 2px 10px rgba(0,0,0,0.3); display: flex; align-items: center; justify-content: center; z-index: 10001;">✕</button>
+    `;
+    
+    document.body.appendChild(lightbox);
+    currentLightbox = lightbox;
+    
+    lightbox.onclick = (e) => {
+        if (e.target === lightbox || e.target.tagName === 'BUTTON') {
+            lightbox.remove();
+            currentLightbox = null;
+        }
+    };
 }
 
 // ================= CREATE DELETE MODAL =================
@@ -124,12 +220,19 @@ function createDeleteModal() {
   document.body.insertAdjacentHTML('beforeend', deleteModalHTML);
   deleteModal = document.getElementById('deleteModal');
   
-  document.getElementById('cancelDeleteBtn').onclick = () => {
-    deleteModal.classList.add('hidden');
-    selectedContentId = null;
-  };
+  const cancelBtn = document.getElementById('cancelDeleteBtn');
+  const confirmBtn = document.getElementById('confirmDeleteBtn');
   
-  document.getElementById('confirmDeleteBtn').onclick = confirmDelete;
+  if (cancelBtn) {
+    cancelBtn.onclick = () => {
+      if (deleteModal) deleteModal.classList.add('hidden');
+      selectedContentId = null;
+    };
+  }
+  
+  if (confirmBtn) {
+    confirmBtn.onclick = confirmDelete;
+  }
 }
 
 // ================= CREATE SCROLL PROGRESS BAR =================
@@ -164,29 +267,21 @@ function setupScrollTracking() {
   const jumpBtn = document.getElementById('jumpToTopBtn');
   
   window.addEventListener('scroll', () => {
-    // Calculate scroll percentage
     const winScroll = document.documentElement.scrollTop;
     const height = document.documentElement.scrollHeight - document.documentElement.clientHeight;
     const scrolled = (winScroll / height) * 100;
     
-    // Update progress bar
     if (progressBar) {
       progressBar.style.width = scrolled + '%';
     }
     
-    // Show/hide jump to top button
     if (jumpBtn) {
-      if (winScroll > 400) {
-        jumpBtn.style.display = 'flex';
-      } else {
-        jumpBtn.style.display = 'none';
-      }
+      jumpBtn.style.display = winScroll > 400 ? 'flex' : 'none';
     }
     
-    // Save scroll position to localStorage (debounced)
     if (scrollTimer) clearTimeout(scrollTimer);
     scrollTimer = setTimeout(() => {
-      if (winScroll > 100) { // Only save if scrolled down a bit
+      if (winScroll > 100) {
         localStorage.setItem('sheikhHistoryScroll', winScroll);
         localStorage.setItem('sheikhHistoryTimestamp', Date.now());
         console.log("📝 Saved scroll position:", winScroll);
@@ -200,22 +295,16 @@ function checkSavedScrollPosition() {
   const savedScroll = localStorage.getItem('sheikhHistoryScroll');
   const savedTimestamp = localStorage.getItem('sheikhHistoryTimestamp');
   
-  if (!savedScroll || !savedTimestamp) {
-    console.log("📖 No saved scroll position");
-    return false;
-  }
+  if (!savedScroll || !savedTimestamp) return false;
   
-  // Check if saved position is from last 24 hours (86400000 ms)
   const hoursSinceSaved = (Date.now() - parseInt(savedTimestamp)) / (1000 * 60 * 60);
   
   if (hoursSinceSaved > 24) {
-    console.log("📖 Saved position is older than 24 hours, clearing");
     localStorage.removeItem('sheikhHistoryScroll');
     localStorage.removeItem('sheikhHistoryTimestamp');
     return false;
   }
   
-  // Check if scroll position is valid
   const maxScroll = document.documentElement.scrollHeight - document.documentElement.clientHeight;
   const scrollPos = parseInt(savedScroll);
   
@@ -231,28 +320,23 @@ function checkSavedScrollPosition() {
 function showResumeButton(scrollPosition) {
   if (!resumeContainer || hasResumeButtonShown) return;
   
-  // Format the position as percentage
   const maxScroll = document.documentElement.scrollHeight - document.documentElement.clientHeight;
   const percentage = Math.round((scrollPosition / maxScroll) * 100);
   
   resumeContainer.classList.remove('hidden');
   hasResumeButtonShown = true;
   
-  // Add click handler
-  resumeBtn.onclick = () => {
-    window.scrollTo({
-      top: scrollPosition,
-      behavior: 'smooth'
-    });
-    
-    // Hide the button after clicking
-    resumeContainer.classList.add('hidden');
-    
-    // Show notification
-    showNotification('📖 Continuing from where you left off', 'success', 2000);
-  };
+  if (resumeBtn) {
+    resumeBtn.onclick = () => {
+      window.scrollTo({
+        top: scrollPosition,
+        behavior: 'smooth'
+      });
+      resumeContainer.classList.add('hidden');
+      showNotification('📖 Continuing from where you left off', 'success', 2000);
+    };
+  }
   
-  // Auto-hide after 10 seconds
   setTimeout(() => {
     if (resumeContainer && !resumeContainer.classList.contains('hidden')) {
       resumeContainer.classList.add('hidden');
@@ -260,17 +344,61 @@ function showResumeButton(scrollPosition) {
   }, 10000);
 }
 
+// ================= UPLOAD FILE TO CLOUDINARY =================
+async function uploadFileToCloudinary(file, type, subfolder = '') {
+  try {
+    if (!file) throw new Error("No file to upload");
+    
+    console.log("📤 Uploading to Cloudinary:", file.name, file.type);
+    
+    let folder = CLOUDINARY_CONFIG.folder;
+    if (subfolder) {
+      folder += '/' + subfolder;
+    } else if (type === 'image') {
+      folder += '/' + CLOUDINARY_CONFIG.subFolders.image;
+    } else if (type === 'video') {
+      folder += '/' + CLOUDINARY_CONFIG.subFolders.video;
+    }
+    
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('upload_preset', CLOUDINARY_CONFIG.uploadPreset);
+    formData.append('folder', folder);
+    
+    showNotification('📤 Uploading to Cloudinary...', 'info');
+    
+    const response = await fetch(getCloudinaryUploadUrl(), {
+      method: 'POST',
+      body: formData
+    });
+    
+    if (!response.ok) {
+      const errorData = await response.json();
+      throw new Error(errorData.error?.message || 'Cloudinary upload failed');
+    }
+    
+    const data = await response.json();
+    console.log("✅ Cloudinary upload successful:", data.secure_url);
+    showNotification('✅ Uploaded to Cloudinary', 'success');
+    
+    return data.secure_url;
+    
+  } catch (err) {
+    console.error("❌ Error uploading to Cloudinary:", err);
+    showNotification('Failed to upload to Cloudinary: ' + err.message, 'error');
+    throw err;
+  }
+}
+
 // ================= LOAD SHEIKH PROFILE =================
 async function loadSheikhProfile() {
   try {
     console.log("📋 Loading sheikh profile...");
     
-    // Set default image first
     if (sheikhProfileImage) {
-      sheikhProfileImage.src = DEFAULT_PLACEHOLDER;
+      sheikhProfileImage.src = PROFILE_PLACEHOLDER;
     }
     
-    // Try to get profile from database
     const { data, error } = await supabase
       .from('sheikh_profile')
       .select('*')
@@ -279,13 +407,9 @@ async function loadSheikhProfile() {
 
     if (error) {
       console.error("Error loading profile:", error);
-      
-      // If table doesn't exist, show a message
       if (error.code === '42P01') {
-        console.log("⚠️ sheikh_profile table doesn't exist yet");
         showNotification("Profile table not set up. Please run SQL setup.", "warning");
       } else if (error.code === '42501') {
-        console.log("⚠️ Permission denied. Check RLS policies.");
         showNotification("Permission denied. Admin may need to fix RLS policies.", "warning");
       }
       return;
@@ -296,23 +420,18 @@ async function loadSheikhProfile() {
       sheikhProfile = { ...sheikhProfile, ...data };
     } else {
       console.log("📝 No profile found in DB, using defaults");
-      // Try to create default profile
       await saveSheikhProfile(sheikhProfile);
     }
 
-    // Update UI
     if (sheikhProfileImage) {
-      sheikhProfileImage.src = sheikhProfile.image_url || DEFAULT_PLACEHOLDER;
+      sheikhProfileImage.src = sheikhProfile.image_url || PROFILE_PLACEHOLDER;
+      sheikhProfileImage.onerror = () => {
+        if (sheikhProfileImage) sheikhProfileImage.src = PROFILE_PLACEHOLDER;
+      };
     }
-    if (sheikhName) {
-      sheikhName.textContent = sheikhProfile.name;
-    }
-    if (sheikhTitle) {
-      sheikhTitle.textContent = sheikhProfile.title;
-    }
-    if (sheikhQuote) {
-      sheikhQuote.textContent = sheikhProfile.quote;
-    }
+    if (sheikhName) sheikhName.textContent = sheikhProfile.name;
+    if (sheikhTitle) sheikhTitle.textContent = sheikhProfile.title;
+    if (sheikhQuote) sheikhQuote.textContent = sheikhProfile.quote;
 
   } catch (err) {
     console.error("Error loading sheikh profile:", err);
@@ -333,8 +452,6 @@ async function saveSheikhProfile(updates) {
 
     if (error) {
       console.error("Error saving profile:", error);
-      
-      // More detailed error message
       if (error.code === '42P01') {
         showNotification("Database table not set up. Please run SQL setup.", "error");
       } else if (error.code === '42501') {
@@ -355,55 +472,60 @@ async function saveSheikhProfile(updates) {
   }
 }
 
+// ================= UPLOAD PROFILE IMAGE TO CLOUDINARY =================
+async function uploadProfileImageToCloudinary(file) {
+  try {
+    if (!file) throw new Error("No file selected");
+    if (file.size > 5 * 1024 * 1024) throw new Error("Image too large. Maximum size is 5MB.");
+    if (!file.type.startsWith('image/')) throw new Error("Please select a valid image file.");
+
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('upload_preset', CLOUDINARY_CONFIG.uploadPreset);
+    formData.append('folder', `${CLOUDINARY_CONFIG.folder}/${CLOUDINARY_CONFIG.subFolders.profile}`);
+    
+    showNotification('📤 Uploading profile image to Cloudinary...', 'info');
+    
+    const response = await fetch(getCloudinaryUploadUrl(), {
+      method: 'POST',
+      body: formData
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json();
+      throw new Error(errorData.error?.message || 'Cloudinary upload failed');
+    }
+
+    const data = await response.json();
+    console.log("✅ Cloudinary profile upload successful:", data.secure_url);
+    
+    return data.secure_url;
+  } catch (err) {
+    console.error("Error uploading profile image:", err);
+    throw err;
+  }
+}
+
 // ================= UPLOAD PROFILE IMAGE =================
 async function uploadProfileImage(file) {
   try {
-    if (!file) throw new Error("No file selected");
-
-    console.log("📤 Uploading profile image:", file.name);
-
-    // Validate file size (5MB max for profile)
-    if (file.size > 5 * 1024 * 1024) {
-      throw new Error("Image too large. Maximum size is 5MB.");
-    }
-
-    // Validate file type
-    if (!file.type.startsWith('image/')) {
-      throw new Error("Please select a valid image file.");
-    }
-
-    // Create a unique filename
-    const timestamp = Date.now();
-    const fileExt = file.name.split('.').pop();
-    const fileName = `sheikh-profile/${timestamp}_profile.${fileExt}`;
+    const imageUrl = await uploadProfileImageToCloudinary(file);
     
-    console.log("📁 Uploading to path:", fileName);
-
-    // Upload new image
-    const { error: uploadError } = await supabase.storage
-      .from('sheikh-media')
-      .upload(fileName, file, { 
-        cacheControl: '3600',
-        upsert: true 
-      });
-
-    if (uploadError) {
-      console.error("Upload error:", uploadError);
-      throw uploadError;
+    if (sheikhProfile.image_url && !sheikhProfile.image_url.includes('data:image') && isSupabaseUrl(sheikhProfile.image_url)) {
+      try {
+        const urlParts = sheikhProfile.image_url.split('/');
+        const oldFileName = urlParts[urlParts.length - 1];
+        if (oldFileName) {
+          const oldPath = `sheikh-profile/${oldFileName}`;
+          await supabase.storage.from('sheikh-media').remove([oldPath]);
+          console.log("🗑️ Old Supabase image removed:", oldPath);
+        }
+      } catch (e) {
+        console.log("Could not remove old image:", e);
+      }
     }
-
-    console.log("✅ File uploaded successfully");
-
-    // Get public URL
-    const { data: { publicUrl } } = supabase.storage
-      .from('sheikh-media')
-      .getPublicUrl(fileName);
-
-    console.log("📸 Public URL:", publicUrl);
-
-    return publicUrl;
+    return imageUrl;
   } catch (err) {
-    console.error("Error uploading profile image:", err);
     throw err;
   }
 }
@@ -411,18 +533,13 @@ async function uploadProfileImage(file) {
 // ================= REMOVE PROFILE IMAGE =================
 async function removeProfileImage() {
   try {
-    // Remove old image if exists (and not placeholder)
-    if (sheikhProfile.image_url && 
-        !sheikhProfile.image_url.includes('placehold.co') && 
-        !sheikhProfile.image_url.includes('placeholder')) {
+    if (sheikhProfile.image_url && !sheikhProfile.image_url.includes('data:image') && isSupabaseUrl(sheikhProfile.image_url)) {
       try {
         const urlParts = sheikhProfile.image_url.split('/');
         const oldFileName = urlParts[urlParts.length - 1];
         if (oldFileName) {
           const oldPath = `sheikh-profile/${oldFileName}`;
-          await supabase.storage
-            .from('sheikh-media')
-            .remove([oldPath]);
+          await supabase.storage.from('sheikh-media').remove([oldPath]);
           console.log("🗑️ Old image removed:", oldPath);
         }
       } catch (e) {
@@ -430,11 +547,10 @@ async function removeProfileImage() {
       }
     }
 
-    // Update profile with placeholder
-    const success = await saveSheikhProfile({ image_url: DEFAULT_PLACEHOLDER });
+    const success = await saveSheikhProfile({ image_url: PROFILE_PLACEHOLDER });
     
-    if (success) {
-      sheikhProfileImage.src = DEFAULT_PLACEHOLDER;
+    if (success && sheikhProfileImage) {
+      sheikhProfileImage.src = PROFILE_PLACEHOLDER;
       showNotification('✅ Profile image removed', 'success');
     }
   } catch (err) {
@@ -450,70 +566,64 @@ function setupKebabMenu() {
     return;
   }
 
-  // Show the menu for admin
-  if (profileMenu) {
-    profileMenu.style.display = 'block';
-  }
+  if (profileMenu) profileMenu.style.display = 'block';
 
-  // Toggle dropdown on button click
   if (profileMenuBtn) {
     profileMenuBtn.addEventListener('click', (e) => {
       e.preventDefault();
       e.stopPropagation();
-      profileMenuDropdown.classList.toggle('show');
+      if (profileMenuDropdown) profileMenuDropdown.classList.toggle('show');
     });
   }
 
-  // Close dropdown when clicking outside
   document.addEventListener('click', (e) => {
-    if (!profileMenu?.contains(e.target)) {
-      profileMenuDropdown?.classList.remove('show');
+    if (profileMenuDropdown && !profileMenu?.contains(e.target)) {
+      profileMenuDropdown.classList.remove('show');
     }
   });
 
-  // Upload button click
   if (uploadProfileImageBtn) {
     uploadProfileImageBtn.addEventListener('click', () => {
-      profileMenuDropdown.classList.remove('show');
-      profileImageUploadModal.classList.remove('hidden');
-      profileImagePreview.src = sheikhProfile.image_url || DEFAULT_PLACEHOLDER;
+      if (profileMenuDropdown) profileMenuDropdown.classList.remove('show');
+      if (profileImageUploadModal) {
+        profileImageUploadModal.classList.remove('hidden');
+        if (profileImagePreview) {
+          profileImagePreview.src = sheikhProfile.image_url || PROFILE_PLACEHOLDER;
+        }
+      }
     });
   }
 
-  // Remove button click
   if (removeProfileImageBtn) {
     removeProfileImageBtn.addEventListener('click', () => {
-      profileMenuDropdown.classList.remove('show');
-      confirmRemoveModal.classList.remove('hidden');
+      if (profileMenuDropdown) profileMenuDropdown.classList.remove('show');
+      if (confirmRemoveModal) confirmRemoveModal.classList.remove('hidden');
     });
   }
 
-  // Close upload modal
   if (closeProfileUploadModalBtn) {
     closeProfileUploadModalBtn.addEventListener('click', () => {
-      profileImageUploadModal.classList.add('hidden');
-      profileImageFile.value = '';
+      if (profileImageUploadModal) profileImageUploadModal.classList.add('hidden');
+      if (profileImageFile) profileImageFile.value = '';
     });
   }
 
-  // Image preview
   if (profileImageFile) {
     profileImageFile.addEventListener('change', (e) => {
       const file = e.target.files[0];
-      if (file) {
+      if (file && profileImagePreview) {
         const reader = new FileReader();
         reader.onload = (e) => {
-          profileImagePreview.src = e.target.result;
+          if (profileImagePreview) profileImagePreview.src = e.target.result;
         };
         reader.readAsDataURL(file);
       }
     });
   }
 
-  // Save uploaded image
   if (saveProfileImageBtn) {
     saveProfileImageBtn.addEventListener('click', async () => {
-      const file = profileImageFile.files[0];
+      const file = profileImageFile?.files[0];
       
       if (!file) {
         showNotification('Please select an image', 'error');
@@ -525,65 +635,44 @@ function setupKebabMenu() {
 
       try {
         const imageUrl = await uploadProfileImage(file);
-        
-        // Remove old image before saving new one
-        if (sheikhProfile.image_url && 
-            !sheikhProfile.image_url.includes('placehold.co') && 
-            !sheikhProfile.image_url.includes('placeholder')) {
-          try {
-            const urlParts = sheikhProfile.image_url.split('/');
-            const oldFileName = urlParts[urlParts.length - 1];
-            if (oldFileName) {
-              const oldPath = `sheikh-profile/${oldFileName}`;
-              await supabase.storage
-                .from('sheikh-media')
-                .remove([oldPath]);
-            }
-          } catch (e) {
-            console.log("Could not remove old image:", e);
-          }
-        }
-
         const success = await saveSheikhProfile({ image_url: imageUrl });
 
-        if (success) {
+        if (success && sheikhProfileImage) {
           sheikhProfileImage.src = imageUrl;
-          profileImageUploadModal.classList.add('hidden');
+          sheikhProfileImage.onerror = () => {
+            if (sheikhProfileImage) sheikhProfileImage.src = PROFILE_PLACEHOLDER;
+          };
+          if (profileImageUploadModal) profileImageUploadModal.classList.add('hidden');
           showNotification('✅ Profile image updated successfully!', 'success');
-        } else {
-          showNotification('❌ Failed to update profile image', 'error');
         }
       } catch (err) {
         showNotification('❌ Error: ' + err.message, 'error');
       } finally {
         saveProfileImageBtn.disabled = false;
         saveProfileImageBtn.innerHTML = '<i class="fas fa-save"></i> Upload Image';
-        profileImageFile.value = '';
+        if (profileImageFile) profileImageFile.value = '';
       }
     });
   }
 
-  // Close confirm remove modal
   if (cancelRemoveBtn) {
     cancelRemoveBtn.addEventListener('click', () => {
-      confirmRemoveModal.classList.add('hidden');
+      if (confirmRemoveModal) confirmRemoveModal.classList.add('hidden');
     });
   }
 
-  // Confirm remove
   if (confirmRemoveBtn) {
     confirmRemoveBtn.addEventListener('click', async () => {
-      confirmRemoveModal.classList.add('hidden');
+      if (confirmRemoveModal) confirmRemoveModal.classList.add('hidden');
       await removeProfileImage();
     });
   }
 
-  // Close modals when clicking outside
   window.addEventListener('click', (e) => {
-    if (e.target === profileImageUploadModal) {
+    if (e.target === profileImageUploadModal && profileImageUploadModal) {
       profileImageUploadModal.classList.add('hidden');
     }
-    if (e.target === confirmRemoveModal) {
+    if (e.target === confirmRemoveModal && confirmRemoveModal) {
       confirmRemoveModal.classList.add('hidden');
     }
   });
@@ -593,7 +682,6 @@ function setupKebabMenu() {
 document.addEventListener("DOMContentLoaded", async () => {
   console.log("🚀 Sheikh History page initializing...");
   
-  // Create UI elements
   createScrollProgressBar();
   createJumpToTopButton();
   
@@ -610,7 +698,6 @@ async function init() {
     const { data: { user }, error: userError } = await supabase.auth.getUser();
     
     if (userError || !user) {
-      console.log("No user found, redirecting to login");
       window.location.href = "../index.html";
       return;
     }
@@ -618,7 +705,6 @@ async function init() {
     currentUser = user;
     console.log("Current user:", user.email);
 
-    // Get user profile
     const { data: profile, error: profileError } = await supabase
       .from("profiles")
       .select("*")
@@ -634,22 +720,16 @@ async function init() {
     isAdmin = profile.role === "admin";
     console.log("Is admin:", isAdmin);
 
-    // Show admin controls
-    if (isAdmin) {
-      if (addSectionBtn) {
-        addSectionBtn.classList.remove("hidden");
-      }
-    }
+    const userNameEl = document.getElementById('userName');
+    if (userNameEl) userNameEl.textContent = profile.full_name || 'Member';
 
-    // Load content
+    if (isAdmin && addSectionBtn) addSectionBtn.classList.remove("hidden");
+
     await loadContent();
 
-    // Check for saved scroll position after content loads
     setTimeout(() => {
       const savedScroll = checkSavedScrollPosition();
-      if (savedScroll) {
-        showResumeButton(savedScroll);
-      }
+      if (savedScroll) showResumeButton(savedScroll);
     }, 1000);
 
   } catch (err) {
@@ -659,7 +739,8 @@ async function init() {
 
 // ================= LOAD CONTENT =================
 async function loadContent() {
-  // Show loading spinner
+  if (!contentArea) return;
+  
   contentArea.innerHTML = `
     <div class="loading-spinner">
       <i class="fas fa-spinner fa-spin"></i> Loading content...
@@ -670,12 +751,19 @@ async function loadContent() {
     const { data, error } = await supabase
       .from("sheikh_history")
       .select("*")
-      .order("created_at", { ascending: false });
+      .order("created_at", { ascending: true });
 
     if (error) throw error;
 
     allContent = data || [];
     displayContent(allContent);
+    
+    setTimeout(() => {
+      window.scrollTo({
+        top: document.body.scrollHeight,
+        behavior: 'smooth'
+      });
+    }, 500);
 
   } catch (err) {
     console.error("Error loading content:", err);
@@ -691,6 +779,8 @@ async function loadContent() {
 
 // ================= DISPLAY CONTENT =================
 function displayContent(content) {
+  if (!contentArea) return;
+  
   contentArea.innerHTML = "";
 
   if (!content || content.length === 0) {
@@ -704,9 +794,13 @@ function displayContent(content) {
     return;
   }
 
-  content.forEach(item => {
+  const sortedContent = [...content].sort((a, b) => 
+    new Date(a.created_at) - new Date(b.created_at)
+  );
+
+  sortedContent.forEach(item => {
     const card = createContentCard(item);
-    contentArea.appendChild(card);
+    if (card) contentArea.appendChild(card);
   });
 }
 
@@ -721,6 +815,9 @@ function createContentCard(item) {
     month: 'short',
     day: 'numeric'
   });
+  
+  const cloudBadge = isCloudinaryUrl(item.media_url) ? 
+    '<span class="cloud-badge" style="margin-left: 8px; font-size: 0.7rem; background: #0b5e3b; color: white; padding: 2px 6px; border-radius: 4px;"><i class="fas fa-cloud"></i> Cloud</span>' : '';
   
   let content = '';
   
@@ -737,10 +834,15 @@ function createContentCard(item) {
       </div>
     `;
   } else if (item.content_type === 'image') {
+    let imageUrl = item.media_url;
+    if (isCloudinaryUrl(item.media_url)) {
+      imageUrl = getOptimizedCloudinaryUrl(item.media_url, { width: 400, height: 300, crop: 'limit' });
+    }
+    
     content = `
-      <img src="${item.media_url}" alt="${item.title}" class="card-media" loading="lazy">
+      <img src="${imageUrl}" alt="${item.title}" class="card-media" loading="lazy" onclick="viewImage('${item.media_url}')" style="cursor: pointer;" onerror="this.onerror=null; this.src='${getFallbackImageUrl()}';">
       <div class="card-content">
-        <h3>${item.title}</h3>
+        <h3>${item.title} ${cloudBadge}</h3>
         <div class="card-meta">
           <span><i class="fas fa-calendar"></i> ${date}</span>
         </div>
@@ -753,7 +855,7 @@ function createContentCard(item) {
         Your browser does not support the video tag.
       </video>
       <div class="card-content">
-        <h3>${item.title}</h3>
+        <h3>${item.title} ${cloudBadge}</h3>
         <div class="card-meta">
           <span><i class="fas fa-calendar"></i> ${date}</span>
         </div>
@@ -779,72 +881,94 @@ function createContentCard(item) {
   return card;
 }
 
+// ================= VIEW IMAGE FUNCTION =================
+window.viewImage = function(url) {
+    createLightbox(url);
+};
+
+// ================= CLEAR MODAL CONTENT HELPER =================
+function clearModalContent() {
+    // Remove file info
+    const fileInfo = document.querySelector('.file-info');
+    if (fileInfo) fileInfo.remove();
+    
+    // Remove preview image
+    const preview = document.querySelector('.preview-image');
+    if (preview) preview.remove();
+}
+
 // ================= SETUP EVENT LISTENERS =================
 function setupEventListeners() {
-  // Modal controls
   if (addSectionBtn) addSectionBtn.onclick = openAddModal;
   if (closeModalBtn) closeModalBtn.onclick = closeModal;
-  if (selectFileBtn) selectFileBtn.onclick = () => fileInput.click();
+  if (selectFileBtn) selectFileBtn.onclick = () => fileInput?.click();
   
   if (fileInput) {
-    fileInput.onchange = (e) => {
-      selectedFile = e.target.files[0];
-      if (selectedFile) {
-        // Show file info
+    fileInput.onchange = function(e) {
+      console.log('File input changed', e.target.files);
+      
+      // Check if files exist
+      if (e.target.files && e.target.files.length > 0) {
+        const file = e.target.files[0];
+        selectedFile = file;
+        
+        // Clear old previews
+        clearModalContent();
+        
+        // Create new file info
         const fileInfo = document.createElement('div');
         fileInfo.className = 'file-info';
         fileInfo.innerHTML = `
           <i class="fas fa-check-circle" style="color: var(--success);"></i>
-          <span>Selected: ${selectedFile.name} (${(selectedFile.size / 1024).toFixed(2)} KB)</span>
+          <span>Selected: ${file.name} (${(file.size / 1024).toFixed(2)} KB) - will upload to Cloudinary</span>
         `;
         
-        // Remove existing file info
-        const existingInfo = document.querySelector('.file-info');
-        if (existingInfo) existingInfo.remove();
-        
-        selectFileBtn.parentNode.insertBefore(fileInfo, selectFileBtn.nextSibling);
+        if (selectFileBtn) {
+          selectFileBtn.parentNode.insertBefore(fileInfo, selectFileBtn.nextSibling);
+        }
         
         // Show preview for images
-        if (contentType.value === 'image' && selectedFile.type.startsWith('image/')) {
+        if (contentType && contentType.value === 'image' && file.type.startsWith('image/')) {
           const reader = new FileReader();
-          reader.onload = (e) => {
+          reader.onload = function(readerEvent) {
             const preview = document.createElement('img');
-            preview.src = e.target.result;
+            preview.src = readerEvent.target.result;
             preview.className = 'preview-image';
-            
-            const existingPreview = document.querySelector('.preview-image');
-            if (existingPreview) existingPreview.remove();
-            
-            fileInfo.insertAdjacentElement('afterend', preview);
+            if (fileInfo.nextSibling) {
+              fileInfo.parentNode.insertBefore(preview, fileInfo.nextSibling);
+            } else {
+              fileInfo.parentNode.appendChild(preview);
+            }
           };
-          reader.readAsDataURL(selectedFile);
+          reader.readAsDataURL(file);
         }
       }
     };
   }
   
-  // Content type change
   if (contentType) {
     contentType.onchange = () => {
-      const isText = contentType.value === 'text';
-      if (contentText) contentText.style.display = isText ? 'block' : 'none';
-      if (selectFileBtn) selectFileBtn.style.display = isText ? 'none' : 'inline-block';
-      if (fileInput) fileInput.value = '';
-      selectedFile = null;
-      
-      // Remove file info and preview
-      const fileInfo = document.querySelector('.file-info');
-      if (fileInfo) fileInfo.remove();
-      
-      const preview = document.querySelector('.preview-image');
-      if (preview) preview.remove();
+        const isText = contentType.value === 'text';
+        
+        // Show/hide textarea
+        if (contentText) {
+            contentText.style.display = isText ? 'block' : 'none';
+        }
+        
+        // Show/hide select file button
+        if (selectFileBtn) {
+            selectFileBtn.style.display = isText ? 'none' : 'inline-block';
+        }
+        
+        // Clear file input and preview when switching types
+        if (fileInput) fileInput.value = '';
+        selectedFile = null;
+        clearModalContent();
     };
   }
   
-  // Save content
   if (saveContentBtn) saveContentBtn.onclick = saveContent;
   
-  // Logout
   if (logoutBtn) {
     logoutBtn.onclick = async () => {
       localStorage.removeItem('sheikhHistoryScroll');
@@ -857,23 +981,21 @@ function setupEventListeners() {
 
 // ================= OPEN ADD MODAL =================
 function openAddModal() {
-  document.querySelector('#uploadModal h3').textContent = 'Add Sheikh Content';
+  const modalTitle = document.querySelector('#uploadModal h3');
+  if (modalTitle) modalTitle.textContent = 'Add Sheikh Content';
   if (contentTitle) contentTitle.value = '';
   if (contentText) contentText.value = '';
   if (contentType) contentType.value = 'text';
-  selectedFile = null;
+  
+  // Clear all modal content
   if (fileInput) fileInput.value = '';
+  selectedFile = null;
+  clearModalContent();
   selectedContentId = null;
   
-  // Reset UI
+  // Set initial UI state
   if (contentText) contentText.style.display = 'block';
   if (selectFileBtn) selectFileBtn.style.display = 'none';
-  
-  const fileInfo = document.querySelector('.file-info');
-  if (fileInfo) fileInfo.remove();
-  
-  const preview = document.querySelector('.preview-image');
-  if (preview) preview.remove();
   
   if (uploadModal) uploadModal.classList.remove('hidden');
 }
@@ -883,39 +1005,47 @@ window.editContent = function(id) {
   const item = allContent.find(c => c.id === id);
   if (!item) return;
   
-  document.querySelector('#uploadModal h3').textContent = 'Edit Content';
+  const modalTitle = document.querySelector('#uploadModal h3');
+  if (modalTitle) modalTitle.textContent = 'Edit Content';
   if (contentTitle) contentTitle.value = item.title || '';
   if (contentText) contentText.value = item.content || '';
   if (contentType) contentType.value = item.content_type;
   selectedContentId = id;
+  
+  // Clear any existing modal content first
+  if (fileInput) fileInput.value = '';
   selectedFile = null;
+  clearModalContent();
   
   const isText = item.content_type === 'text';
-  if (contentText) contentText.style.display = isText ? 'block' : 'none';
-  if (selectFileBtn) selectFileBtn.style.display = isText ? 'none' : 'inline-block';
   
-  // Show existing file info for media
+  // Set UI based on content type
+  if (contentText) {
+    contentText.style.display = isText ? 'block' : 'none';
+  }
+  
+  if (selectFileBtn) {
+    selectFileBtn.style.display = isText ? 'none' : 'inline-block';
+  }
+  
   if (!isText && item.media_url && selectFileBtn) {
+    const source = isCloudinaryUrl(item.media_url) ? 'Cloudinary' : 'Supabase';
     const fileInfo = document.createElement('div');
     fileInfo.className = 'file-info';
     fileInfo.innerHTML = `
       <i class="fas fa-check-circle" style="color: var(--success);"></i>
-      <span>Current file: ${item.media_url.split('/').pop()}</span>
+      <span>Current file: ${item.media_url.split('/').pop()} (from ${source})</span>
     `;
-    
-    const existingInfo = document.querySelector('.file-info');
-    if (existingInfo) existingInfo.remove();
     
     selectFileBtn.parentNode.insertBefore(fileInfo, selectFileBtn.nextSibling);
     
-    // Show preview for images
     if (item.content_type === 'image') {
       const preview = document.createElement('img');
       preview.src = item.media_url;
       preview.className = 'preview-image';
-      
-      const existingPreview = document.querySelector('.preview-image');
-      if (existingPreview) existingPreview.remove();
+      preview.onerror = () => {
+        preview.src = getFallbackImageUrl();
+      };
       
       fileInfo.insertAdjacentElement('afterend', preview);
     }
@@ -926,47 +1056,44 @@ window.editContent = function(id) {
 
 // ================= SAVE CONTENT =================
 async function saveContent() {
-  const title = contentTitle.value.trim();
+  const title = contentTitle?.value.trim();
   if (!title) {
     showNotification('Please enter a title', 'error');
     return;
   }
 
-  const type = contentType.value;
+  const type = contentType?.value;
   let mediaUrl = null;
   let content = null;
 
+  if (saveContentBtn) {
+    saveContentBtn.disabled = true;
+    saveContentBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Saving...';
+  }
+
   try {
-    // Handle file upload for images/videos
     if (type !== 'text') {
       if (selectedFile) {
-        // Upload new file
-        const fileExt = selectedFile.name.split('.').pop();
-        const fileName = `sheikh/${Date.now()}_${selectedFile.name}`;
-        
-        const { error: uploadError } = await supabase.storage
-          .from('sheikh-media')
-          .upload(fileName, selectedFile);
-        
-        if (uploadError) throw uploadError;
-        
-        const { data: { publicUrl } } = supabase.storage
-          .from('sheikh-media')
-          .getPublicUrl(fileName);
-        
-        mediaUrl = publicUrl;
+        mediaUrl = await uploadFileToCloudinary(selectedFile, type);
       } else if (selectedContentId) {
-        // Keep existing media URL when editing
         const existing = allContent.find(c => c.id === selectedContentId);
         mediaUrl = existing?.media_url;
       } else {
         showNotification('Please select a file', 'error');
+        if (saveContentBtn) {
+          saveContentBtn.disabled = false;
+          saveContentBtn.innerHTML = 'Save';
+        }
         return;
       }
     } else {
-      content = contentText.value.trim();
+      content = contentText?.value.trim();
       if (!content) {
         showNotification('Please enter content', 'error');
+        if (saveContentBtn) {
+          saveContentBtn.disabled = false;
+          saveContentBtn.innerHTML = 'Save';
+        }
         return;
       }
     }
@@ -982,13 +1109,11 @@ async function saveContent() {
     let error;
 
     if (selectedContentId) {
-      // Update existing
       ({ error } = await supabase
         .from('sheikh_history')
         .update(contentData)
         .eq('id', selectedContentId));
     } else {
-      // Insert new
       ({ error } = await supabase
         .from('sheikh_history')
         .insert([contentData]));
@@ -1003,6 +1128,11 @@ async function saveContent() {
   } catch (err) {
     console.error("Error saving content:", err);
     showNotification('Error: ' + err.message, 'error');
+  } finally {
+    if (saveContentBtn) {
+      saveContentBtn.disabled = false;
+      saveContentBtn.innerHTML = 'Save';
+    }
   }
 }
 
@@ -1017,10 +1147,8 @@ async function confirmDelete() {
   if (!selectedContentId) return;
 
   try {
-    // Get the item to delete its media file if any
     const item = allContent.find(c => c.id === selectedContentId);
     
-    // Delete from database
     const { error } = await supabase
       .from('sheikh_history')
       .delete()
@@ -1028,16 +1156,15 @@ async function confirmDelete() {
 
     if (error) throw error;
 
-    // Try to delete associated media file if exists
-    if (item?.media_url) {
+    if (item?.media_url && isSupabaseUrl(item.media_url)) {
       try {
         const path = item.media_url.split('/').pop();
-        await supabase.storage
-          .from('sheikh-media')
-          .remove([`sheikh/${path}`]);
+        await supabase.storage.from('sheikh-media').remove([`sheikh/${path}`]);
       } catch (storageErr) {
         console.log("Could not delete media file:", storageErr);
       }
+    } else if (item?.media_url && isCloudinaryUrl(item.media_url)) {
+      console.log("Cloudinary file would need server-side deletion:", item.media_url);
     }
 
     if (deleteModal) deleteModal.classList.add('hidden');
@@ -1056,17 +1183,14 @@ function closeModal() {
   if (contentTitle) contentTitle.value = '';
   if (contentText) contentText.value = '';
   if (contentType) contentType.value = 'text';
-  selectedFile = null;
+  
+  // Clear all modal content
   if (fileInput) fileInput.value = '';
+  selectedFile = null;
+  clearModalContent();
   selectedContentId = null;
   
-  // Remove file info and preview
-  const fileInfo = document.querySelector('.file-info');
-  if (fileInfo) fileInfo.remove();
-  
-  const preview = document.querySelector('.preview-image');
-  if (preview) preview.remove();
-  
+  // Reset UI
   if (contentText) contentText.style.display = 'block';
   if (selectFileBtn) selectFileBtn.style.display = 'none';
 }

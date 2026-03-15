@@ -1,5 +1,60 @@
-// js/chat.js - Complete Group Chat with Line Break Preservation and Image Resizing
+// js/chat.js - Complete Group Chat with Line Break Preservation and Image Resizing + Cloudinary Integration
 console.log("💬 Chat page loading...");
+
+// ================= CLOUDINARY CONFIGURATION =================
+const CLOUDINARY_CONFIG = {
+    cloudName: 'df3koezfk', // Your cloud name from the URLs
+    uploadPreset: 'community_upload', // Your actual upload preset name
+    folder: 'community-app', // Base folder
+    subFolders: {
+        image: 'Image',
+        video: 'Video',
+        audio: 'Voice-record' // Matches your folder name
+    }
+};
+
+// Helper function to get Cloudinary upload URL
+function getCloudinaryUploadUrl() {
+    return `https://api.cloudinary.com/v1_1/${CLOUDINARY_CONFIG.cloudName}/auto/upload`;
+}
+
+// Helper function to determine resource type for Cloudinary
+function getCloudinaryResourceType(fileType) {
+    if (fileType.startsWith('image/')) return 'image';
+    if (fileType.startsWith('video/')) return 'video';
+    if (fileType.startsWith('audio/')) return 'video'; // Audio uses video endpoint
+    return 'auto';
+}
+
+// ================= CHECK IF URL IS FROM CLOUDINARY =================
+function isCloudinaryUrl(url) {
+    return url && url.includes('cloudinary.com');
+}
+
+// ================= GET OPTIMIZED CLOUDINARY URL (Optional) =================
+function getOptimizedCloudinaryUrl(url, options = {}) {
+    if (!url || !isCloudinaryUrl(url)) return url;
+    
+    // You can add transformations here if needed
+    // For example: resize images on the fly
+    if (options.width || options.height) {
+        // This is a simplified version - you can add more transformations
+        const parts = url.split('/upload/');
+        if (parts.length === 2) {
+            let transformation = '';
+            if (options.width) transformation += `w_${options.width},`;
+            if (options.height) transformation += `h_${options.height},`;
+            if (options.crop) transformation += `c_${options.crop},`;
+            
+            if (transformation) {
+                transformation = transformation.replace(/,$/, '') + '/';
+                return parts[0] + '/upload/' + transformation + parts[1];
+            }
+        }
+    }
+    
+    return url;
+}
 
 // Helper function to prevent null URL errors
 function safeUrl(url) {
@@ -2217,7 +2272,7 @@ function renderQuotedMessage(parentMsg) {
     ';
 }
 
-// ================= FIXED RENDER MESSAGE CONTENT WITH SAFE URLS AND LINE BREAKS =================
+// ================= UPDATED RENDER MESSAGE CONTENT WITH CLOUDINARY SUPPORT AND ERROR HANDLING =================
 function renderMessageContent(msg) {
     if (msg.message_type === 'text') {
         // CRITICAL FIX: Convert line breaks to <br> tags AND use pre-wrap for display
@@ -2230,15 +2285,23 @@ function renderMessageContent(msg) {
     if (msg.message_type === 'image') {
         var imageUrl = safeUrl(msg.file_url);
         if (!imageUrl) return '<p>Image not available</p>';
-        // Image will now be styled by CSS to be small (max 200px)
-        return '<img src="' + imageUrl + '" alt="Image" onclick="window.open(\'' + imageUrl + '\')" style="cursor: pointer; max-width: 100%;">';
+        
+        // If it's from Cloudinary, we can add optimization parameters
+        if (isCloudinaryUrl(imageUrl)) {
+            // Get optimized version for chat (smaller size)
+            const optimizedUrl = getOptimizedCloudinaryUrl(imageUrl, { width: 400, height: 400, crop: 'limit' });
+            // Add error handling to fallback to original URL if optimized fails
+            return '<img src="' + optimizedUrl + '" alt="Image" onclick="window.open(\'' + imageUrl + '\')" style="cursor: pointer; max-width: 100%;" loading="lazy" onerror="this.onerror=null; this.src=\'' + imageUrl + '\';">';
+        } else {
+            // Old Supabase image
+            return '<img src="' + imageUrl + '" alt="Image" onclick="window.open(\'' + imageUrl + '\')" style="cursor: pointer; max-width: 100%;" loading="lazy">';
+        }
     }
     
     if (msg.message_type === 'video') {
         var videoUrl = safeUrl(msg.file_url);
         if (!videoUrl) return '<p>Video not available</p>';
-        // Video will now be styled by CSS to be small (max 200px)
-        return '<video controls style="max-width: 100%;"><source src="' + videoUrl + '"></video>';
+        return '<video controls style="max-width: 100%;" preload="metadata"><source src="' + videoUrl + '"></video>';
     }
     
     if (msg.message_type === 'audio') {
@@ -2282,8 +2345,8 @@ async function handleNewMessage(newMessage) {
     }
 }
 
-// ================= RESIZE IMAGE BEFORE UPLOAD =================
-async function resizeImage(file, maxWidth = 280, maxHeight = 280, quality = 0.8) {
+// ================= RESIZE IMAGE BEFORE UPLOAD (UPDATED) =================
+async function resizeImage(file, maxWidth = 800, maxHeight = 800, quality = 0.9) {
     return new Promise((resolve, reject) => {
         const reader = new FileReader();
         reader.readAsDataURL(file);
@@ -2315,13 +2378,14 @@ async function resizeImage(file, maxWidth = 280, maxHeight = 280, quality = 0.8)
                 const ctx = canvas.getContext('2d');
                 ctx.drawImage(img, 0, 0, width, height);
                 
-                // Convert to blob
+                // Convert to blob with better quality
                 canvas.toBlob((blob) => {
                     // Create new file from blob
                     const resizedFile = new File([blob], file.name, {
                         type: file.type,
                         lastModified: Date.now()
                     });
+                    console.log(`🖼️ Image resized: ${(file.size/1024).toFixed(2)}KB → ${(resizedFile.size/1024).toFixed(2)}KB`);
                     resolve(resizedFile);
                 }, file.type, quality);
             };
@@ -2377,7 +2441,7 @@ function handleFileSelect(e) {
         showNotification('🖼️ Resizing image...', 'info', 2000);
         
         // Resize image before preview
-        resizeImage(file, 280, 280, 0.8).then(resizedFile => {
+        resizeImage(file, 800, 800, 0.9).then(resizedFile => {
             currentFile = resizedFile;
             console.log(`Image resized: ${(file.size/1024).toFixed(2)}KB → ${(resizedFile.size/1024).toFixed(2)}KB`);
             showImagePreview(resizedFile);
@@ -2432,7 +2496,7 @@ function showImagePreview(file) {
                 <img src="' + e.target.result + '" style="max-width: ' + displayWidth + 'px; max-height: ' + displayHeight + 'px; border-radius: 4px; object-fit: cover;">\
                 <div style="flex: 1; min-width: 0;">\
                     <span style="color: var(--text-light); font-size: 14px; word-break: break-word; display: block;">' + file.name + '</span>\
-                    <span style="color: var(--text-muted); font-size: 11px;">Size: ' + (file.size / 1024).toFixed(1) + 'KB (resized)</span>\
+                    <span style="color: var(--text-muted); font-size: 11px;">Size: ' + (file.size / 1024).toFixed(1) + 'KB (resized for Cloudinary)</span>\
                 </div>\
                 <div style="display: flex; gap: 5px;">\
                     <button id="deletePreviewBtn" class="media-btn" style="background: var(--danger);"><i class="fas fa-trash"></i></button>\
@@ -2472,7 +2536,7 @@ function showVideoPreview(file) {
             <video src="' + e.target.result + '" style="max-width: 80px; max-height: 80px; border-radius: 4px;" controls></video>\
             <div style="flex: 1; min-width: 0;">\
                 <span style="color: var(--text-light); font-size: 14px; word-break: break-word; display: block;">' + file.name + '</span>\
-                <span style="color: var(--text-muted); font-size: 11px;">Size: ' + (file.size / (1024*1024)).toFixed(2) + 'MB</span>\
+                <span style="color: var(--text-muted); font-size: 11px;">Size: ' + (file.size / (1024*1024)).toFixed(2) + 'MB (will upload to Cloudinary)</span>\
             </div>\
             <div style="display: flex; gap: 5px;">\
                 <button id="deletePreviewBtn" class="media-btn" style="background: var(--danger);"><i class="fas fa-trash"></i></button>\
@@ -2493,6 +2557,104 @@ function showVideoPreview(file) {
         });
     };
     reader.readAsDataURL(file);
+}
+
+// ================= UPLOAD FILE TO CLOUDINARY (UPDATED WITH CORRECT PRESET) =================
+async function uploadFile(file) {
+    try {
+        if (!file) throw new Error("No file to upload");
+        
+        console.log("📤 Uploading to Cloudinary:", file.name, file.type);
+        
+        // Determine folder and resource type
+        let folder = CLOUDINARY_CONFIG.folder;
+        let resourceType = 'auto';
+        
+        if (file.type.startsWith('image/')) {
+            folder += '/' + CLOUDINARY_CONFIG.subFolders.image;
+            resourceType = 'image';
+        } else if (file.type.startsWith('video/')) {
+            folder += '/' + CLOUDINARY_CONFIG.subFolders.video;
+            resourceType = 'video';
+        } else if (file.type.startsWith('audio/')) {
+            folder += '/' + CLOUDINARY_CONFIG.subFolders.audio;
+            resourceType = 'video'; // Audio uses video endpoint
+        }
+        
+        // Create form data for Cloudinary
+        const formData = new FormData();
+        formData.append('file', file);
+        formData.append('upload_preset', CLOUDINARY_CONFIG.uploadPreset); // 'community_upload'
+        formData.append('folder', folder);
+        
+        // Show uploading notification
+        showNotification('📤 Uploading to Cloudinary...', 'info', 2000);
+        
+        // Upload to Cloudinary
+        const response = await fetch(getCloudinaryUploadUrl(), {
+            method: 'POST',
+            body: formData
+        });
+        
+        if (!response.ok) {
+            const errorData = await response.json();
+            throw new Error(errorData.error?.message || 'Cloudinary upload failed');
+        }
+        
+        const data = await response.json();
+        console.log("✅ Cloudinary upload successful:", data.secure_url);
+        
+        showNotification('✅ Uploaded to Cloudinary', 'success', 1500);
+        
+        // Return the Cloudinary URL
+        return data.secure_url;
+        
+    } catch (err) {
+        console.error("❌ Error uploading to Cloudinary:", err);
+        showNotification('Failed to upload to Cloudinary: ' + err.message, 'error', 3000);
+        throw err;
+    }
+}
+
+// ================= UPDATED SHOW AUDIO PREVIEW WITH PROPER FILE NAME =================
+function showAudioPreview(audioUrl) {
+    var existingPreview = document.getElementById('audioPreview');
+    if (existingPreview) existingPreview.remove();
+    
+    var chatInput = document.querySelector('.chat-input-area');
+    var previewDiv = document.createElement('div');
+    previewDiv.id = 'audioPreview';
+    previewDiv.style.cssText = 'display: flex; align-items: center; gap: 10px; padding: 10px; background: var(--card-bg); border-radius: 8px; margin-bottom: 10px; width: 100%; flex-wrap: wrap;';
+    
+    previewDiv.innerHTML = '\
+        <audio controls src="' + audioUrl + '" style="flex: 1; height: 40px; min-width: 200px;"></audio>\
+        <div style="display: flex; gap: 5px;">\
+            <button id="deletePreviewBtn" class="media-btn" style="background: var(--danger);"><i class="fas fa-trash"></i></button>\
+            <button id="sendPreviewBtn" class="media-btn" style="background: var(--primary-color);"><i class="fas fa-paper-plane"></i></button>\
+        </div>\
+    ';
+    
+    chatInput.parentNode.insertBefore(previewDiv, chatInput);
+    
+    document.getElementById('deletePreviewBtn').addEventListener('click', function() {
+        if (recordedAudioUrl) {
+            URL.revokeObjectURL(recordedAudioUrl);
+            recordedAudio = null;
+            recordedAudioUrl = null;
+        }
+        previewDiv.remove();
+    });
+    
+    document.getElementById('sendPreviewBtn').addEventListener('click', async function() {
+        if (recordedAudio) {
+            // FIX: Give the file a proper name with timestamp
+            const fileName = 'voice-message-' + Date.now() + '.webm';
+            currentFile = new File([recordedAudio], fileName, { type: 'audio/webm' });
+            currentFileType = 'audio';
+            previewDiv.remove();
+            await sendMessage();
+        }
+    });
 }
 
 // ================= SIMPLE, GUARANTEED ANDROID ENTER KEY FIX =================
@@ -2659,76 +2821,6 @@ async function toggleVoiceRecording() {
     }
 }
 
-function showAudioPreview(audioUrl) {
-    var existingPreview = document.getElementById('audioPreview');
-    if (existingPreview) existingPreview.remove();
-    
-    var chatInput = document.querySelector('.chat-input-area');
-    var previewDiv = document.createElement('div');
-    previewDiv.id = 'audioPreview';
-    previewDiv.style.cssText = 'display: flex; align-items: center; gap: 10px; padding: 10px; background: var(--card-bg); border-radius: 8px; margin-bottom: 10px; width: 100%; flex-wrap: wrap;';
-    
-    previewDiv.innerHTML = '\
-        <audio controls src="' + audioUrl + '" style="flex: 1; height: 40px; min-width: 200px;"></audio>\
-        <div style="display: flex; gap: 5px;">\
-            <button id="deletePreviewBtn" class="media-btn" style="background: var(--danger);"><i class="fas fa-trash"></i></button>\
-            <button id="sendPreviewBtn" class="media-btn" style="background: var(--primary-color);"><i class="fas fa-paper-plane"></i></button>\
-        </div>\
-    ';
-    
-    chatInput.parentNode.insertBefore(previewDiv, chatInput);
-    
-    document.getElementById('deletePreviewBtn').addEventListener('click', function() {
-        if (recordedAudioUrl) {
-            URL.revokeObjectURL(recordedAudioUrl);
-            recordedAudio = null;
-            recordedAudioUrl = null;
-        }
-        previewDiv.remove();
-    });
-    
-    document.getElementById('sendPreviewBtn').addEventListener('click', async function() {
-        if (recordedAudio) {
-            currentFile = new File([recordedAudio], 'voice-message.webm', { type: 'audio/webm' });
-            currentFileType = 'audio';
-            previewDiv.remove();
-            await sendMessage();
-        }
-    });
-}
-
-// ================= UPLOAD FILE FUNCTION =================
-async function uploadFile(file) {
-    try {
-        if (!file) throw new Error("No file to upload");
-        
-        var fileName = file.name || 'voice-message.webm';
-        var fileExt = fileName.split('.').pop() || 'webm';
-        var uniqueFileName = currentUser.id + '/' + Date.now() + '.' + fileExt;
-        var filePath = 'chat/' + uniqueFileName;
-        
-        var { error: uploadError } = await supabase.storage
-            .from('chat-files')
-            .upload(filePath, file, {
-                cacheControl: '3600',
-                upsert: false,
-                contentType: file.type || 'audio/webm'
-            });
-        
-        if (uploadError) throw uploadError;
-        
-        var { data: { publicUrl } } = supabase.storage
-            .from('chat-files')
-            .getPublicUrl(filePath);
-        
-        return publicUrl;
-        
-    } catch (err) {
-        console.error("Error uploading file:", err);
-        throw new Error(err.message || "Failed to upload file");
-    }
-}
-
 // ================= UPDATED SEND MESSAGE - PRESERVES LINE BREAKS =================
 async function sendMessage() {
     var messageInput = document.getElementById('messageInput');
@@ -2775,13 +2867,13 @@ async function sendMessage() {
         
         if (currentFile && !recordedAudio) {
             try {
-                console.log("Processing file upload...");
+                console.log("Processing file upload to Cloudinary...");
                 var fileUrl = await uploadFile(currentFile);
                 messageData.message_type = currentFileType;
                 messageData.content = '';
                 messageData.file_url = fileUrl;
                 currentFile = null;
-                console.log("File upload complete, URL:", fileUrl);
+                console.log("Cloudinary upload complete, URL:", fileUrl);
             } catch (uploadErr) {
                 console.error("File upload failed:", uploadErr);
                 alert("Failed to upload file: " + uploadErr.message);
@@ -2793,7 +2885,7 @@ async function sendMessage() {
         
         if (recordedAudio) {
             try {
-                console.log("Processing audio upload...");
+                console.log("Processing audio upload to Cloudinary...");
                 var fileUrl = await uploadFile(recordedAudio);
                 messageData.message_type = 'audio';
                 messageData.content = '';
@@ -2805,7 +2897,7 @@ async function sendMessage() {
                 recordedAudio = null;
                 recordedAudioUrl = null;
                 
-                console.log("Audio upload complete, URL:", fileUrl);
+                console.log("Cloudinary audio upload complete, URL:", fileUrl);
             } catch (uploadErr) {
                 console.error("Audio upload failed:", uploadErr);
                 alert("Failed to upload audio: " + uploadErr.message);

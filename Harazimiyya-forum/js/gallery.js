@@ -4,7 +4,39 @@
 // Members can delete their own content
 // Admins can delete any content
 // Features: Smart scroll, Jump to bottom, Vertical mobile layout
+// UPDATED: Video playback fixed with controls
 // ============================================
+
+// ================= CLOUDINARY CONFIGURATION =================
+const CLOUDINARY_CONFIG = {
+    cloudName: 'df3koezfk',
+    uploadPreset: 'community_upload',
+    folder: 'community-app',
+    subFolders: {
+        image: 'Image',
+        video: 'Video'
+    }
+};
+
+// Helper function to get Cloudinary upload URL
+function getCloudinaryUploadUrl() {
+    return `https://api.cloudinary.com/v1_1/${CLOUDINARY_CONFIG.cloudName}/auto/upload`;
+}
+
+// ================= CHECK IF URL IS FROM CLOUDINARY =================
+function isCloudinaryUrl(url) {
+    return url && url.includes('cloudinary.com');
+}
+
+// ================= CHECK IF URL IS FROM SUPABASE =================
+function isSupabaseUrl(url) {
+    return url && url.includes('supabase.co');
+}
+
+// ================= GET FALLBACK IMAGE =================
+function getFallbackImageUrl() {
+    return 'data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' width=\'400\' height=\'300\' viewBox=\'0 0 400 300\'%3E%3Crect width=\'400\' height=\'300\' fill=\'%230b5e3b\'/%3E%3Ctext x=\'50\' y=\'150\' font-family=\'Arial\' font-size=\'20\' fill=\'%23ffffff\'%3EImage failed to load%3C/text%3E%3C/svg%3E';
+}
 
 // Global variables
 let currentUser = null;
@@ -12,8 +44,9 @@ let currentProfile = null;
 let isAdmin = false;
 let allMedia = [];
 let selectedFile = null;
-let viewedMedia = new Set(); // Track which media user has viewed
-let currentLightbox = null; // Track current lightbox for back button
+let viewedMedia = new Set();
+let currentLightbox = null;
+let failedImages = new Set();
 
 // Smart scroll variables
 let showJumpToBottom = false;
@@ -72,7 +105,6 @@ function showNotification(message, type = 'success') {
 
 // ================= JUMP TO BOTTOM BUTTON FUNCTIONS =================
 function createJumpToBottomButton() {
-    // Remove existing button if any
     const existingBtn = document.getElementById('jumpToBottomBtn');
     if (existingBtn) existingBtn.remove();
     
@@ -104,7 +136,6 @@ function setupScrollListener() {
         const windowHeight = window.innerHeight;
         const documentHeight = document.documentElement.scrollHeight;
         
-        // Check if near bottom (within 100px)
         const isNearBottom = scrollPosition + windowHeight >= documentHeight - 100;
         const jumpBtn = document.getElementById('jumpToBottomBtn');
         
@@ -128,7 +159,6 @@ function findFirstUnseenMedia() {
     
     for (let card of mediaCards) {
         const mediaId = card.dataset.mediaId;
-        // Check if this media hasn't been viewed
         if (!viewedMedia.has(mediaId)) {
             firstUnseenMediaId = mediaId;
             hasUnseenMedia = true;
@@ -146,14 +176,12 @@ function scrollToFirstUnseen() {
         if (mediaElement) {
             mediaElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
             
-            // Highlight the media briefly
             mediaElement.style.backgroundColor = 'rgba(11, 94, 59, 0.1)';
             setTimeout(() => {
                 mediaElement.style.backgroundColor = '';
             }, 2000);
         }
     } else {
-        // If no unseen media, scroll to bottom (latest)
         scrollToBottom();
     }
 }
@@ -163,13 +191,11 @@ function markMediaAsViewed(mediaId) {
     if (!viewedMedia.has(mediaId)) {
         viewedMedia.add(mediaId);
         
-        // Remove unseen class if present
         const mediaElement = document.querySelector(`.media-card[data-media-id="${mediaId}"]`);
         if (mediaElement) {
             mediaElement.classList.remove('unseen');
         }
         
-        // Store in localStorage to persist across sessions
         try {
             const viewed = JSON.parse(localStorage.getItem('viewedGalleryMedia') || '[]');
             if (!viewed.includes(mediaId)) {
@@ -221,12 +247,10 @@ function createDeleteModal() {
 
 // ================= CREATE LIGHTBOX WITH HISTORY API =================
 function createLightbox(src, type, mediaId) {
-    // If there's already a lightbox, remove it
     if (currentLightbox) {
         currentLightbox.remove();
     }
     
-    // Add a new history state for the lightbox
     history.pushState({ lightbox: true, mediaId: mediaId }, '', window.location.href);
     
     const lightbox = document.createElement('div');
@@ -236,14 +260,14 @@ function createLightbox(src, type, mediaId) {
     if (type === 'image') {
         lightbox.innerHTML = `
             <div class="lightbox-content">
-                <img src="${src}" alt="Gallery image">
+                <img src="${src}" alt="Gallery image" onerror="this.onerror=null; this.src='${getFallbackImageUrl()}';">
                 <button class="lightbox-close">&times;</button>
             </div>
         `;
     } else {
         lightbox.innerHTML = `
             <div class="lightbox-content">
-                <video src="${src}" controls autoplay></video>
+                <video src="${src}" controls autoplay playsinline style="max-width: 100%; max-height: 90vh;"></video>
                 <button class="lightbox-close">&times;</button>
             </div>
         `;
@@ -252,29 +276,24 @@ function createLightbox(src, type, mediaId) {
     document.body.appendChild(lightbox);
     currentLightbox = lightbox;
     
-    // Mark as viewed when opened in lightbox
     if (mediaId) {
         markMediaAsViewed(mediaId);
     }
     
-    // Close button handler
     lightbox.querySelector('.lightbox-close').onclick = () => {
         closeLightbox();
     };
     
-    // Click outside to close
     lightbox.onclick = (e) => {
         if (e.target === lightbox) {
             closeLightbox();
         }
     };
     
-    // Handle Android back button
     const handlePopState = (e) => {
         if (currentLightbox) {
             e.preventDefault();
             closeLightbox();
-            // Remove this event listener after handling
             window.removeEventListener('popstate', handlePopState);
         }
     };
@@ -287,9 +306,22 @@ function closeLightbox() {
     if (currentLightbox) {
         currentLightbox.remove();
         currentLightbox = null;
-        // Go back in history to remove the lightbox state
         if (history.state && history.state.lightbox) {
             history.back();
+        }
+    }
+}
+
+// ================= HANDLE IMAGE ERROR =================
+function handleImageError(mediaId) {
+    failedImages.add(mediaId);
+    
+    const mediaCard = document.querySelector(`.media-card[data-media-id="${mediaId}"]`);
+    if (mediaCard) {
+        const img = mediaCard.querySelector('img.media-preview');
+        if (img) {
+            img.src = getFallbackImageUrl();
+            img.classList.add('failed-image');
         }
     }
 }
@@ -303,9 +335,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     setupEventListeners();
     loadViewedMedia();
     
-    // Handle initial page load and back button
     window.addEventListener('popstate', (e) => {
-        // If there's a lightbox open when back is pressed, close it
         if (currentLightbox) {
             closeLightbox();
         }
@@ -324,7 +354,6 @@ async function init() {
         currentUser = user;
         console.log("Current user:", user.email);
 
-        // Get user profile
         const { data: profile, error: profileError } = await supabase
             .from("profiles")
             .select("*")
@@ -340,12 +369,15 @@ async function init() {
         isAdmin = profile.role === "admin";
         console.log("Is admin:", isAdmin);
 
-        // Show add button for all authenticated users
+        const userNameEl = document.getElementById('userName');
+        if (userNameEl) {
+            userNameEl.textContent = profile.full_name || 'Member';
+        }
+
         if (addMediaBtn) {
             addMediaBtn.classList.remove("hidden");
         }
 
-        // Load gallery
         await loadGallery();
 
     } catch (err) {
@@ -355,7 +387,6 @@ async function init() {
 
 // ================= LOAD GALLERY =================
 async function loadGallery() {
-    // Show loading spinner
     galleryGrid.innerHTML = `
         <div class="loading-spinner">
             <i class="fas fa-spinner fa-spin"></i> Loading gallery...
@@ -369,14 +400,13 @@ async function loadGallery() {
                 *,
                 uploader:profiles!uploaded_by(full_name, email, role)
             `)
-            .order("created_at", { ascending: true }); // Oldest first for proper scrolling
+            .order("created_at", { ascending: true });
 
         if (error) throw error;
 
         allMedia = data || [];
         displayGallery(allMedia);
         
-        // Smart scroll after gallery loads
         setTimeout(() => {
             findFirstUnseenMedia();
             if (firstUnseenMediaId) {
@@ -425,7 +455,6 @@ function createMediaCard(item) {
     card.className = `media-card ${item.media_type}`;
     card.dataset.mediaId = item.id;
     
-    // Add unseen class if not viewed
     if (!viewedMedia.has(item.id)) {
         card.classList.add('unseen');
     }
@@ -439,17 +468,31 @@ function createMediaCard(item) {
     const uploaderName = item.uploader?.full_name || 'Unknown';
     const canDelete = isAdmin || item.uploaded_by === currentUser.id;
     
+    // Check if URL is from Cloudinary
+    const isCloudinary = isCloudinaryUrl(item.media_url);
+    const cloudBadge = isCloudinary ? '<span><i class="fas fa-cloud"></i> Cloud</span>' : '';
+    
     card.innerHTML = `
         <span class="media-badge">${item.media_type}</span>
         ${item.media_type === 'image' 
-            ? `<img src="${item.media_url}" alt="${item.title}" class="media-preview" onclick="viewMedia('${item.id}', '${item.media_url}', 'image')">`
-            : `<video src="${item.media_url}" class="media-preview" onclick="viewMedia('${item.id}', '${item.media_url}', 'video')"></video>`
+            ? `<img src="${item.media_url}" alt="${item.title}" class="media-preview" onclick="viewMedia('${item.id}', '${item.media_url}', 'image')" loading="lazy" onerror="handleImageError('${item.id}')">`
+            : `<video 
+                src="${item.media_url}" 
+                class="media-preview" 
+                onclick="viewMedia('${item.id}', '${item.media_url}', 'video')" 
+                controls
+                playsinline
+                preload="metadata"
+                style="cursor: pointer; background: #000;">
+                Your browser does not support the video tag.
+            </video>`
         }
         <div class="media-info">
             <h4>${item.title}</h4>
             <div class="media-meta">
                 <span><i class="fas fa-calendar"></i> ${date}</span>
                 <span><i class="fas fa-eye"></i> ${item.views || 0}</span>
+                ${isCloudinary ? '<span><i class="fas fa-cloud"></i> Cloud</span>' : ''}
             </div>
             <div class="media-uploader">
                 <i class="fas fa-user"></i>
@@ -472,10 +515,8 @@ function createMediaCard(item) {
 window.viewMedia = function(id, url, type) {
     createLightbox(url, type, id);
     
-    // Mark as viewed
     markMediaAsViewed(id);
     
-    // Increment view count
     const media = allMedia.find(m => m.id === id);
     if (media) {
         supabase
@@ -488,36 +529,75 @@ window.viewMedia = function(id, url, type) {
     }
 };
 
+// Make handleImageError available globally
+window.handleImageError = handleImageError;
+
+// ================= UPLOAD FILE TO CLOUDINARY =================
+async function uploadFileToCloudinary(file, type) {
+    try {
+        if (!file) throw new Error("No file to upload");
+        
+        console.log("📤 Uploading to Cloudinary:", file.name, file.type);
+        
+        let folder = CLOUDINARY_CONFIG.folder;
+        if (type === 'image') {
+            folder += '/' + CLOUDINARY_CONFIG.subFolders.image;
+        } else if (type === 'video') {
+            folder += '/' + CLOUDINARY_CONFIG.subFolders.video;
+        }
+        
+        const formData = new FormData();
+        formData.append('file', file);
+        formData.append('upload_preset', CLOUDINARY_CONFIG.uploadPreset);
+        formData.append('folder', folder);
+        
+        showNotification('📤 Uploading to Cloudinary...', 'info');
+        
+        const response = await fetch(getCloudinaryUploadUrl(), {
+            method: 'POST',
+            body: formData
+        });
+        
+        if (!response.ok) {
+            const errorData = await response.json();
+            throw new Error(errorData.error?.message || 'Cloudinary upload failed');
+        }
+        
+        const data = await response.json();
+        console.log("✅ Cloudinary upload successful:", data.secure_url);
+        
+        showNotification('✅ Uploaded to Cloudinary', 'success');
+        
+        return data.secure_url;
+        
+    } catch (err) {
+        console.error("❌ Error uploading to Cloudinary:", err);
+        showNotification('Failed to upload to Cloudinary: ' + err.message, 'error');
+        throw err;
+    }
+}
+
 // ================= SETUP EVENT LISTENERS =================
 function setupEventListeners() {
-    // Add media button
     addMediaBtn.onclick = openAddModal;
-    
-    // Close modal button
     closeGalleryModalBtn.onclick = closeModal;
-    
-    // Save media button
     saveMediaBtn.onclick = saveMedia;
     
-    // File input change
     mediaFile.onchange = (e) => {
         selectedFile = e.target.files[0];
         if (selectedFile) {
-            // Show file info
             const fileInfo = document.createElement('div');
             fileInfo.className = 'file-info';
             fileInfo.innerHTML = `
                 <i class="fas fa-check-circle"></i>
-                <span>Selected: ${selectedFile.name} (${(selectedFile.size / 1024).toFixed(2)} KB)</span>
+                <span>Selected: ${selectedFile.name} (${(selectedFile.size / 1024).toFixed(2)} KB) - will upload to Cloudinary</span>
             `;
             
-            // Remove existing file info
             const existingInfo = document.querySelector('.file-info');
             if (existingInfo) existingInfo.remove();
             
             mediaFile.parentNode.insertBefore(fileInfo, mediaFile.nextSibling);
             
-            // Show preview for images
             if (mediaType.value === 'image' && selectedFile.type.startsWith('image/')) {
                 const reader = new FileReader();
                 reader.onload = (e) => {
@@ -535,9 +615,7 @@ function setupEventListeners() {
         }
     };
     
-    // Media type change
     mediaType.onchange = () => {
-        // Clear file input and preview
         mediaFile.value = '';
         selectedFile = null;
         
@@ -548,7 +626,6 @@ function setupEventListeners() {
         if (preview) preview.remove();
     };
     
-    // Logout
     logoutBtn.onclick = async () => {
         await supabase.auth.signOut();
         window.location.href = "../index.html";
@@ -562,7 +639,6 @@ function openAddModal() {
     mediaFile.value = '';
     selectedFile = null;
     
-    // Clear file info and preview
     const fileInfo = document.querySelector('.file-info');
     if (fileInfo) fileInfo.remove();
     
@@ -585,13 +661,11 @@ async function saveMedia() {
         return;
     }
 
-    // Validate file size (50MB max)
     if (selectedFile.size > 50 * 1024 * 1024) {
         showNotification('File too large. Maximum size is 50MB.', 'error');
         return;
     }
 
-    // Validate file type
     const type = mediaType.value;
     if (type === 'image' && !selectedFile.type.startsWith('image/')) {
         showNotification('Please select a valid image file', 'error');
@@ -606,36 +680,22 @@ async function saveMedia() {
     saveMediaBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Uploading...';
 
     try {
-        // Upload file to storage
-        const fileExt = selectedFile.name.split('.').pop();
-        const fileName = `${currentUser.id}/${Date.now()}_${selectedFile.name}`;
+        const fileUrl = await uploadFileToCloudinary(selectedFile, type);
         
-        const { error: uploadError } = await supabase.storage
-            .from('gallery-media')
-            .upload(fileName, selectedFile);
-        
-        if (uploadError) throw uploadError;
-        
-        // Get public URL
-        const { data: { publicUrl } } = supabase.storage
-            .from('gallery-media')
-            .getPublicUrl(fileName);
-        
-        // Save to database
         const { error: dbError } = await supabase
             .from('gallery')
             .insert([{
                 title,
                 media_type: type,
-                media_url: publicUrl,
+                media_url: fileUrl,
                 uploaded_by: currentUser.id,
-                uploader_name: currentProfile.full_name
+                uploader_name: currentProfile?.full_name || 'Member'
             }]);
         
         if (dbError) throw dbError;
         
         closeModal();
-        showNotification('Media uploaded successfully');
+        showNotification('Media uploaded to Cloudinary successfully');
         await loadGallery();
         
     } catch (err) {
@@ -643,7 +703,7 @@ async function saveMedia() {
         showNotification('Error: ' + err.message, 'error');
     } finally {
         saveMediaBtn.disabled = false;
-        saveMediaBtn.innerHTML = 'Save';
+        saveMediaBtn.innerHTML = '<i class="fas fa-save"></i> Save';
     }
 }
 
@@ -658,10 +718,8 @@ async function confirmDelete() {
     if (!selectedMediaId) return;
 
     try {
-        // Get media info to delete file
         const media = allMedia.find(m => m.id === selectedMediaId);
         
-        // Delete from database
         const { error } = await supabase
             .from('gallery')
             .delete()
@@ -669,8 +727,10 @@ async function confirmDelete() {
 
         if (error) throw error;
 
-        // Try to delete file from storage
-        if (media?.media_url) {
+        if (media?.media_url && isCloudinaryUrl(media.media_url)) {
+            console.log("Cloudinary file would need server-side deletion:", media.media_url);
+            showNotification('Media deleted from gallery.', 'info');
+        } else {
             try {
                 const fileName = media.media_url.split('/').pop();
                 const filePath = `${media.uploaded_by}/${fileName}`;
@@ -683,7 +743,7 @@ async function confirmDelete() {
         }
 
         deleteModal.classList.add('hidden');
-        showNotification('Media deleted');
+        showNotification('Media deleted successfully');
         await loadGallery();
 
     } catch (err) {
