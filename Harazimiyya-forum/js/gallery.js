@@ -1,6 +1,6 @@
 // ============================================
 // HARAZIMIYYA FORUM - GALLERY
-// Complete Working Version with Upload Functionality
+// Complete Working Version with Stable Long Press Menu
 // Features: Upload to Cloudinary, Love/Like reactions per user, Long press menu
 // ============================================
 
@@ -72,6 +72,7 @@ let selectedMediaId = null;
 let contextMenu = null;
 let contextMenuMediaId = null;
 let longPressTimer = null;
+let isLongPressActive = false;
 
 // Theme dropdown
 let themeDropdown = null;
@@ -475,8 +476,14 @@ function showContextMenu(event, mediaId) {
     event.preventDefault();
     event.stopPropagation();
     
+    // Set flag that long press is active
+    isLongPressActive = true;
+    
     // Hide any existing menu
-    hideContextMenu();
+    if (contextMenu) {
+        contextMenu.remove();
+        contextMenu = null;
+    }
     
     const video = event.target.closest('.media-card')?.querySelector('video');
     if (video && !video.paused) {
@@ -523,6 +530,7 @@ function showContextMenu(event, mediaId) {
     
     contextMenu.innerHTML = menuItems;
     
+    // Add click handlers to menu items
     contextMenu.querySelectorAll('.longpress-menu-item').forEach(item => {
         item.addEventListener('click', (e) => {
             e.preventDefault();
@@ -532,6 +540,7 @@ function showContextMenu(event, mediaId) {
             const mediaId = item.dataset.mediaId;
             const filename = item.dataset.filename;
             
+            // Execute action
             switch(action) {
                 case 'love':
                     addReaction(mediaId, 'love');
@@ -550,10 +559,17 @@ function showContextMenu(event, mediaId) {
                     break;
             }
             
+            // Hide menu after action
             hideContextMenu();
+        });
+        
+        // Prevent touchend from bubbling to document
+        item.addEventListener('touchend', (e) => {
+            e.stopPropagation();
         });
     });
     
+    // Position menu
     let clientX, clientY;
     
     if (event.touches) {
@@ -568,6 +584,7 @@ function showContextMenu(event, mediaId) {
     contextMenu.style.top = clientY + 'px';
     contextMenu.style.transform = 'translate(-50%, -50%)';
     
+    // Ensure menu stays within viewport
     setTimeout(() => {
         const rect = contextMenu.getBoundingClientRect();
         
@@ -595,6 +612,7 @@ function showContextMenu(event, mediaId) {
     contextMenu.classList.remove('hidden');
 }
 
+// ================= HIDE CONTEXT MENU =================
 function hideContextMenu() {
     if (contextMenu) {
         contextMenu.classList.add('hidden');
@@ -603,6 +621,7 @@ function hideContextMenu() {
             card.classList.remove('menu-open');
         });
         
+        // Remove menu after animation
         setTimeout(() => {
             if (contextMenu && contextMenu.parentNode) {
                 contextMenu.remove();
@@ -611,6 +630,11 @@ function hideContextMenu() {
         }, 300);
     }
     contextMenuMediaId = null;
+    
+    // Reset long press flag after a delay
+    setTimeout(() => {
+        isLongPressActive = false;
+    }, 500);
 }
 
 // ================= SETUP CONTEXT MENU =================
@@ -619,6 +643,7 @@ function setupContextMenu(element, mediaId) {
     let touchStartX, touchStartY;
     let longPressTriggered = false;
     
+    // Right click for desktop
     element.addEventListener('contextmenu', (e) => {
         e.preventDefault();
         e.stopPropagation();
@@ -626,12 +651,24 @@ function setupContextMenu(element, mediaId) {
         return false;
     });
     
+    // Touch start for mobile
     element.addEventListener('touchstart', (e) => {
+        if (isLongPressActive) {
+            e.preventDefault();
+            return;
+        }
+        
         touchStart = Date.now();
         touchStartX = e.touches[0].clientX;
         touchStartY = e.touches[0].clientY;
         longPressTriggered = false;
         
+        // Clear any existing timer
+        if (longPressTimer) {
+            clearTimeout(longPressTimer);
+        }
+        
+        // Set timer for long press
         longPressTimer = setTimeout(() => {
             longPressTriggered = true;
             if (navigator.vibrate) {
@@ -641,20 +678,25 @@ function setupContextMenu(element, mediaId) {
         }, 500);
     }, { passive: true });
     
+    // Touch move - cancel if user moves too much
     element.addEventListener('touchmove', (e) => {
-        if (touchStartX && touchStartY) {
+        if (touchStartX && touchStartY && !longPressTriggered) {
             const moveX = Math.abs(e.touches[0].clientX - touchStartX);
             const moveY = Math.abs(e.touches[0].clientY - touchStartY);
             
             if (moveX > 20 || moveY > 20) {
                 clearTimeout(longPressTimer);
+                longPressTimer = null;
             }
         }
     }, { passive: true });
     
+    // Touch end
     element.addEventListener('touchend', (e) => {
         clearTimeout(longPressTimer);
+        longPressTimer = null;
         
+        // If long press was triggered, prevent default
         if (longPressTriggered) {
             e.preventDefault();
             e.stopPropagation();
@@ -663,24 +705,33 @@ function setupContextMenu(element, mediaId) {
         longPressTriggered = false;
     }, { passive: false });
     
+    // Touch cancel
     element.addEventListener('touchcancel', () => {
         clearTimeout(longPressTimer);
+        longPressTimer = null;
         longPressTriggered = false;
     });
 }
 
 // ================= CLICK OUTSIDE MENU HANDLER =================
 document.addEventListener('click', function(e) {
-    if (contextMenu && !contextMenu.contains(e.target)) {
+    // Only hide if click is outside menu and menu exists
+    if (contextMenu && !contextMenu.contains(e.target) && !e.target.closest('.longpress-menu-item')) {
         hideContextMenu();
     }
 });
 
 document.addEventListener('touchstart', function(e) {
-    if (contextMenu && !contextMenu.contains(e.target)) {
-        hideContextMenu();
+    // Only hide if touch is outside menu and menu exists
+    if (contextMenu && !contextMenu.contains(e.target) && !e.target.closest('.longpress-menu-item')) {
+        // Don't hide immediately on touch start, give time for menu item clicks
+        setTimeout(() => {
+            if (contextMenu && !contextMenu.contains(e.target)) {
+                hideContextMenu();
+            }
+        }, 100);
     }
-});
+}, { passive: true });
 
 // ================= CREATE LIGHTBOX =================
 function createLightbox(src, type, mediaId, title) {
