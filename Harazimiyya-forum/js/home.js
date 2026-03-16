@@ -1,10 +1,11 @@
-// js/home.js - Fixed to exclude own messages from unread count
+// js/home.js - Fixed with group profile for all members
 console.log("🏠 HOME PAGE LOADING");
 
 // Global variables
 let currentUserId = null;
 let currentUserProfile = null;
 let isAdmin = false;
+let clickTimer = null; // For double click detection
 
 document.addEventListener('DOMContentLoaded', async function() {
     console.log("DOM loaded, initializing home page...");
@@ -87,6 +88,7 @@ async function loadHomeData() {
         console.log("User ID:", currentUserId);
         
         await loadUserProfile(user.id);
+        await loadGroupProfile(); // Load Harazimiyya group profile for ALL members
         await loadAllCounts(user.id);
         
         setupSidebar();
@@ -100,6 +102,62 @@ async function loadHomeData() {
         
     } catch (err) {
         console.error("Home initialization error:", err);
+    }
+}
+
+// ================= LOAD GROUP PROFILE (HARAZIMIYYA) =================
+async function loadGroupProfile() {
+    try {
+        console.log("Loading Harazimiyya group profile...");
+        
+        // Try to get group settings from database
+        const { data, error } = await window.supabase
+            .from('group_settings')
+            .select('*')
+            .eq('id', 1)
+            .maybeSingle();
+        
+        if (error) {
+            console.log("Group settings table not ready:", error.message);
+            return;
+        }
+        
+        console.log("Group profile data:", data);
+        
+        // Update group logo in sidebar - FOR ALL MEMBERS TO SEE
+        const logoArea = document.querySelector('.logo-area');
+        if (logoArea) {
+            // Clear existing content
+            logoArea.innerHTML = '';
+            
+            if (data && data.logo_url) {
+                // Show the group logo as clickable image
+                const img = document.createElement('img');
+                img.src = data.logo_url;
+                img.alt = "Harazimiyya Logo";
+                img.style.cssText = "width: 32px; height: 32px; border-radius: 8px; object-fit: cover; cursor: pointer;";
+                img.setAttribute('data-logo-url', data.logo_url);
+                logoArea.appendChild(img);
+            } else {
+                // Show default mosque icon (also clickable)
+                const icon = document.createElement('i');
+                icon.className = 'fas fa-mosque';
+                icon.style.cursor = 'pointer';
+                icon.setAttribute('data-default', 'true');
+                logoArea.appendChild(icon);
+            }
+            
+            // Add group name
+            const span = document.createElement('span');
+            span.className = 'logo-text';
+            span.textContent = data?.group_name || 'Harazimiyya';
+            logoArea.appendChild(span);
+        }
+        
+        console.log("Group profile loaded for all members");
+        
+    } catch (err) {
+        console.error("Error loading group profile:", err);
     }
 }
 
@@ -155,11 +213,6 @@ async function loadUserProfile(userId) {
             updateProfilePictures(data.avatar_url);
         }
         
-        // Load group logo if admin
-        if (isAdmin) {
-            loadGroupLogo();
-        }
-        
     } catch (err) {
         console.error("Error loading profile:", err);
     }
@@ -203,50 +256,71 @@ function updateProfilePictures(avatarUrl) {
     // Update sidebar user avatar
     const userAvatar = document.querySelector('.user-avatar');
     if (userAvatar) {
+        // Clear existing content
+        userAvatar.innerHTML = '';
+        
         if (avatarUrl) {
-            userAvatar.innerHTML = `<img src="${avatarUrl}" alt="Profile" style="width: 100%; height: 100%; border-radius: 16px; object-fit: cover;">`;
+            const img = document.createElement('img');
+            img.src = avatarUrl;
+            img.alt = "Profile";
+            img.style.cssText = "width: 100%; height: 100%; border-radius: 16px; object-fit: cover;";
+            userAvatar.appendChild(img);
         } else {
-            userAvatar.innerHTML = '<i class="fas fa-user"></i>';
+            const icon = document.createElement('i');
+            icon.className = 'fas fa-user';
+            userAvatar.appendChild(icon);
         }
     }
 }
 
-// ===== Load group logo =====
-async function loadGroupLogo() {
-    try {
-        const { data, error } = await window.supabase
-            .from('group_settings')
-            .select('logo_url')
-            .eq('id', 1)
-            .single();
-        
-        if (error) {
-            console.log("No group logo found or table doesn't exist");
-            return;
-        }
-        
-        if (data && data.logo_url) {
-            const logoArea = document.querySelector('.logo-area');
-            if (logoArea) {
-                const existingIcon = logoArea.querySelector('i');
-                if (existingIcon) {
-                    existingIcon.outerHTML = `<img src="${data.logo_url}" alt="Group Logo" style="width: 32px; height: 32px; border-radius: 8px; object-fit: cover;">`;
-                }
-            }
-        }
-        
-    } catch (err) {
-        console.error("Error loading group logo:", err);
+// ===== Show full-size logo viewer (for ALL members) =====
+function showFullSizeLogo(logoUrl) {
+    // Remove any existing viewer
+    const existingViewer = document.querySelector('.logo-viewer');
+    if (existingViewer) existingViewer.remove();
+    
+    const viewer = document.createElement('div');
+    viewer.className = 'logo-viewer';
+    viewer.style.cssText = `
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background: rgba(0, 0, 0, 0.9);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        z-index: 20000;
+        cursor: pointer;
+        animation: fadeIn 0.2s ease;
+    `;
+    
+    const img = document.createElement('img');
+    if (logoUrl) {
+        img.src = logoUrl;
+    } else {
+        // If no logo, show default mosque icon
+        img.outerHTML = '<i class="fas fa-mosque" style="font-size: 100px; color: #0b5e3b;"></i>';
     }
+    img.style.cssText = "max-width: 90%; max-height: 90%; object-fit: contain; border-radius: 16px;";
+    
+    viewer.appendChild(img);
+    document.body.appendChild(viewer);
+    
+    // Close on click
+    viewer.addEventListener('click', function() {
+        viewer.remove();
+    });
 }
 
 // ===== Setup profile picture uploads =====
 function setupProfilePictureUploads() {
-    // Make user avatar clickable for profile picture upload
+    // Make user avatar clickable for profile picture upload (OWN PROFILE)
     const userAvatar = document.querySelector('.user-avatar');
     if (userAvatar) {
         userAvatar.style.cursor = 'pointer';
-        userAvatar.title = 'Click to upload profile picture';
+        userAvatar.title = 'Click to upload your profile picture';
         
         userAvatar.addEventListener('click', function(e) {
             e.preventDefault();
@@ -255,18 +329,68 @@ function setupProfilePictureUploads() {
         });
     }
     
-    // Make group logo clickable ONLY for admin
+    // Make group logo clickable with different behaviors for admin vs members
     const logoArea = document.querySelector('.logo-area');
-    if (logoArea && isAdmin) {
-        logoArea.style.cursor = 'pointer';
-        logoArea.title = 'Click to change group logo (Admin only)';
-        logoArea.setAttribute('data-admin', 'true');
+    if (logoArea) {
+        // Get the logo element (img or i)
+        const logoElement = logoArea.querySelector('img') || logoArea.querySelector('i');
         
-        logoArea.addEventListener('click', function(e) {
-            e.preventDefault();
-            e.stopPropagation();
-            showProfilePictureOptions('group');
-        });
+        if (logoElement) {
+            // For ALL members: single click to view full-size
+            logoElement.addEventListener('click', function(e) {
+                e.preventDefault();
+                e.stopPropagation();
+                
+                if (isAdmin) {
+                    // For admin: handle double click detection
+                    if (clickTimer) {
+                        // Double click detected
+                        clearTimeout(clickTimer);
+                        clickTimer = null;
+                        
+                        // Double click: view full-size logo
+                        const logoUrl = logoElement.tagName === 'IMG' ? logoElement.src : null;
+                        showFullSizeLogo(logoUrl);
+                    } else {
+                        // First click - wait to see if it's double click
+                        clickTimer = setTimeout(() => {
+                            // Single click for admin: show upload options
+                            clickTimer = null;
+                            showProfilePictureOptions('group');
+                        }, 250);
+                    }
+                } else {
+                    // For members: single click always views full-size
+                    const logoUrl = logoElement.tagName === 'IMG' ? logoElement.src : null;
+                    showFullSizeLogo(logoUrl);
+                }
+            });
+            
+            // For admin: also add double click listener
+            if (isAdmin) {
+                logoElement.addEventListener('dblclick', function(e) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    
+                    // Clear any pending single click
+                    if (clickTimer) {
+                        clearTimeout(clickTimer);
+                        clickTimer = null;
+                    }
+                    
+                    // Double click: view full-size logo
+                    const logoUrl = logoElement.tagName === 'IMG' ? logoElement.src : null;
+                    showFullSizeLogo(logoUrl);
+                });
+            }
+            
+            // Set appropriate title
+            if (isAdmin) {
+                logoElement.title = 'Single click: Edit logo | Double click: View full-size';
+            } else {
+                logoElement.title = 'Click to view full-size logo';
+            }
+        }
     }
 }
 
@@ -303,7 +427,7 @@ function showProfilePictureOptions(type) {
         animation: slideUp 0.2s ease;
     `;
     
-    const title = type === 'user' ? 'Profile Picture' : 'Group Logo';
+    const title = type === 'user' ? 'Your Profile Picture' : 'Harazimiyya Group Logo';
     
     content.innerHTML = `
         <h3 style="margin: 0 0 16px 0; color: #0b5e3b; font-size: 18px;">${title}</h3>
@@ -370,13 +494,13 @@ function showProfilePictureOptions(type) {
     });
 }
 
-// ===== FIXED: Upload profile picture =====
+// ===== Upload profile picture (OWN PROFILE) =====
 async function uploadProfilePicture(file) {
     if (!file || !currentUserId) return;
     
     try {
         // Show loading state
-        showNotification('Uploading...', 'info');
+        showNotification('Uploading your profile picture...', 'info');
         
         // Check file type
         if (!file.type.startsWith('image/')) {
@@ -390,7 +514,7 @@ async function uploadProfilePicture(file) {
             return;
         }
         
-        // Upload to Supabase Storage - FIXED PATH
+        // Upload to Supabase Storage
         const fileExt = file.name.split('.').pop();
         const fileName = `${currentUserId}/profile.${fileExt}`;
         const filePath = fileName;
@@ -425,7 +549,7 @@ async function uploadProfilePicture(file) {
         // Update UI
         updateProfilePictures(publicUrl);
         
-        showNotification('✅ Profile picture updated!', 'success');
+        showNotification('✅ Your profile picture updated!', 'success');
         
     } catch (err) {
         console.error("Error uploading profile picture:", err);
@@ -440,13 +564,13 @@ async function uploadProfilePicture(file) {
     }
 }
 
-// ===== Delete profile picture =====
+// ===== Delete profile picture (OWN PROFILE) =====
 async function deleteProfilePicture() {
     if (!currentUserId) return;
     
     try {
         // Show confirmation
-        if (!await confirmAction('Delete profile picture?')) return;
+        if (!await confirmAction('Delete your profile picture?')) return;
         
         // Update profile to remove avatar URL
         const { error } = await window.supabase
@@ -457,12 +581,9 @@ async function deleteProfilePicture() {
         if (error) throw error;
         
         // Update UI
-        const userAvatar = document.querySelector('.user-avatar');
-        if (userAvatar) {
-            userAvatar.innerHTML = '<i class="fas fa-user"></i>';
-        }
+        updateProfilePictures(null);
         
-        showNotification('✅ Profile picture deleted!', 'success');
+        showNotification('✅ Your profile picture deleted!', 'success');
         
     } catch (err) {
         console.error("Error deleting profile picture:", err);
@@ -470,9 +591,12 @@ async function deleteProfilePicture() {
     }
 }
 
-// ===== FIXED: Upload group logo =====
+// ===== Upload group logo (HARAZIMIYYA GROUP PROFILE - ADMIN ONLY) =====
 async function uploadGroupLogo(file) {
-    if (!file || !isAdmin) return;
+    if (!file || !isAdmin) {
+        showNotification('Only admin can change group logo', 'error');
+        return;
+    }
     
     try {
         // Show loading state
@@ -519,30 +643,21 @@ async function uploadGroupLogo(file) {
             .from('group_settings')
             .upsert({ 
                 id: 1, 
-                logo_url: publicUrl, 
+                logo_url: publicUrl,
+                group_name: 'Harazimiyya',
                 updated_at: new Date().toISOString(), 
                 updated_by: currentUserId 
             });
         
         if (upsertError) throw upsertError;
         
-        // Update UI
-        const logoArea = document.querySelector('.logo-area');
-        if (logoArea) {
-            const existingIcon = logoArea.querySelector('i');
-            if (existingIcon) {
-                existingIcon.outerHTML = `<img src="${publicUrl}" alt="Group Logo" style="width: 32px; height: 32px; border-radius: 8px; object-fit: cover;">`;
-            } else {
-                const existingImg = logoArea.querySelector('img');
-                if (existingImg) {
-                    existingImg.src = publicUrl;
-                } else {
-                    logoArea.innerHTML = `<img src="${publicUrl}" alt="Group Logo" style="width: 32px; height: 32px; border-radius: 8px; object-fit: cover;"><span class="logo-text">Harazimiyya</span>`;
-                }
-            }
-        }
+        // Update UI for ALL members to see
+        await loadGroupProfile(); // Reload the group profile to show new logo
         
-        showNotification('✅ Group logo updated!', 'success');
+        // Re-setup click handlers for the new logo
+        setupProfilePictureUploads();
+        
+        showNotification('✅ Harazimiyya group logo updated! All members can now see it.', 'success');
         
     } catch (err) {
         console.error("Error uploading group logo:", err);
@@ -557,13 +672,16 @@ async function uploadGroupLogo(file) {
     }
 }
 
-// ===== Delete group logo =====
+// ===== Delete group logo (HARAZIMIYYA GROUP PROFILE - ADMIN ONLY) =====
 async function deleteGroupLogo() {
-    if (!isAdmin) return;
+    if (!isAdmin) {
+        showNotification('Only admin can delete group logo', 'error');
+        return;
+    }
     
     try {
         // Show confirmation
-        if (!await confirmAction('Delete group logo?')) return;
+        if (!await confirmAction('Delete Harazimiyya group logo?')) return;
         
         // Update settings to remove logo URL
         const { error } = await window.supabase
@@ -573,19 +691,13 @@ async function deleteGroupLogo() {
         
         if (error) throw error;
         
-        // Update UI
-        const logoArea = document.querySelector('.logo-area');
-        if (logoArea) {
-            const existingImg = logoArea.querySelector('img');
-            if (existingImg) {
-                existingImg.outerHTML = '<i class="fas fa-mosque"></i>';
-            } else {
-                const icon = logoArea.querySelector('i');
-                if (icon) icon.className = 'fas fa-mosque';
-            }
-        }
+        // Update UI for ALL members
+        await loadGroupProfile(); // Reload to show default icon
         
-        showNotification('✅ Group logo deleted!', 'success');
+        // Re-setup click handlers for the new icon
+        setupProfilePictureUploads();
+        
+        showNotification('✅ Harazimiyya group logo deleted! All members will see the default icon.', 'success');
         
     } catch (err) {
         console.error("Error deleting group logo:", err);

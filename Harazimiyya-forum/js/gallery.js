@@ -1,6 +1,6 @@
 // ============================================
 // HARAZIMIYYA FORUM - GALLERY
-// Complete Working Version with Stable Long Press Menu
+// Complete Working Version with Fixed Upload Button and Center Menu
 // Features: Upload to Cloudinary, Love/Like reactions per user, Long press menu
 // ============================================
 
@@ -471,7 +471,7 @@ function createContextMenu() {
     return menu;
 }
 
-// ================= SHOW CONTEXT MENU =================
+// ================= SHOW CONTEXT MENU IN CENTER =================
 function showContextMenu(event, mediaId) {
     event.preventDefault();
     event.stopPropagation();
@@ -569,45 +569,13 @@ function showContextMenu(event, mediaId) {
         });
     });
     
-    // Position menu
-    let clientX, clientY;
+    // Position menu in the CENTER of the screen
+    const centerX = window.innerWidth / 2;
+    const centerY = window.innerHeight / 2;
     
-    if (event.touches) {
-        clientX = event.touches[0].clientX;
-        clientY = event.touches[0].clientY;
-    } else {
-        clientX = event.clientX;
-        clientY = event.clientY;
-    }
-    
-    contextMenu.style.left = clientX + 'px';
-    contextMenu.style.top = clientY + 'px';
+    contextMenu.style.left = centerX + 'px';
+    contextMenu.style.top = centerY + 'px';
     contextMenu.style.transform = 'translate(-50%, -50%)';
-    
-    // Ensure menu stays within viewport
-    setTimeout(() => {
-        const rect = contextMenu.getBoundingClientRect();
-        
-        if (rect.right > window.innerWidth) {
-            contextMenu.style.left = (window.innerWidth - rect.width - 10) + 'px';
-            contextMenu.style.transform = 'none';
-        }
-        
-        if (rect.bottom > window.innerHeight) {
-            contextMenu.style.top = (window.innerHeight - rect.height - 10) + 'px';
-            contextMenu.style.transform = 'none';
-        }
-        
-        if (rect.left < 0) {
-            contextMenu.style.left = '10px';
-            contextMenu.style.transform = 'none';
-        }
-        
-        if (rect.top < 0) {
-            contextMenu.style.top = '10px';
-            contextMenu.style.transform = 'none';
-        }
-    }, 10);
     
     contextMenu.classList.remove('hidden');
 }
@@ -1765,3 +1733,36 @@ setTimeout(function() {
         };
     }
 }, 2000);
+
+// ================= FIX: ANDROID ADD BUTTON =================
+// Hide text on small screens (Android)
+function adjustAddButtonForMobile() {
+    const addBtn = document.getElementById('addMediaBtn');
+    if (!addBtn) return;
+    
+    // Check if it's a mobile device (screen width <= 480px)
+    if (window.innerWidth <= 480) {
+        addBtn.innerHTML = '<i class="fas fa-plus"></i>';
+        addBtn.title = 'Add Media';
+    } else {
+        addBtn.innerHTML = '<i class="fas fa-plus"></i> Add';
+    }
+}
+
+// Run on load and resize
+window.addEventListener('load', adjustAddButtonForMobile);
+window.addEventListener('resize', adjustAddButtonForMobile);
+
+// ================= FIX: ENSURE UPLOAD BUTTON VISIBLE ON LAPTOP =================
+// Force upload button to be visible
+function ensureUploadButtonVisible() {
+    const uploadBtn = document.getElementById('tiktokSaveMediaBtn');
+    if (uploadBtn) {
+        uploadBtn.style.display = 'flex';
+        uploadBtn.style.visibility = 'visible';
+        uploadBtn.style.opacity = '1';
+    }
+}
+
+// Run repeatedly to ensure button appears
+setInterval(ensureUploadButtonVisible, 500);
