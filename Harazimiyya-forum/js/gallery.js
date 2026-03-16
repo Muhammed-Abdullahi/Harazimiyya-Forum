@@ -1734,18 +1734,33 @@ setTimeout(function() {
     }
 }, 2000);
 
-// ================= FIX: ANDROID ADD BUTTON =================
-// Hide text on small screens (Android)
+// ================= FIX 1: ANDROID ADD BUTTON - CENTERED + BIG ICON =================
 function adjustAddButtonForMobile() {
     const addBtn = document.getElementById('addMediaBtn');
     if (!addBtn) return;
     
+    // Apply styles directly
+    addBtn.style.display = 'inline-flex';
+    addBtn.style.alignItems = 'center';
+    addBtn.style.justifyContent = 'center';
+    addBtn.style.textAlign = 'center';
+    
     // Check if it's a mobile device (screen width <= 480px)
     if (window.innerWidth <= 480) {
-        addBtn.innerHTML = '<i class="fas fa-plus"></i>';
+        // On mobile: show only icon, make it bigger
+        addBtn.innerHTML = '<i class="fas fa-plus" style="font-size: 24px; line-height: 1;"></i>';
         addBtn.title = 'Add Media';
+        addBtn.style.padding = '0';
+        addBtn.style.width = '48px';
+        addBtn.style.height = '48px';
+        addBtn.style.borderRadius = '50%';
     } else {
-        addBtn.innerHTML = '<i class="fas fa-plus"></i> Add';
+        // On laptop: show icon + text
+        addBtn.innerHTML = '<i class="fas fa-plus" style="font-size: 16px;"></i> Add';
+        addBtn.style.padding = '10px 20px';
+        addBtn.style.width = 'auto';
+        addBtn.style.height = 'auto';
+        addBtn.style.borderRadius = '30px';
     }
 }
 
@@ -1753,16 +1768,93 @@ function adjustAddButtonForMobile() {
 window.addEventListener('load', adjustAddButtonForMobile);
 window.addEventListener('resize', adjustAddButtonForMobile);
 
-// ================= FIX: ENSURE UPLOAD BUTTON VISIBLE ON LAPTOP =================
-// Force upload button to be visible
-function ensureUploadButtonVisible() {
+// ================= FIX 2: FORCE UPLOAD BUTTON VISIBLE ON LAPTOP =================
+function forceUploadButtonVisible() {
     const uploadBtn = document.getElementById('tiktokSaveMediaBtn');
-    if (uploadBtn) {
-        uploadBtn.style.display = 'flex';
-        uploadBtn.style.visibility = 'visible';
-        uploadBtn.style.opacity = '1';
+    if (!uploadBtn) return;
+    
+    // Force styles with !important equivalent
+    uploadBtn.style.setProperty('display', 'flex', 'important');
+    uploadBtn.style.setProperty('visibility', 'visible', 'important');
+    uploadBtn.style.setProperty('opacity', '1', 'important');
+    uploadBtn.style.setProperty('position', 'relative', 'important');
+    uploadBtn.style.setProperty('z-index', '1000000', 'important');
+    uploadBtn.style.setProperty('pointer-events', 'auto', 'important');
+    
+    // Also check parent container
+    const actionsDiv = document.querySelector('.tiktok-actions');
+    if (actionsDiv) {
+        actionsDiv.style.setProperty('display', 'flex', 'important');
+        actionsDiv.style.setProperty('visibility', 'visible', 'important');
     }
+    
+    // Log for debugging
+    console.log("🔧 Force upload button visible:", uploadBtn);
 }
 
 // Run repeatedly to ensure button appears
-setInterval(ensureUploadButtonVisible, 500);
+setInterval(forceUploadButtonVisible, 300);
+
+// Also run when modal opens
+const originalOpenAddModal = openAddModal;
+openAddModal = function() {
+    originalOpenAddModal();
+    setTimeout(forceUploadButtonVisible, 100);
+    setTimeout(forceUploadButtonVisible, 500);
+};
+
+// ================= FIX 3: ADD CSS TO ENSURE VISIBILITY =================
+function addVisibilityStyles() {
+    const style = document.createElement('style');
+    style.textContent = `
+        /* Force upload button to be visible */
+        #tiktokSaveMediaBtn {
+            display: flex !important;
+            visibility: visible !important;
+            opacity: 1 !important;
+            position: relative !important;
+            z-index: 1000000 !important;
+            pointer-events: auto !important;
+            background: #0b5e3b !important;
+            color: white !important;
+            border: none !important;
+            padding: 16px !important;
+            border-radius: 40px !important;
+            font-size: 1rem !important;
+            font-weight: 600 !important;
+            cursor: pointer !important;
+            align-items: center !important;
+            justify-content: center !important;
+            gap: 8px !important;
+            width: auto !important;
+            height: auto !important;
+            margin: 0 !important;
+        }
+        
+        .tiktok-actions {
+            display: flex !important;
+            visibility: visible !important;
+            opacity: 1 !important;
+            position: relative !important;
+            z-index: 999999 !important;
+        }
+        
+        /* Ensure modal content is visible */
+        .tiktok-upload-container {
+            background: #1a1a1a !important;
+            width: 90% !important;
+            max-width: 600px !important;
+            max-height: 90vh !important;
+            overflow-y: auto !important;
+            border-radius: 24px !important;
+            border: 1px solid rgba(255,255,255,0.1) !important;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.5) !important;
+            position: relative !important;
+            z-index: 1000000 !important;
+        }
+    `;
+    document.head.appendChild(style);
+}
+
+// Add CSS styles
+addVisibilityStyles();
