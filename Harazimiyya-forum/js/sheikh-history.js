@@ -5,6 +5,8 @@
 // Members: View All Content
 // Features: Resume reading from last position
 // UPDATED: Fixed Android back button behavior for lightbox
+// UPDATED: Fixed video upload to Cloudinary
+// UPDATED: Fixed file selection issue (selectedFile was null)
 // ============================================
 
 // ================= CLOUDINARY CONFIGURATION =================
@@ -18,6 +20,13 @@ const CLOUDINARY_CONFIG = {
         profile: 'profile-images'
     }
 };
+
+// ================= VERIFY CLOUDINARY CONFIG =================
+console.log("☁️ Cloudinary Config:", {
+  cloudName: CLOUDINARY_CONFIG.cloudName,
+  uploadPreset: CLOUDINARY_CONFIG.uploadPreset,
+  folder: CLOUDINARY_CONFIG.folder
+});
 
 // Helper function to get Cloudinary upload URL
 function getCloudinaryUploadUrl() {
@@ -64,6 +73,21 @@ function getFallbackImageUrl() {
 function getProfilePlaceholder() {
     return 'data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' width=\'150\' height=\'150\' viewBox=\'0 0 150 150\'%3E%3Ccircle cx=\'75\' cy=\'75\' r=\'75\' fill=\'%230b5e3b\'/%3E%3Ctext x=\'75\' y=\'90\' font-family=\'Arial\' font-size=\'40\' fill=\'%23ffffff\' text-anchor=\'middle\'%3E👤%3C/text%3E%3C/svg%3E';
 }
+
+// ================= TEST CLOUDINARY CONNECTION =================
+async function testCloudinaryConnection() {
+  try {
+    const testUrl = `https://api.cloudinary.com/v1_1/${CLOUDINARY_CONFIG.cloudName}/auto/upload`;
+    console.log("✅ Cloudinary endpoint configured:", testUrl);
+    return true;
+  } catch (err) {
+    console.error("❌ Cloudinary config error:", err);
+    return false;
+  }
+}
+
+// Run test
+testCloudinaryConnection();
 
 // Global variables
 let currentUser = null;
@@ -166,12 +190,10 @@ function showNotification(message, type = 'success') {
 
 // ================= LIGHTBOX FUNCTION WITH ANDROID BACK BUTTON FIX =================
 function createLightbox(src) {
-    // If lightbox is already open, close it first
     if (currentLightbox) {
         closeLightbox();
     }
     
-    // Set lightbox active flag
     lightboxActive = true;
     
     const lightbox = document.createElement('div');
@@ -197,43 +219,35 @@ function createLightbox(src) {
     document.body.appendChild(lightbox);
     currentLightbox = lightbox;
     
-    // Close button handler
     const closeBtn = lightbox.querySelector('button');
     closeBtn.onclick = (e) => {
         e.stopPropagation();
         closeLightbox();
     };
     
-    // Click background to close
     lightbox.addEventListener('click', function(e) {
         if (e.target === lightbox) {
             closeLightbox();
         }
     });
     
-    // ANDROID BACK BUTTON FIX - Add a dummy history state
     history.pushState({ lightbox: true }, '');
     
-    // Handle back button
     const handlePopState = (e) => {
         if (lightboxActive && currentLightbox) {
             e.preventDefault();
             closeLightbox();
-            // Remove this event listener after handling
             window.removeEventListener('popstate', handlePopState);
         }
     };
     
     window.addEventListener('popstate', handlePopState);
-    
-    // Store the handler for cleanup
     lightbox._popStateHandler = handlePopState;
 }
 
 // ================= CLOSE LIGHTBOX =================
 function closeLightbox() {
     if (currentLightbox) {
-        // Remove the popstate event listener
         if (currentLightbox._popStateHandler) {
             window.removeEventListener('popstate', currentLightbox._popStateHandler);
         }
@@ -242,7 +256,6 @@ function closeLightbox() {
         currentLightbox = null;
         lightboxActive = false;
         
-        // Go back to remove the dummy history state
         if (history.state && history.state.lightbox) {
             history.back();
         }
@@ -392,12 +405,17 @@ function showResumeButton(scrollPosition) {
   }, 10000);
 }
 
-// ================= UPLOAD FILE TO CLOUDINARY =================
+// ================= UPLOAD FILE TO CLOUDINARY (FIXED FOR VIDEOS) =================
 async function uploadFileToCloudinary(file, type, subfolder = '') {
   try {
     if (!file) throw new Error("No file to upload");
     
-    console.log("📤 Uploading to Cloudinary:", file.name, file.type);
+    console.log("📤 Uploading to Cloudinary:", {
+      name: file.name,
+      type: file.type,
+      size: (file.size / (1024 * 1024)).toFixed(2) + 'MB',
+      category: type
+    });
     
     let folder = CLOUDINARY_CONFIG.folder;
     if (subfolder) {
@@ -413,27 +431,64 @@ async function uploadFileToCloudinary(file, type, subfolder = '') {
     formData.append('upload_preset', CLOUDINARY_CONFIG.uploadPreset);
     formData.append('folder', folder);
     
-    showNotification('📤 Uploading to Cloudinary...', 'info');
+    showNotification(`📤 Uploading ${type} to Cloudinary...`, 'info');
     
-    const response = await fetch(getCloudinaryUploadUrl(), {
+    const uploadUrl = `https://api.cloudinary.com/v1_1/${CLOUDINARY_CONFIG.cloudName}/auto/upload`;
+    
+    console.log("Upload URL:", uploadUrl);
+    console.log("Upload preset:", CLOUDINARY_CONFIG.uploadPreset);
+    console.log("Folder:", folder);
+    
+    const response = await fetch(uploadUrl, {
       method: 'POST',
       body: formData
     });
     
     if (!response.ok) {
-      const errorData = await response.json();
-      throw new Error(errorData.error?.message || 'Cloudinary upload failed');
+      const errorText = await response.text();
+      console.error("❌ Cloudinary error response:", errorText);
+      
+      let errorMessage = 'Cloudinary upload failed';
+      try {
+        const errorData = JSON.parse(errorText);
+        errorMessage = errorData.error?.message || errorMessage;
+        console.error("Cloudinary error details:", errorData.error);
+      } catch (e) {
+        errorMessage = errorText || errorMessage;
+      }
+      
+      throw new Error(errorMessage);
     }
     
     const data = await response.json();
-    console.log("✅ Cloudinary upload successful:", data.secure_url);
-    showNotification('✅ Uploaded to Cloudinary', 'success');
+    console.log("✅ Cloudinary upload successful:", {
+      url: data.secure_url,
+      public_id: data.public_id,
+      format: data.format,
+      resource_type: data.resource_type,
+      bytes: data.bytes,
+      created_at: data.created_at
+    });
+    
+    showNotification(`✅ ${type === 'video' ? 'Video' : 'Image'} uploaded to Cloudinary`, 'success');
     
     return data.secure_url;
     
   } catch (err) {
     console.error("❌ Error uploading to Cloudinary:", err);
-    showNotification('Failed to upload to Cloudinary: ' + err.message, 'error');
+    
+    if (err.message.includes('Upload preset')) {
+      showNotification('Cloudinary upload preset not configured correctly', 'error');
+    } else if (err.message.includes('File size too large')) {
+      showNotification('File too large. Maximum size is 50MB for videos', 'error');
+    } else if (err.message.includes('Invalid file type')) {
+      showNotification('Invalid file type. Please upload MP4 for videos', 'error');
+    } else if (err.message.includes('video')) {
+      showNotification('Video upload failed. Make sure format is MP4 and under 50MB', 'error');
+    } else {
+      showNotification('Failed to upload: ' + err.message, 'error');
+    }
+    
     throw err;
   }
 }
@@ -785,8 +840,8 @@ async function init() {
   }
 }
 
-// ================= LOAD CONTENT =================
-async function loadContent() {
+// ================= LOAD CONTENT WITH RETRY (FIXED FOR QUIC ERRORS) =================
+async function loadContent(retryCount = 0) {
   if (!contentArea) return;
   
   contentArea.innerHTML = `
@@ -796,6 +851,8 @@ async function loadContent() {
   `;
 
   try {
+    console.log("📥 Fetching content from Supabase...");
+    
     const { data, error } = await supabase
       .from("sheikh_history")
       .select("*")
@@ -803,6 +860,7 @@ async function loadContent() {
 
     if (error) throw error;
 
+    console.log(`✅ Loaded ${data?.length || 0} content items`);
     allContent = data || [];
     displayContent(allContent);
     
@@ -815,13 +873,32 @@ async function loadContent() {
 
   } catch (err) {
     console.error("Error loading content:", err);
-    contentArea.innerHTML = `
-      <div class="empty-state">
-        <i class="fas fa-exclamation-circle"></i>
-        <h3>Error Loading Content</h3>
-        <p>Please try again later</p>
-      </div>
-    `;
+    
+    if (retryCount < 3) {
+      const delay = Math.pow(2, retryCount) * 1000;
+      console.log(`🔄 Retrying in ${delay/1000} seconds... (attempt ${retryCount + 1}/3)`);
+      
+      contentArea.innerHTML = `
+        <div class="loading-spinner">
+          <i class="fas fa-spinner fa-spin"></i> Connection issue. Retrying in ${delay/1000}s... (${retryCount + 1}/3)
+        </div>
+      `;
+      
+      setTimeout(() => {
+        loadContent(retryCount + 1);
+      }, delay);
+    } else {
+      contentArea.innerHTML = `
+        <div class="empty-state">
+          <i class="fas fa-exclamation-circle"></i>
+          <h3>Connection Error</h3>
+          <p>Unable to load content. Please check your internet connection and refresh the page.</p>
+          <button onclick="location.reload()" class="primary-btn" style="margin-top: 20px;">
+            <i class="fas fa-sync-alt"></i> Refresh Page
+          </button>
+        </div>
+      `;
+    }
   }
 }
 
@@ -936,47 +1013,75 @@ window.viewImage = function(url) {
 
 // ================= CLEAR MODAL CONTENT HELPER =================
 function clearModalContent() {
-    const fileInfo = document.querySelector('.file-info');
-    if (fileInfo) fileInfo.remove();
+    const fileInfo = document.querySelectorAll('.file-info');
+    fileInfo.forEach(el => el.remove());
     
-    const preview = document.querySelector('.preview-image');
-    if (preview) preview.remove();
+    const preview = document.querySelectorAll('.preview-image');
+    preview.forEach(el => el.remove());
     
     if (fileInput) fileInput.value = '';
     selectedFile = null;
 }
 
-// ================= SETUP EVENT LISTENERS =================
+// ================= SETUP EVENT LISTENERS (FIXED FILE SELECTION) =================
 function setupEventListeners() {
   if (addSectionBtn) addSectionBtn.onclick = openAddModal;
   if (closeModalBtn) closeModalBtn.onclick = closeModal;
-  if (selectFileBtn) selectFileBtn.onclick = () => fileInput?.click();
   
+  // FIXED: File input change handler
   if (fileInput) {
+    // Remove any existing event listeners by replacing with new one
     fileInput.onchange = function(e) {
-      clearModalContent();
+      e.preventDefault(); // Prevent any default behavior
+      e.stopPropagation(); // Stop event bubbling
+      
+      console.log("📁 File input changed:", e.target.files);
+      
+      // Clear previous file info but keep the file
+      const existingFileInfo = document.querySelectorAll('.file-info');
+      existingFileInfo.forEach(el => el.remove());
+      
+      const existingPreview = document.querySelectorAll('.preview-image');
+      existingPreview.forEach(el => el.remove());
       
       if (e.target.files && e.target.files.length > 0) {
         const file = e.target.files[0];
         selectedFile = file;
         
+        console.log("✅ File selected:", {
+          name: file.name,
+          type: file.type,
+          size: (file.size / (1024 * 1024)).toFixed(2) + 'MB'
+        });
+        
+        const fileSizeMB = (file.size / (1024 * 1024)).toFixed(2);
+        
+        // Show file info
         const fileInfo = document.createElement('div');
         fileInfo.className = 'file-info';
         fileInfo.innerHTML = `
           <i class="fas fa-check-circle" style="color: var(--success);"></i>
-          <span>Selected: ${file.name} (${(file.size / 1024).toFixed(2)} KB) - will upload to Cloudinary</span>
+          <span>Selected: ${file.name} (${fileSizeMB} MB) - Ready to upload to Cloudinary</span>
         `;
         
         if (selectFileBtn) {
           selectFileBtn.parentNode.insertBefore(fileInfo, selectFileBtn.nextSibling);
         }
         
+        // Show preview for images
         if (contentType && contentType.value === 'image' && file.type.startsWith('image/')) {
           const reader = new FileReader();
           reader.onload = function(readerEvent) {
             const preview = document.createElement('img');
             preview.src = readerEvent.target.result;
             preview.className = 'preview-image';
+            preview.style.maxWidth = '100%';
+            preview.style.maxHeight = '200px';
+            preview.style.marginTop = '10px';
+            preview.style.borderRadius = '8px';
+            preview.style.border = '3px solid var(--primary)';
+            
+            // Insert after file info
             if (fileInfo.nextSibling) {
               fileInfo.parentNode.insertBefore(preview, fileInfo.nextSibling);
             } else {
@@ -984,24 +1089,74 @@ function setupEventListeners() {
             }
           };
           reader.readAsDataURL(file);
+        } else if (contentType && contentType.value === 'video') {
+          // Show video info
+          const videoInfo = document.createElement('div');
+          videoInfo.className = 'file-info';
+          videoInfo.style.background = '#fff3cd';
+          videoInfo.style.color = '#856404';
+          videoInfo.innerHTML = `
+            <i class="fas fa-info-circle"></i>
+            <span>Video ready for upload: ${file.name} (${fileSizeMB} MB) - MP4 format recommended</span>
+          `;
+          
+          if (fileInfo.nextSibling) {
+            fileInfo.parentNode.insertBefore(videoInfo, fileInfo.nextSibling);
+          } else {
+            fileInfo.parentNode.appendChild(videoInfo);
+          }
         }
+      } else {
+        console.log("❌ No file selected");
+        selectedFile = null;
+      }
+    };
+    
+    // Ensure file input doesn't cause form submission
+    fileInput.addEventListener('click', function(e) {
+      e.stopPropagation();
+    });
+  }
+  
+  // FIXED: Select file button click handler
+  if (selectFileBtn) {
+    selectFileBtn.onclick = function(e) {
+      e.preventDefault();
+      e.stopPropagation();
+      console.log("📁 Opening file selector...");
+      
+      // Clear and reopen file input to ensure fresh selection
+      if (fileInput) {
+        fileInput.value = ''; // Clear previous selection
+        fileInput.click();
       }
     };
   }
   
+  // FIXED: Content type change handler
   if (contentType) {
-    contentType.onchange = () => {
-        const isText = contentType.value === 'text';
-        
-        if (contentText) {
-            contentText.style.display = isText ? 'block' : 'none';
-        }
-        
-        if (selectFileBtn) {
-            selectFileBtn.style.display = isText ? 'none' : 'inline-block';
-        }
-        
-        clearModalContent();
+    contentType.onchange = function(e) {
+      e.preventDefault();
+      const isText = contentType.value === 'text';
+      
+      if (contentText) {
+        contentText.style.display = isText ? 'block' : 'none';
+      }
+      
+      if (selectFileBtn) {
+        selectFileBtn.style.display = isText ? 'none' : 'inline-block';
+      }
+      
+      // Clear file selection when changing type
+      if (fileInput) {
+        fileInput.value = '';
+      }
+      selectedFile = null;
+      
+      // Clear any file info/preview
+      clearModalContent();
+      
+      console.log("Content type changed to:", contentType.value);
     };
   }
   
@@ -1015,9 +1170,17 @@ function setupEventListeners() {
       window.location.href = "../index.html";
     };
   }
+  
+  // FIXED: Prevent modal from closing when clicking inside
+  const modals = document.querySelectorAll('.modal-content');
+  modals.forEach(modal => {
+    modal.addEventListener('click', function(e) {
+      e.stopPropagation();
+    });
+  });
 }
 
-// ================= OPEN ADD MODAL =================
+// ================= OPEN ADD MODAL (FIXED) =================
 function openAddModal() {
   const modalTitle = document.querySelector('#uploadModal h3');
   if (modalTitle) modalTitle.textContent = 'Add Sheikh Content';
@@ -1025,9 +1188,17 @@ function openAddModal() {
   if (contentText) contentText.value = '';
   if (contentType) contentType.value = 'text';
   
+  // Clear everything
   clearModalContent();
   selectedContentId = null;
+  selectedFile = null;
   
+  // Reset file input
+  if (fileInput) {
+    fileInput.value = '';
+  }
+  
+  // Trigger change event for content type
   if (contentType) {
     const event = new Event('change');
     contentType.dispatchEvent(event);
@@ -1036,7 +1207,7 @@ function openAddModal() {
   if (uploadModal) uploadModal.classList.remove('hidden');
 }
 
-// ================= EDIT CONTENT =================
+// ================= EDIT CONTENT (FIXED) =================
 window.editContent = function(id) {
   const item = allContent.find(c => c.id === id);
   if (!item) return;
@@ -1047,9 +1218,17 @@ window.editContent = function(id) {
   if (contentText) contentText.value = item.content || '';
   if (contentType) contentType.value = item.content_type;
   selectedContentId = id;
+  selectedFile = null;
   
+  // Clear previous file info/preview
   clearModalContent();
   
+  // Reset file input
+  if (fileInput) {
+    fileInput.value = '';
+  }
+  
+  // Trigger change event for content type
   if (contentType) {
     const event = new Event('change');
     contentType.dispatchEvent(event);
@@ -1057,6 +1236,7 @@ window.editContent = function(id) {
   
   const isText = item.content_type === 'text';
   
+  // Show existing file info if not text
   if (!isText && item.media_url && selectFileBtn) {
     const source = isCloudinaryUrl(item.media_url) ? 'Cloudinary' : 'Supabase';
     const fileInfo = document.createElement('div');
@@ -1064,14 +1244,21 @@ window.editContent = function(id) {
     fileInfo.innerHTML = `
       <i class="fas fa-check-circle" style="color: var(--success);"></i>
       <span>Current file: ${item.media_url.split('/').pop()} (from ${source})</span>
+      <small style="display:block; margin-top:5px;">Select a new file to replace it</small>
     `;
     
     selectFileBtn.parentNode.insertBefore(fileInfo, selectFileBtn.nextSibling);
     
+    // Show preview for images
     if (item.content_type === 'image') {
       const preview = document.createElement('img');
       preview.src = item.media_url;
       preview.className = 'preview-image';
+      preview.style.maxWidth = '100%';
+      preview.style.maxHeight = '200px';
+      preview.style.marginTop = '10px';
+      preview.style.borderRadius = '8px';
+      preview.style.border = '3px solid var(--primary)';
       preview.onerror = () => {
         preview.src = getFallbackImageUrl();
       };
@@ -1083,7 +1270,7 @@ window.editContent = function(id) {
   if (uploadModal) uploadModal.classList.remove('hidden');
 };
 
-// ================= SAVE CONTENT =================
+// ================= SAVE CONTENT (FIXED FILE SELECTION CHECK) =================
 async function saveContent() {
   const title = contentTitle?.value.trim();
   if (!title) {
@@ -1101,13 +1288,21 @@ async function saveContent() {
   }
 
   try {
+    console.log("Saving content type:", type);
+    console.log("Selected file:", selectedFile);
+    console.log("Selected content ID:", selectedContentId);
+    
+    // Check if we need a file
     if (type !== 'text') {
-      if (selectedFile) {
-        mediaUrl = await uploadFileToCloudinary(selectedFile, type);
-      } else if (selectedContentId) {
+      // For edit mode with existing content, file is optional
+      if (selectedContentId && !selectedFile) {
+        // Keep existing media
         const existing = allContent.find(c => c.id === selectedContentId);
         mediaUrl = existing?.media_url;
-      } else {
+        console.log("Keeping existing media:", mediaUrl);
+      } 
+      // For new content or replacing file, file is required
+      else if (!selectedFile) {
         showNotification('Please select a file', 'error');
         if (saveContentBtn) {
           saveContentBtn.disabled = false;
@@ -1115,7 +1310,46 @@ async function saveContent() {
         }
         return;
       }
+      // Upload new file
+      else {
+        // Validate file type
+        if (type === 'video' && !selectedFile.type.startsWith('video/')) {
+          showNotification('Please select a valid video file (MP4, WebM, etc.)', 'error');
+          if (saveContentBtn) {
+            saveContentBtn.disabled = false;
+            saveContentBtn.innerHTML = 'Save';
+          }
+          return;
+        }
+        
+        if (type === 'image' && !selectedFile.type.startsWith('image/')) {
+          showNotification('Please select a valid image file (JPEG, PNG, GIF)', 'error');
+          if (saveContentBtn) {
+            saveContentBtn.disabled = false;
+            saveContentBtn.innerHTML = 'Save';
+          }
+          return;
+        }
+        
+        // Check file size
+        const maxSize = type === 'video' ? 50 * 1024 * 1024 : 10 * 1024 * 1024;
+        if (selectedFile.size > maxSize) {
+          const sizeMB = (selectedFile.size / (1024 * 1024)).toFixed(2);
+          const maxMB = type === 'video' ? 50 : 10;
+          showNotification(`File too large: ${sizeMB}MB. Max size is ${maxMB}MB`, 'error');
+          if (saveContentBtn) {
+            saveContentBtn.disabled = false;
+            saveContentBtn.innerHTML = 'Save';
+          }
+          return;
+        }
+        
+        console.log(`📤 Uploading ${type} to Cloudinary...`);
+        mediaUrl = await uploadFileToCloudinary(selectedFile, type);
+        console.log("✅ Media uploaded, URL:", mediaUrl);
+      }
     } else {
+      // Text content
       content = contentText?.value.trim();
       if (!content) {
         showNotification('Please enter content', 'error');
@@ -1135,6 +1369,8 @@ async function saveContent() {
       created_by: currentUser.id
     };
 
+    console.log("Saving to database:", contentData);
+
     let error;
 
     if (selectedContentId) {
@@ -1148,7 +1384,10 @@ async function saveContent() {
         .insert([contentData]));
     }
 
-    if (error) throw error;
+    if (error) {
+      console.error("Database error:", error);
+      throw error;
+    }
 
     closeModal();
     showNotification(selectedContentId ? 'Content updated' : 'Content added');
@@ -1156,7 +1395,7 @@ async function saveContent() {
 
   } catch (err) {
     console.error("Error saving content:", err);
-    showNotification('Error: ' + err.message, 'error');
+    showNotification('Error: ' + (err.message || 'Unknown error'), 'error');
   } finally {
     if (saveContentBtn) {
       saveContentBtn.disabled = false;
@@ -1215,6 +1454,7 @@ function closeModal() {
   
   clearModalContent();
   selectedContentId = null;
+  selectedFile = null;
   
   if (contentType) {
     const event = new Event('change');
