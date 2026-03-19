@@ -7,6 +7,7 @@
 // UPDATED: Fixed Android back button behavior for lightbox
 // UPDATED: Fixed video upload to Cloudinary
 // UPDATED: Fixed file selection issue (selectedFile was null)
+// UPDATED: Fixed profile image upload - now opens file picker directly
 // ============================================
 
 // ================= CLOUDINARY CONFIGURATION =================
@@ -662,7 +663,7 @@ async function removeProfileImage() {
   }
 }
 
-// ================= SETUP KEBAB MENU =================
+// ================= SETUP KEBAB MENU (FIXED FOR PROFILE IMAGE UPLOAD) =================
 function setupKebabMenu() {
   if (!isAdmin) {
     if (profileMenu) profileMenu.style.display = 'none';
@@ -685,14 +686,63 @@ function setupKebabMenu() {
     }
   });
 
+  // FIXED: Upload Profile Image button - now opens file picker directly
   if (uploadProfileImageBtn) {
-    uploadProfileImageBtn.addEventListener('click', () => {
+    uploadProfileImageBtn.addEventListener('click', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      
+      // Close the dropdown menu
       if (profileMenuDropdown) profileMenuDropdown.classList.remove('show');
+      
+      // Show the upload modal first
       if (profileImageUploadModal) {
         profileImageUploadModal.classList.remove('hidden');
         if (profileImagePreview) {
           profileImagePreview.src = sheikhProfile.image_url || PROFILE_PLACEHOLDER;
         }
+        
+        // Automatically trigger file picker after modal opens
+        setTimeout(() => {
+          if (profileImageFile) {
+            profileImageFile.value = ''; // Clear previous selection
+            profileImageFile.click(); // Open file picker
+          }
+        }, 100);
+      }
+    });
+  }
+
+  // FIXED: Handle file selection for profile image
+  if (profileImageFile) {
+    profileImageFile.addEventListener('change', (e) => {
+      const file = e.target.files[0];
+      
+      if (file) {
+        // Validate file type
+        if (!file.type.startsWith('image/')) {
+          showNotification('Please select a valid image file', 'error');
+          profileImageFile.value = '';
+          return;
+        }
+        
+        // Validate file size (max 5MB)
+        if (file.size > 5 * 1024 * 1024) {
+          showNotification('Image too large. Maximum size is 5MB', 'error');
+          profileImageFile.value = '';
+          return;
+        }
+        
+        // Show preview
+        if (profileImagePreview) {
+          const reader = new FileReader();
+          reader.onload = (e) => {
+            if (profileImagePreview) profileImagePreview.src = e.target.result;
+          };
+          reader.readAsDataURL(file);
+        }
+        
+        showNotification('Image selected. Click "Upload Image" to confirm.', 'success');
       }
     });
   }
@@ -711,25 +761,16 @@ function setupKebabMenu() {
     });
   }
 
-  if (profileImageFile) {
-    profileImageFile.addEventListener('change', (e) => {
-      const file = e.target.files[0];
-      if (file && profileImagePreview) {
-        const reader = new FileReader();
-        reader.onload = (e) => {
-          if (profileImagePreview) profileImagePreview.src = e.target.result;
-        };
-        reader.readAsDataURL(file);
-      }
-    });
-  }
-
   if (saveProfileImageBtn) {
     saveProfileImageBtn.addEventListener('click', async () => {
       const file = profileImageFile?.files[0];
       
       if (!file) {
-        showNotification('Please select an image', 'error');
+        showNotification('Please select an image first', 'error');
+        // Trigger file picker again
+        if (profileImageFile) {
+          profileImageFile.click();
+        }
         return;
       }
 

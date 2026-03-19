@@ -13,6 +13,7 @@
   --border: #e0e0e0;
   --shadow: 0 5px 20px rgba(0,0,0,0.08);
   --shadow-hover: 0 8px 25px rgba(11,94,59,0.15);
+  --islamic-green: #0a3b2a; /* Islamic dark green for media containers */
 }
 
 /* Make everything scale properly */
@@ -474,14 +475,14 @@ body {
   max-width: 600px;
 }
 
-/* CONTENT AREA */
+/* ================= FIXED CONTENT AREA AND CARDS ================= */
 .content-area {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
   gap: 25px;
 }
 
-/* CONTENT CARD */
+/* CONTENT CARD - FIXED FOR PROPER MEDIA DISPLAY */
 .content-card {
   background: var(--card);
   border-radius: 16px;
@@ -490,6 +491,9 @@ body {
   border: 1px solid var(--border);
   transition: all 0.3s;
   position: relative;
+  display: flex;
+  flex-direction: column;
+  height: fit-content;
 }
 
 .content-card:hover {
@@ -524,15 +528,43 @@ body {
   z-index: 2;
 }
 
-.card-media {
+/* FIXED: Media container for images and videos - NOW WITH ISLAMIC DARK GREEN BACKGROUND */
+.content-card .card-media {
   width: 100%;
-  height: 200px;
-  object-fit: cover;
-  background: #f0f0f0;
+  height: auto;
+  max-height: 250px;
+  object-fit: contain; /* This ensures the entire media is visible */
+  object-position: center;
+  background: #0a3b2a; /* Islamic dark green background for media */
+  display: block;
 }
 
+/* Specific fix for images */
+.content-card.image .card-media {
+  object-fit: contain;
+  background: #0a3b2a; /* Islamic dark green background for images */
+}
+
+/* Specific fix for videos */
+.content-card.video .card-media {
+  object-fit: contain;
+  background: #0a3b2a; /* Islamic dark green background for videos */
+  max-height: 250px;
+}
+
+/* Ensure video controls are visible */
+.content-card video.card-media {
+  width: 100%;
+  height: auto;
+  min-height: 200px;
+  background: #0a3b2a; /* Islamic dark green background for videos */
+}
+
+/* Card content area - KEEP ORIGINAL BACKGROUND */
 .card-content {
   padding: 20px;
+  flex: 1;
+  background: var(--card); /* Keep original white background */
 }
 
 .card-content h3 {
@@ -556,6 +588,7 @@ body {
   color: var(--text-muted);
   border-top: 1px solid var(--border);
   padding-top: 12px;
+  flex-wrap: wrap;
 }
 
 .card-meta span {
@@ -566,13 +599,6 @@ body {
 
 .card-meta i {
   color: var(--primary);
-}
-
-/* VIDEO PLAYER */
-.content-card video {
-  width: 100%;
-  max-height: 200px;
-  background: #000;
 }
 
 /* ADMIN ACTIONS */
@@ -703,53 +729,115 @@ body {
   resize: vertical;
 }
 
+/* ================= FIXED FILE SELECTION STYLES ================= */
+
+/* Ensure file input is properly hidden but functional */
+input[type="file"] {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    border: 0;
+}
+
+/* Better file info styling */
 .file-info {
-  margin-top: 10px;
-  padding: 10px;
-  background: #f8f9fa;
-  border-radius: 8px;
-  font-size: 0.9rem;
-  color: var(--text-muted);
-  display: flex;
-  align-items: center;
-  gap: 8px;
+    background: #e8f5e9;
+    border-left: 4px solid var(--primary);
+    padding: 12px 15px;
+    margin: 15px 0;
+    border-radius: 8px;
+    font-size: 0.95rem;
+    color: var(--primary-dark);
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    word-break: break-word;
 }
 
 .file-info i {
-  color: var(--primary);
+    font-size: 1.2rem;
+    flex-shrink: 0;
 }
 
+/* Preview image styling - with Islamic dark green background for previews */
 .preview-image {
-  max-width: 100%;
-  max-height: 200px;
-  border-radius: 8px;
-  margin-top: 10px;
-  border: 2px solid var(--border);
+    max-width: 100%;
+    max-height: 200px;
+    border-radius: 8px;
+    margin: 10px 0;
+    border: 3px solid var(--primary);
+    box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+    display: block;
+    object-fit: contain;
+    background: #0a3b2a; /* Islamic dark green for image previews */
 }
 
+/* Select file button */
+#selectFileBtn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    padding: 12px 24px;
+    background: var(--primary);
+    color: white;
+    border: none;
+    border-radius: 8px;
+    cursor: pointer;
+    font-size: 1rem;
+    font-weight: 500;
+    transition: all 0.3s;
+    min-height: 44px;
+    width: 100%;
+    margin: 10px 0;
+}
+
+#selectFileBtn:hover {
+    background: var(--primary-dark);
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(11,94,59,0.3);
+}
+
+#selectFileBtn:active {
+    transform: translateY(0);
+}
+
+/* Modal actions styling */
 .modal-actions {
-  display: flex;
-  justify-content: flex-end;
-  gap: 15px;
-  margin-top: 30px;
-  padding-top: 20px;
-  border-top: 1px solid var(--border);
+    display: flex;
+    gap: 10px;
+    margin-top: 20px;
+    flex-wrap: wrap;
 }
 
-.ghost-btn {
-  background: transparent;
-  border: 2px solid var(--border);
-  padding: 12px 24px;
-  border-radius: 8px;
-  cursor: pointer;
-  font-size: 1rem;
-  font-weight: 500;
-  transition: all 0.3s;
+.modal-actions button {
+    flex: 1;
+    min-width: 120px;
 }
 
-.ghost-btn:hover {
-  background: #f0f0f0;
-  border-color: var(--primary);
+/* Mobile improvements for modal */
+@media (max-width: 768px) {
+    #selectFileBtn {
+        padding: 14px 20px;
+        font-size: 1rem;
+    }
+    
+    .file-info {
+        padding: 10px 12px;
+        font-size: 0.9rem;
+    }
+    
+    .modal-actions {
+        flex-direction: column;
+    }
+    
+    .modal-actions button {
+        width: 100%;
+    }
 }
 
 /* DELETE MODAL */
@@ -854,240 +942,6 @@ body {
 /* HIDDEN */
 .hidden {
   display: none !important;
-}
-
-/* RESPONSIVE */
-@media (max-width: 768px) {
-  .app-header {
-    padding: 1rem;
-  }
-  
-  .app-header h1 {
-    font-size: 1.2rem;
-  }
-  
-  .subtitle {
-    display: none;
-  }
-  
-  .main-content {
-    padding: 20px;
-  }
-  
-  .sheikh-profile {
-    flex-direction: column;
-    text-align: center;
-    padding: 30px;
-  }
-  
-  .sheikh-profile .quote {
-    border-left: none;
-    border-top: 3px solid rgba(255,255,255,0.3);
-    padding-top: 20px;
-    padding-left: 0;
-  }
-  
-  .page-header {
-    flex-direction: column;
-    text-align: center;
-  }
-  
-  .modal-content {
-    padding: 20px;
-  }
-}
-
-@media (max-width: 480px) {
-  .main-content {
-    padding: 15px;
-  }
-  
-  .content-area {
-    grid-template-columns: 1fr;
-  }
-  
-  .sheikh-profile img {
-    width: 120px;
-    height: 120px;
-  }
-  
-  .sheikh-profile h2 {
-    font-size: 1.8rem;
-  }
-  
-  .modal-actions {
-    flex-direction: column;
-  }
-  
-  .modal-actions button {
-    width: 100%;
-  }
-}
-
-/* ================= PROFILE IMAGE UPLOAD - FIXED FOR MOBILE ================= */
-.profile-image-container {
-  position: relative;
-  width: 150px;
-  height: 150px;
-  border-radius: 50%;
-  overflow: hidden;
-  cursor: pointer;
-}
-
-/* For desktop - hover effect only on devices that support hover */
-@media (hover: hover) and (pointer: fine) {
-  .profile-image-overlay {
-    position: absolute;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100%;
-    background: rgba(0, 0, 0, 0.6);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    opacity: 0;
-    transition: opacity 0.3s ease;
-    border-radius: 50%;
-    pointer-events: none;
-  }
-
-  .profile-image-container:hover .profile-image-overlay {
-    opacity: 1;
-  }
-}
-
-/* For mobile - always show a small edit button at bottom */
-@media (max-width: 768px), (hover: none) {
-  .profile-image-container {
-    cursor: default;
-  }
-  
-  .profile-image-overlay {
-    position: absolute;
-    bottom: 0;
-    left: 0;
-    right: 0;
-    top: auto;
-    height: auto;
-    background: linear-gradient(to top, rgba(0,0,0,0.8), transparent);
-    display: flex;
-    align-items: flex-end;
-    justify-content: center;
-    padding: 10px 0;
-    border-radius: 0 0 50% 50%;
-    opacity: 1;
-    pointer-events: auto;
-  }
-  
-  .profile-image-btn {
-    background: var(--primary);
-    color: white;
-    border: none;
-    padding: 8px 16px;
-    border-radius: 30px;
-    font-size: 0.85rem;
-    cursor: pointer;
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    box-shadow: 0 4px 10px rgba(0,0,0,0.3);
-    transform: scale(1);
-    transition: transform 0.2s;
-    margin-bottom: 5px;
-    min-height: 44px; /* Better touch target */
-  }
-  
-  .profile-image-btn:active {
-    transform: scale(0.95);
-  }
-  
-  .profile-image-btn i {
-    font-size: 1rem;
-  }
-}
-
-/* Common styles for both desktop and mobile */
-.profile-image-btn {
-  background: var(--primary);
-  color: white;
-  border: none;
-  padding: 8px 12px;
-  border-radius: 20px;
-  font-size: 0.8rem;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  gap: 5px;
-  transition: all 0.3s;
-  z-index: 10;
-}
-
-.profile-image-btn:hover {
-  background: var(--primary-dark);
-  transform: scale(1.05);
-}
-
-.profile-image-btn:active {
-  transform: scale(0.95);
-}
-
-/* Profile Preview Modal */
-.profile-preview-container {
-  text-align: center;
-  margin: 20px 0;
-}
-
-.profile-preview {
-  width: 200px;
-  height: 200px;
-  border-radius: 50%;
-  object-fit: cover;
-  border: 4px solid var(--primary);
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.2);
-}
-
-/* Admin controls for profile */
-.profile-admin-controls {
-  position: absolute;
-  bottom: 20px;
-  right: 20px;
-  z-index: 10;
-}
-
-.profile-edit-btn {
-  background: white;
-  color: var(--primary);
-  border: none;
-  width: 44px;
-  height: 44px;
-  border-radius: 50%;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 1.2rem;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
-  transition: all 0.3s;
-}
-
-.profile-edit-btn:hover {
-  background: var(--primary);
-  color: white;
-  transform: scale(1.1);
-}
-
-/* Responsive for profile image */
-@media (max-width: 768px) {
-  .profile-image-container {
-    width: 120px;
-    height: 120px;
-  }
-  
-  .profile-preview {
-    width: 150px;
-    height: 150px;
-  }
 }
 
 /* ================= RESUME READING BUTTON ================= */
@@ -1200,81 +1054,6 @@ body {
 .jump-to-top-btn:active {
   transform: scale(0.95);
 }
-
-/* Mobile adjustments for resume button */
-@media (max-width: 768px) {
-  .resume-btn {
-    padding: 14px 20px;
-    font-size: 0.9rem;
-    gap: 8px;
-    width: 95%;
-  }
-  
-  .resume-btn i {
-    font-size: 1rem;
-  }
-  
-  .scroll-progress {
-    top: 60px;
-  }
-  
-  .jump-to-top-btn {
-    bottom: 20px;
-    right: 20px;
-    width: 44px;
-    height: 44px;
-    font-size: 1rem;
-  }
-}
-
-@media (max-width: 480px) {
-  .resume-btn {
-    padding: 12px 16px;
-    font-size: 0.8rem;
-    flex-wrap: wrap;
-  }
-  
-  .resume-btn span {
-    white-space: normal;
-  }
-}
-
-/* ================= FIX: Ensure overlay stays visible for admin ================= */
-.deepseek-sidebar .user-profile + * .profile-image-overlay[style*="display: flex"] {
-  display: flex !important;
-}
-
-/* Ensure the overlay is always visible on mobile for admin */
-@media (max-width: 768px), (hover: none) {
-  .profile-image-overlay {
-    pointer-events: auto !important;
-  }
-  
-  .profile-image-container .profile-image-overlay {
-    opacity: 1 !important;
-  }
-}
-
-/* Add a small indicator that image can be changed */
-.profile-image-container::after {
-  content: '';
-  position: absolute;
-  bottom: 5px;
-  right: 5px;
-  width: 12px;
-  height: 12px;
-  background: var(--primary);
-  border: 2px solid white;
-  border-radius: 50%;
-  display: none;
-  z-index: 15;
-}
-
-.profile-image-container[data-admin="true"]::after {
-  display: block;
-}
-
-
 
 /* ================= PROFILE KEBAB MENU ================= */
 .profile-image-container {
@@ -1409,8 +1188,63 @@ body {
   box-shadow: 0 4px 20px rgba(0, 0, 0, 0.2);
 }
 
-/* Responsive for mobile */
+/* Animation */
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* ================= RESPONSIVE DESIGN ================= */
 @media (max-width: 768px) {
+  .app-header {
+    padding: 1rem;
+  }
+  
+  .app-header h1 {
+    font-size: 1.2rem;
+  }
+  
+  .subtitle {
+    display: none;
+  }
+  
+  .main-content {
+    padding: 20px;
+  }
+  
+  .sheikh-profile {
+    flex-direction: column;
+    text-align: center;
+    padding: 30px;
+  }
+  
+  .sheikh-profile .quote {
+    border-left: none;
+    border-top: 3px solid rgba(255,255,255,0.3);
+    padding-top: 20px;
+    padding-left: 0;
+  }
+  
+  .page-header {
+    flex-direction: column;
+    text-align: center;
+  }
+  
+  .modal-content {
+    padding: 20px;
+  }
+  
+  .content-area {
+    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+    gap: 20px;
+  }
+  
   .profile-image-container {
     width: 120px;
     height: 120px;
@@ -1436,9 +1270,67 @@ body {
     width: 150px;
     height: 150px;
   }
+  
+  .resume-btn {
+    padding: 14px 20px;
+    font-size: 0.9rem;
+    gap: 8px;
+    width: 95%;
+  }
+  
+  .resume-btn i {
+    font-size: 1rem;
+  }
+  
+  .scroll-progress {
+    top: 60px;
+  }
+  
+  .jump-to-top-btn {
+    bottom: 20px;
+    right: 20px;
+    width: 44px;
+    height: 44px;
+    font-size: 1rem;
+  }
 }
 
 @media (max-width: 480px) {
+  .main-content {
+    padding: 15px;
+  }
+  
+  .content-area {
+    grid-template-columns: 1fr;
+  }
+  
+  .sheikh-profile img {
+    width: 120px;
+    height: 120px;
+  }
+  
+  .sheikh-profile h2 {
+    font-size: 1.8rem;
+  }
+  
+  .modal-actions {
+    flex-direction: column;
+  }
+  
+  .modal-actions button {
+    width: 100%;
+  }
+  
+  .resume-btn {
+    padding: 12px 16px;
+    font-size: 0.8rem;
+    flex-wrap: wrap;
+  }
+  
+  .resume-btn span {
+    white-space: normal;
+  }
+  
   .profile-menu-btn {
     width: 32px;
     height: 32px;
@@ -1456,21 +1348,40 @@ body {
   }
 }
 
-/* Animation */
-@keyframes fadeIn {
-  from {
-    opacity: 0;
-    transform: translateY(-10px);
+/* ================= FIX: Ensure overlay stays visible for admin ================= */
+.deepseek-sidebar .user-profile + * .profile-image-overlay[style*="display: flex"] {
+  display: flex !important;
+}
+
+/* Ensure the overlay is always visible on mobile for admin */
+@media (max-width: 768px), (hover: none) {
+  .profile-image-overlay {
+    pointer-events: auto !important;
   }
-  to {
-    opacity: 1;
-    transform: translateY(0);
+  
+  .profile-image-container .profile-image-overlay {
+    opacity: 1 !important;
   }
 }
 
+/* Add a small indicator that image can be changed */
+.profile-image-container::after {
+  content: '';
+  position: absolute;
+  bottom: 5px;
+  right: 5px;
+  width: 12px;
+  height: 12px;
+  background: var(--primary);
+  border: 2px solid white;
+  border-radius: 50%;
+  display: none;
+  z-index: 15;
+}
 
-
-
+.profile-image-container[data-admin="true"]::after {
+  display: block;
+}
 
 /* ================= FIXED MODAL STYLING FOR ALL CONTENT TYPES ================= */
 
@@ -1503,121 +1414,6 @@ body {
     background: white;
 }
 
-/* File info styling - consistent for all media */
-.file-info {
-    margin: 15px 0;
-    padding: 12px 15px;
-    background: #e8f5e9;
-    border-radius: 8px;
-    font-size: 0.95rem;
-    color: var(--primary-dark);
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    border-left: 4px solid var(--primary);
-}
-
-.file-info i {
-    color: var(--primary);
-    font-size: 1.2rem;
-}
-
-/* Preview image styling - consistent */
-.preview-image {
-    max-width: 100%;
-    max-height: 200px;
-    border-radius: 8px;
-    margin: 15px 0;
-    border: 3px solid var(--primary);
-    box-shadow: 0 4px 15px rgba(0,0,0,0.1);
-}
-
-/* Select File button styling */
-#selectFileBtn {
-    display: inline-block;
-    margin: 10px 0;
-    padding: 12px 24px;
-    background: var(--primary);
-    color: white;
-    border: none;
-    border-radius: 8px;
-    cursor: pointer;
-    font-size: 1rem;
-    font-weight: 500;
-    transition: all 0.3s;
-}
-
-#selectFileBtn:hover {
-    background: var(--primary-dark);
-    transform: translateY(-2px);
-    box-shadow: 0 4px 12px rgba(11,94,59,0.3);
-}
-
-/* Modal actions - consistent buttons */
-.modal-actions {
-    display: flex;
-    justify-content: flex-end;
-    gap: 15px;
-    margin-top: 30px;
-    padding-top: 20px;
-    border-top: 2px solid var(--border);
-}
-
-.modal-actions button {
-    padding: 12px 24px;
-    border-radius: 8px;
-    font-size: 1rem;
-    font-weight: 500;
-    cursor: pointer;
-    transition: all 0.3s;
-    min-width: 100px;
-}
-
-#saveContentBtn {
-    background: var(--primary);
-    color: white;
-    border: none;
-}
-
-#saveContentBtn:hover {
-    background: var(--primary-dark);
-    transform: translateY(-2px);
-    box-shadow: 0 4px 12px rgba(11,94,59,0.3);
-}
-
-#closeModalBtn {
-    background: transparent;
-    color: var(--text-muted);
-    border: 2px solid var(--border);
-}
-
-#closeModalBtn:hover {
-    background: #f0f0f0;
-    border-color: var(--primary);
-    color: var(--primary);
-}
-
-/* Mobile responsiveness for modal */
-@media (max-width: 768px) {
-    .modal-content {
-        padding: 20px;
-    }
-    
-    .modal-actions {
-        flex-direction: column;
-    }
-    
-    .modal-actions button {
-        width: 100%;
-        margin: 5px 0;
-    }
-    
-    #selectFileBtn {
-        width: 100%;
-        text-align: center;
-    }
-}
-
 /* Ensure textarea shows properly for text content */
 #contentText {
     display: block;
@@ -1635,118 +1431,4 @@ body {
 .content-type-image #selectFileBtn,
 .content-type-video #selectFileBtn {
     display: inline-block;
-}
-
-
-
-
-
-
-/* ================= FIXED FILE SELECTION STYLES ================= */
-
-/* Ensure file input is properly hidden but functional */
-input[type="file"] {
-    position: absolute;
-    width: 1px;
-    height: 1px;
-    padding: 0;
-    margin: -1px;
-    overflow: hidden;
-    clip: rect(0, 0, 0, 0);
-    border: 0;
-}
-
-/* Better file info styling */
-.file-info {
-    background: #e8f5e9;
-    border-left: 4px solid var(--primary);
-    padding: 12px 15px;
-    margin: 15px 0;
-    border-radius: 8px;
-    font-size: 0.95rem;
-    color: var(--primary-dark);
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    word-break: break-word;
-}
-
-.file-info i {
-    font-size: 1.2rem;
-    flex-shrink: 0;
-}
-
-/* Preview image styling */
-.preview-image {
-    max-width: 100%;
-    max-height: 200px;
-    border-radius: 8px;
-    margin: 10px 0;
-    border: 3px solid var(--primary);
-    box-shadow: 0 4px 15px rgba(0,0,0,0.1);
-    display: block;
-}
-
-/* Select file button */
-#selectFileBtn {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    gap: 8px;
-    padding: 12px 24px;
-    background: var(--primary);
-    color: white;
-    border: none;
-    border-radius: 8px;
-    cursor: pointer;
-    font-size: 1rem;
-    font-weight: 500;
-    transition: all 0.3s;
-    min-height: 44px;
-    width: 100%;
-    margin: 10px 0;
-}
-
-#selectFileBtn:hover {
-    background: var(--primary-dark);
-    transform: translateY(-2px);
-    box-shadow: 0 4px 12px rgba(11,94,59,0.3);
-}
-
-#selectFileBtn:active {
-    transform: translateY(0);
-}
-
-/* Modal actions styling */
-.modal-actions {
-    display: flex;
-    gap: 10px;
-    margin-top: 20px;
-    flex-wrap: wrap;
-}
-
-.modal-actions button {
-    flex: 1;
-    min-width: 120px;
-}
-
-/* Mobile improvements */
-@media (max-width: 768px) {
-    #selectFileBtn {
-        padding: 14px 20px;
-        font-size: 1rem;
-    }
-    
-    .file-info {
-        padding: 10px 12px;
-        font-size: 0.9rem;
-    }
-    
-    .modal-actions {
-        flex-direction: column;
-    }
-    
-    .modal-actions button {
-        width: 100%;
-    }
 }
