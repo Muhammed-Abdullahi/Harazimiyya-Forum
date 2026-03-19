@@ -1,4 +1,4 @@
-// js/home.js - Fixed with group profile for all members
+// js/home.js - Fixed with group profile for all members and Android back button fix
 console.log("🏠 HOME PAGE LOADING");
 
 // Global variables
@@ -18,6 +18,9 @@ document.addEventListener('DOMContentLoaded', async function() {
         }
         
         loadHomeData();
+        
+        // Setup Android back button handler
+        setupAndroidBackButton();
     }
     
     initializeHome();
@@ -900,12 +903,13 @@ async function loadUnreadMessageCount(userId) {
     }
 }
 
-// ================= SIDEBAR SETUP =================
+// ================= UPDATED SIDEBAR SETUP WITH BODY CLASS =================
 function setupSidebar() {
     const sidebar = document.getElementById('sidebar');
     const openBtn = document.getElementById('openSidebar');
     const closeBtn = document.getElementById('closeSidebar');
     const overlay = document.getElementById('overlay');
+    const body = document.body;
     
     if (!sidebar) return;
     
@@ -914,6 +918,7 @@ function setupSidebar() {
             e.preventDefault();
             sidebar.classList.add('active');
             if (overlay) overlay.classList.add('active');
+            body.classList.add('sidebar-open');
         });
     }
     
@@ -922,6 +927,7 @@ function setupSidebar() {
             e.preventDefault();
             sidebar.classList.remove('active');
             if (overlay) overlay.classList.remove('active');
+            body.classList.remove('sidebar-open');
         });
     }
     
@@ -929,6 +935,7 @@ function setupSidebar() {
         overlay.addEventListener('click', () => {
             sidebar.classList.remove('active');
             overlay.classList.remove('active');
+            body.classList.remove('sidebar-open');
         });
     }
 }
@@ -970,6 +977,91 @@ function setupClickableBoxes() {
             window.location.href = 'chat.html';
         });
     }
+}
+
+// ================= ANDROID BACK BUTTON FIX FOR SIDEBAR =================
+function setupAndroidBackButton() {
+    console.log("📱 Setting up Android back button handler for sidebar");
+    
+    const sidebar = document.getElementById('sidebar');
+    const overlay = document.getElementById('overlay');
+    
+    if (!sidebar || !overlay) {
+        console.log("Sidebar or overlay not found");
+        return;
+    }
+    
+    // Track if sidebar is open
+    let isSidebarOpen = false;
+    
+    // Watch for sidebar class changes
+    const observer = new MutationObserver(function(mutations) {
+        mutations.forEach(function(mutation) {
+            if (mutation.attributeName === 'class') {
+                isSidebarOpen = sidebar.classList.contains('active');
+                console.log("Sidebar state changed:", isSidebarOpen ? "OPEN" : "CLOSED");
+            }
+        });
+    });
+    
+    observer.observe(sidebar, { attributes: true });
+    
+    // Handle Android back button
+    function handleBackButton() {
+        if (isSidebarOpen) {
+            console.log("🔙 Back pressed - closing sidebar");
+            // Close sidebar
+            sidebar.classList.remove('active');
+            overlay.classList.remove('active');
+            document.body.classList.remove('sidebar-open');
+            
+            // Prevent default back behavior
+            return true;
+        }
+        // Let default back behavior happen (navigate away)
+        return false;
+    }
+    
+    // For Android Chrome and modern browsers
+    window.addEventListener('popstate', function(event) {
+        if (handleBackButton()) {
+            // If we handled it, push a new state to stay on same page
+            history.pushState(null, null, window.location.href);
+            event.preventDefault();
+        }
+    });
+    
+    // For older Android browsers
+    document.addEventListener('backbutton', function(event) {
+        if (handleBackButton()) {
+            event.preventDefault();
+        }
+    }, false);
+    
+    // Initialize history state
+    history.pushState(null, null, window.location.href);
+    
+    // Also handle hardware back button through touch events (edge swipe)
+    let lastTouchEnd = 0;
+    document.addEventListener('touchend', function(event) {
+        const now = Date.now();
+        if (now - lastTouchEnd <= 300) {
+            // Potential edge swipe detection
+            const touch = event.changedTouches[0];
+            if (touch && touch.clientX < 30) { // Swipe from left edge
+                if (isSidebarOpen) {
+                    // This might be a back gesture, close sidebar
+                    sidebar.classList.remove('active');
+                    overlay.classList.remove('active');
+                    document.body.classList.remove('sidebar-open');
+                    event.preventDefault();
+                }
+            }
+        }
+        lastTouchEnd = now;
+    }, false);
+    
+    console.log("✅ Android back button handler setup complete");
 }
 
 // Add animation styles if they don't exist

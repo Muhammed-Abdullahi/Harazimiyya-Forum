@@ -794,3 +794,49 @@ button[onclick="forceRefreshCount()"]:active {
     height: 40px;
     flex-shrink: 0;
 }
+
+
+
+
+
+/* ================= ANDROID BACK BUTTON & SIDEBAR FIXES ================= */
+@media (max-width: 768px) {
+    /* Improve sidebar touch interaction */
+    .deepseek-sidebar {
+        -webkit-overflow-scrolling: touch;
+        overscroll-behavior: contain;
+    }
+    
+    /* Prevent body scroll when sidebar is open */
+    body.sidebar-open {
+        overflow: hidden;
+        position: fixed;
+        width: 100%;
+        height: 100%;
+    }
+    
+    /* Smooth transitions */
+    .deepseek-sidebar,
+    .overlay {
+        will-change: transform, opacity;
+    }
+    
+    /* Better touch targets for sidebar items */
+    .menu-items li a {
+        padding: 15px 24px;
+        min-height: 56px;
+    }
+    
+    .close-sidebar {
+        width: 44px;
+        height: 44px;
+    }
+}
+
+/* Add body class for when sidebar is open */
+.deepseek-sidebar.active ~ .overlay ~ .app-header,
+.deepseek-sidebar.active ~ .overlay ~ .container,
+.deepseek-sidebar.active ~ .overlay ~ .app-footer {
+    pointer-events: none;
+    user-select: none;
+}
