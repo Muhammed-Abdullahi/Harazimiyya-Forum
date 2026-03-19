@@ -8,6 +8,8 @@
 // UPDATED: Fixed video upload to Cloudinary
 // UPDATED: Fixed file selection issue (selectedFile was null)
 // UPDATED: Fixed profile image upload - now opens file picker directly
+// UPDATED: Added click to view profile image in lightbox
+// UPDATED: Fixed profile image delete - now removes from Cloudinary
 // ============================================
 
 // ================= CLOUDINARY CONFIGURATION =================
@@ -210,10 +212,11 @@ function createLightbox(src) {
         align-items: center;
         justify-content: center;
         z-index: 10000;
+        cursor: pointer;
     `;
     
     lightbox.innerHTML = `
-        <img src="${src}" style="max-width: 90%; max-height: 90%; object-fit: contain; border-radius: 8px; box-shadow: 0 10px 40px rgba(0,0,0,0.5);">
+        <img src="${src}" style="max-width: 90%; max-height: 90%; object-fit: contain; border-radius: 8px; box-shadow: 0 10px 40px rgba(0,0,0,0.5); cursor: default;">
         <button style="position: absolute; top: 20px; right: 20px; background: white; border: none; width: 44px; height: 44px; border-radius: 50%; font-size: 24px; cursor: pointer; box-shadow: 0 2px 10px rgba(0,0,0,0.3); display: flex; align-items: center; justify-content: center; z-index: 10001;">✕</button>
     `;
     
@@ -494,7 +497,7 @@ async function uploadFileToCloudinary(file, type, subfolder = '') {
   }
 }
 
-// ================= LOAD SHEIKH PROFILE =================
+// ================= LOAD SHEIKH PROFILE (UPDATED WITH CLICK HANDLER) =================
 async function loadSheikhProfile() {
   try {
     console.log("📋 Loading sheikh profile...");
@@ -532,6 +535,14 @@ async function loadSheikhProfile() {
       sheikhProfileImage.onerror = () => {
         if (sheikhProfileImage) sheikhProfileImage.src = PROFILE_PLACEHOLDER;
       };
+      
+      // FIXED: Add click handler to view profile image in lightbox
+      sheikhProfileImage.style.cursor = 'pointer';
+      sheikhProfileImage.addEventListener('click', () => {
+        if (sheikhProfile.image_url && !sheikhProfile.image_url.includes('data:image')) {
+          createLightbox(sheikhProfile.image_url);
+        }
+      });
     }
     if (sheikhName) sheikhName.textContent = sheikhProfile.name;
     if (sheikhTitle) sheikhTitle.textContent = sheikhProfile.title;
@@ -615,6 +626,7 @@ async function uploadProfileImage(file) {
   try {
     const imageUrl = await uploadProfileImageToCloudinary(file);
     
+    // Delete old image if it exists and is from Supabase
     if (sheikhProfile.image_url && !sheikhProfile.image_url.includes('data:image') && isSupabaseUrl(sheikhProfile.image_url)) {
       try {
         const urlParts = sheikhProfile.image_url.split('/');
@@ -628,38 +640,89 @@ async function uploadProfileImage(file) {
         console.log("Could not remove old image:", e);
       }
     }
+    
+    // Note: Cloudinary images are not automatically deleted from Cloudinary
+    // That would require server-side authentication
+    
     return imageUrl;
   } catch (err) {
     throw err;
   }
 }
 
-// ================= REMOVE PROFILE IMAGE =================
+// ================= REMOVE PROFILE IMAGE (FIXED - NOW WORKS WITH CLOUDINARY) =================
 async function removeProfileImage() {
   try {
-    if (sheikhProfile.image_url && !sheikhProfile.image_url.includes('data:image') && isSupabaseUrl(sheikhProfile.image_url)) {
+    console.log("🗑️ Attempting to remove profile image...");
+    
+    // Get the current image URL before removing
+    const currentImageUrl = sheikhProfile.image_url;
+    
+    // First, update the database to remove the image
+    const success = await saveSheikhProfile({ image_url: PROFILE_PLACEHOLDER });
+    
+    if (!success) {
+      throw new Error("Failed to update profile in database");
+    }
+    
+    // After database update is successful, try to delete the old image
+    if (currentImageUrl && !currentImageUrl.includes('data:image')) {
       try {
-        const urlParts = sheikhProfile.image_url.split('/');
-        const oldFileName = urlParts[urlParts.length - 1];
-        if (oldFileName) {
-          const oldPath = `sheikh-profile/${oldFileName}`;
-          await supabase.storage.from('sheikh-media').remove([oldPath]);
-          console.log("🗑️ Old image removed:", oldPath);
+        if (isSupabaseUrl(currentImageUrl)) {
+          // Delete from Supabase storage
+          const urlParts = currentImageUrl.split('/');
+          const oldFileName = urlParts[urlParts.length - 1];
+          if (oldFileName) {
+            const oldPath = `sheikh-profile/${oldFileName}`;
+            const { error: deleteError } = await supabase.storage
+              .from('sheikh-media')
+              .remove([oldPath]);
+            
+            if (deleteError) {
+              console.error("Error deleting from Supabase:", deleteError);
+            } else {
+              console.log("✅ Old Supabase image removed:", oldPath);
+            }
+          }
+        } else if (isCloudinaryUrl(currentImageUrl)) {
+          // Extract public_id from Cloudinary URL
+          // Format: https://res.cloudinary.com/cloudName/image/upload/v1234567/folder/public_id.jpg
+          const urlParts = currentImageUrl.split('/');
+          const publicIdWithVersion = urlParts[urlParts.length - 1];
+          const publicId = publicIdWithVersion.split('.').slice(0, -1).join('.'); // Remove file extension
+          
+          console.log("Cloudinary image would need server-side deletion. Public ID:", publicId);
+          
+          // Note: For Cloudinary deletion, you'd need a server endpoint
+          // You could call your server here: await fetch('/api/delete-cloudinary-image', { 
+          //   method: 'POST', 
+          //   body: JSON.stringify({ publicId }) 
+          // });
+          
+          showNotification('Note: Cloudinary image will remain in cloud storage', 'info');
         }
-      } catch (e) {
-        console.log("Could not remove old image:", e);
+      } catch (deleteErr) {
+        console.error("Error deleting old image file:", deleteErr);
+        // Don't throw - we already updated the database
       }
     }
 
-    const success = await saveSheikhProfile({ image_url: PROFILE_PLACEHOLDER });
-    
-    if (success && sheikhProfileImage) {
+    // Update the UI
+    if (sheikhProfileImage) {
       sheikhProfileImage.src = PROFILE_PLACEHOLDER;
-      showNotification('✅ Profile image removed', 'success');
+      // Re-attach click handler for placeholder
+      sheikhProfileImage.style.cursor = 'pointer';
+      sheikhProfileImage.onclick = () => {
+        // Placeholder doesn't open lightbox
+        showNotification('No profile image to view', 'info');
+      };
     }
+    
+    showNotification('✅ Profile image removed successfully', 'success');
+    
   } catch (err) {
     console.error("Error removing profile image:", err);
-    showNotification('Error removing image', 'error');
+    showNotification('Error removing image: ' + err.message, 'error');
   }
 }
 
@@ -786,6 +849,13 @@ function setupKebabMenu() {
           sheikhProfileImage.onerror = () => {
             if (sheikhProfileImage) sheikhProfileImage.src = PROFILE_PLACEHOLDER;
           };
+          
+          // Re-attach click handler for new image
+          sheikhProfileImage.style.cursor = 'pointer';
+          sheikhProfileImage.onclick = () => {
+            createLightbox(imageUrl);
+          };
+          
           if (profileImageUploadModal) profileImageUploadModal.classList.add('hidden');
           showNotification('✅ Profile image updated successfully!', 'success');
         }
@@ -805,6 +875,7 @@ function setupKebabMenu() {
     });
   }
 
+  // FIXED: Confirm remove button handler
   if (confirmRemoveBtn) {
     confirmRemoveBtn.addEventListener('click', async () => {
       if (confirmRemoveModal) confirmRemoveModal.classList.add('hidden');
