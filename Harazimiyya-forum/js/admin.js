@@ -1,5 +1,5 @@
 // js/admin.js - Complete with Islamic Green Theme & Friendly Messages
-// UPDATED: Small Admin can now Approve/Reject users (but NOT Revoke/Ban)
+// UPDATED: Enhanced debugging for approve function
 
 document.addEventListener('DOMContentLoaded', function() {
     console.log("📊 Admin dashboard is getting ready for you...");
@@ -248,18 +248,28 @@ async function loadStats() {
                 .from('profiles')
                 .select('*', { count: 'exact', head: true });
             totalUsers = count || 0;
+            console.log("Total users count:", totalUsers);
         } catch (e) {
             console.log("Still counting total members...");
         }
         
         try {
-            const { count } = await window.supabase
+            const { count, data, error } = await window.supabase
                 .from('profiles')
-                .select('*', { count: 'exact', head: true })
+                .select('id, full_name, email, is_approved', { count: 'exact', head: false })
                 .eq('is_approved', false);
+            
             pendingUsers = count || 0;
+            console.log("✅ Pending users count from database:", pendingUsers);
+            
+            // Log the actual pending users for debugging
+            if (data && data.length > 0) {
+                console.log("Pending users details:", data.map(u => ({ name: u.full_name, email: u.email, id: u.id })));
+            } else {
+                console.log("No pending users found in database");
+            }
         } catch (e) {
-            console.log("Still counting pending approvals...");
+            console.log("Error counting pending approvals:", e);
         }
         
         try {
@@ -295,11 +305,19 @@ async function loadStats() {
         
         Object.entries(elements).forEach(([id, value]) => {
             const el = document.getElementById(id);
-            if (el) el.textContent = value || 0;
+            if (el) {
+                const oldValue = el.textContent;
+                el.textContent = value || 0;
+                if (oldValue != value) {
+                    console.log(`Updated ${id} from ${oldValue} to ${value}`);
+                }
+            }
         });
         
         if (pendingUsers > 0 && (isBigAdmin || isSmallAdmin)) {
             showIslamicNotification(`🕌 You have ${pendingUsers} member${pendingUsers > 1 ? 's' : ''} waiting for approval`, 'info', 4000);
+        } else if (pendingUsers === 0 && (isBigAdmin || isSmallAdmin)) {
+            console.log("✅ No pending approvals - counter should show 0");
         }
         
     } catch (err) {
@@ -326,10 +344,14 @@ async function loadPendingUsers() {
         
         if (error) throw error;
         
+        console.log("Pending users data from database:", data);
+        console.log("Number of pending users:", data ? data.length : 0);
+        
         const container = document.getElementById('pendingUsersGrid');
         if (!container) return;
         
         if (!data || data.length === 0) {
+            console.log("No pending users, showing empty state");
             container.innerHTML = `
                 <div class="empty-state">
                     <i class="fas fa-check-circle" style="color: var(--islamic-green);"></i>
@@ -434,7 +456,7 @@ function renderMembers(members) {
     if (!members || members.length === 0) {
         container.innerHTML = `
             <div class="empty-state">
-                <i class="fas fa-users" style="color: var(--islamic-green;"></i>
+                <i class="fas fa-users" style="color: var(--islamic-green);"></i>
                 <p>No members found</p>
             </div>
         `;
@@ -750,52 +772,106 @@ window.revokeAccess = async function(userId) {
     }
 };
 
-// ===== APPROVE USER (Both Big Admin AND Small Admin can do this) =====
+// ===== APPROVE USER (Both Big Admin AND Small Admin can do this) - FIXED WITH FORCE UPDATE =====
 window.approveUser = async function(userId) {
     if (!isBigAdmin && !isSmallAdmin) {
         showIslamicNotification("Only admins can approve users", "error");
         return;
     }
     
+    // Show loading state on the approve button
+    const approveBtn = document.querySelector(`.user-card[data-user-id="${userId}"] .btn-approve`);
+    if (approveBtn) {
+        approveBtn.disabled = true;
+        approveBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Approving...';
+    }
+    
     try {
         console.log("✨ Approving member:", userId);
         
+        // Get user details for notification
         const { data: user, error: fetchError } = await window.supabase
             .from('profiles')
-            .select('full_name')
+            .select('full_name, email')
             .eq('id', userId)
             .single();
         
         if (fetchError) {
             console.error("Error finding user:", fetchError);
             showIslamicNotification("Couldn't find this member.", "error");
+            if (approveBtn) {
+                approveBtn.disabled = false;
+                approveBtn.innerHTML = '<i class="fas fa-check"></i> Approve';
+            }
             return;
         }
         
-        const { error } = await window.supabase
+        console.log("Found user to approve:", user.full_name);
+        
+        // Update the user's approval status
+        const { data: updateResult, error } = await window.supabase
             .from('profiles')
             .update({ is_approved: true })
-            .eq('id', userId);
+            .eq('id', userId)
+            .select();
         
         if (error) {
             console.error("Approve error:", error);
             showIslamicNotification("Unable to approve: " + error.message, "error");
+            if (approveBtn) {
+                approveBtn.disabled = false;
+                approveBtn.innerHTML = '<i class="fas fa-check"></i> Approve';
+            }
             return;
         }
         
-        console.log("✅ Member approved");
+        console.log("✅ Member approved successfully:", user.full_name);
+        console.log("Update result:", updateResult);
+        
+        // VERIFY: Check if the user is now approved
+        const { data: verifyData, error: verifyError } = await window.supabase
+            .from('profiles')
+            .select('is_approved')
+            .eq('id', userId)
+            .single();
+        
+        if (!verifyError && verifyData) {
+            console.log("Verification - User is_approved status:", verifyData.is_approved);
+        }
+        
         showIslamicNotification(`🎉 ${user?.full_name || 'Member'} approved!`, 'success');
         
-        await Promise.all([
-            loadStats(),
-            loadPendingUsers(),
-            loadAllMembers(),
-            loadRecentActivity()
-        ]);
+        // FORCE REFRESH: Clear cache and reload all data
+        console.log("🔄 Force refreshing all dashboard data...");
+        
+        // Clear local cache
+        window.allMembersData = null;
+        
+        // Reload all sections in sequence with a small delay to ensure fresh data
+        await loadStats();
+        await new Promise(resolve => setTimeout(resolve, 200));
+        await loadPendingUsers();
+        await new Promise(resolve => setTimeout(resolve, 200));
+        await loadAllMembers();
+        await new Promise(resolve => setTimeout(resolve, 200));
+        await loadRecentActivity();
+        
+        console.log("✅ All data force refreshed after approval");
+        
+        // Also manually trigger a filter refresh to update the displayed list
+        setTimeout(() => {
+            if (window.allMembersData) {
+                renderMembers(window.allMembersData);
+            }
+        }, 500);
         
     } catch (err) {
         console.error("Approval error:", err);
         showIslamicNotification("Something went wrong. Please try again.", "error");
+        if (approveBtn) {
+            approveBtn.disabled = false;
+            approveBtn.innerHTML = '<i class="fas fa-check"></i> Approve';
+        }
     }
 };
 
@@ -807,6 +883,13 @@ window.rejectUser = async function(userId) {
     }
     
     if (!confirm('Delete this user permanently?')) return;
+    
+    // Show loading state on the reject button
+    const rejectBtn = document.querySelector(`.user-card[data-user-id="${userId}"] .btn-reject`);
+    if (rejectBtn) {
+        rejectBtn.disabled = true;
+        rejectBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Declining...';
+    }
     
     try {
         console.log("Declining member:", userId);
@@ -820,6 +903,10 @@ window.rejectUser = async function(userId) {
         if (fetchError) {
             console.error("Error finding user:", fetchError);
             showIslamicNotification("Couldn't find this member request.", "error");
+            if (rejectBtn) {
+                rejectBtn.disabled = false;
+                rejectBtn.innerHTML = '<i class="fas fa-times"></i> Decline';
+            }
             return;
         }
         
@@ -833,12 +920,17 @@ window.rejectUser = async function(userId) {
         if (profileError) {
             console.error("Error deleting profile:", profileError);
             showIslamicNotification("Error deleting profile: " + profileError.message, "error");
+            if (rejectBtn) {
+                rejectBtn.disabled = false;
+                rejectBtn.innerHTML = '<i class="fas fa-times"></i> Decline';
+            }
             return;
         }
         
         console.log("✅ Profile deleted successfully");
         showIslamicNotification(`✅ ${user?.full_name || user?.email} deleted`, 'success');
         
+        // Force refresh all data
         await Promise.all([
             loadStats(),
             loadPendingUsers(),
@@ -849,6 +941,10 @@ window.rejectUser = async function(userId) {
     } catch (err) {
         console.error("Rejection error:", err);
         showIslamicNotification("Something went wrong. Please try again.", "error");
+        if (rejectBtn) {
+            rejectBtn.disabled = false;
+            rejectBtn.innerHTML = '<i class="fas fa-times"></i> Decline';
+        }
     }
 };
 
