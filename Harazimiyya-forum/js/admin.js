@@ -1,4 +1,5 @@
 // js/admin.js - Complete with Islamic Green Theme & Friendly Messages
+// UPDATED: Small Admin can now Approve/Reject users (but NOT Revoke/Ban)
 
 document.addEventListener('DOMContentLoaded', function() {
     console.log("📊 Admin dashboard is getting ready for you...");
@@ -11,14 +12,14 @@ document.addEventListener('DOMContentLoaded', function() {
         }
         
         initializeAdmin();
-        initializeSidebar(); // Now matches home.js behavior (overlay only)
+        initializeSidebar();
         setupJumpToTopButton();
     }
     
     checkAdminAuth();
 });
 
-// ================= SIDEBAR SETUP - EXACTLY LIKE HOME.JS (OVERLAY ONLY, NO PUSH) =================
+// ================= SIDEBAR SETUP =================
 function initializeSidebar() {
     const sidebar = document.getElementById('sidebar');
     const openBtn = document.getElementById('openSidebar');
@@ -32,7 +33,6 @@ function initializeSidebar() {
             e.preventDefault();
             sidebar.classList.add('active');
             if (overlay) overlay.classList.add('active');
-            // NO PUSH - removed mainContent class toggles
         });
     }
     
@@ -41,7 +41,6 @@ function initializeSidebar() {
             e.preventDefault();
             sidebar.classList.remove('active');
             if (overlay) overlay.classList.remove('active');
-            // NO PUSH - removed mainContent class toggles
         });
     }
     
@@ -49,7 +48,6 @@ function initializeSidebar() {
         overlay.addEventListener('click', () => {
             sidebar.classList.remove('active');
             overlay.classList.remove('active');
-            // NO PUSH - removed mainContent class toggles
         });
     }
 }
@@ -96,6 +94,12 @@ function setupUserDropdown() {
     }
 }
 
+// Global variables for role-based permissions
+let currentUserRole = null;
+let isBigAdmin = false;
+let isSmallAdmin = false;
+let currentUserId = null;
+
 async function initializeAdmin() {
     try {
         console.log("🔐 Checking your admin access...");
@@ -109,6 +113,7 @@ async function initializeAdmin() {
             return;
         }
         
+        currentUserId = user.id;
         console.log("👋 Welcome back,", user.email);
         
         // Get user profile
@@ -121,7 +126,6 @@ async function initializeAdmin() {
         if (profileError) {
             console.error("Profile error:", profileError);
             
-            // If profile doesn't exist, create one
             if (profileError.code === 'PGRST116') {
                 console.log("Setting up your admin profile...");
                 
@@ -142,7 +146,6 @@ async function initializeAdmin() {
                     return;
                 }
                 
-                // Reload to get the new profile
                 window.location.reload();
                 return;
             }
@@ -152,17 +155,26 @@ async function initializeAdmin() {
             return;
         }
         
-        // Check if admin
-        if (!profile || profile.role !== 'admin') {
-            console.log("User is not admin, redirecting to home");
+        // Check user role
+        currentUserRole = profile.role;
+        isBigAdmin = profile.role === 'admin';
+        isSmallAdmin = profile.role === 'small_admin';
+        
+        console.log("User role:", currentUserRole);
+        console.log("Is Big Admin:", isBigAdmin);
+        console.log("Is Small Admin:", isSmallAdmin);
+        
+        // Role-based access control - BOTH Big Admin AND Small Admin can access admin dashboard
+        if (!isBigAdmin && !isSmallAdmin) {
+            console.log("User is not an admin, redirecting to home");
             showIslamicNotification("This area is for admins only", "warning");
             window.location.href = 'home.html';
             return;
         }
         
-        console.log("✅ Welcome, Admin", profile.full_name);
+        console.log("✅ Welcome,", profile.full_name, "as", currentUserRole);
         
-        // Update UI with admin name
+        // Update UI with user name
         const adminNameElements = document.querySelectorAll('#adminName, #headerAdminName');
         adminNameElements.forEach(el => {
             if (el) el.textContent = profile.full_name || 'Admin';
@@ -171,7 +183,7 @@ async function initializeAdmin() {
         // Setup user dropdown
         setupUserDropdown();
         
-        // Load all sections
+        // Load all sections (with role-based filtering)
         showIslamicNotification("Loading your dashboard...", "info", 2000);
         await loadStats();
         await loadPendingUsers();
@@ -188,23 +200,22 @@ async function initializeAdmin() {
     }
 }
 
-// Islamic Green Theme Notification (ONLY ISLAMIC GREEN AND RED)
 function showIslamicNotification(message, type = 'info', duration = 3000) {
     const notification = document.createElement('div');
     notification.className = `islamic-notification ${type}`;
     
     let icon = 'fa-info-circle';
-    let bgColor = '#0b5e3b'; // Islamic green for info
+    let bgColor = '#0b5e3b';
     
     if (type === 'success') {
         icon = 'fa-check-circle';
-        bgColor = '#0b5e3b'; // Islamic green for success
+        bgColor = '#0b5e3b';
     } else if (type === 'error') {
         icon = 'fa-exclamation-circle';
-        bgColor = '#dc2626'; // Red only for errors
+        bgColor = '#dc2626';
     } else if (type === 'warning') {
         icon = 'fa-exclamation-triangle';
-        bgColor = '#094c31'; // Darker green for warning
+        bgColor = '#094c31';
     }
     
     notification.innerHTML = `
@@ -227,7 +238,6 @@ async function loadStats() {
     try {
         console.log("📊 Counting your community members...");
         
-        // Get all counts with error handling
         let totalUsers = 0;
         let pendingUsers = 0;
         let adminCount = 0;
@@ -256,7 +266,7 @@ async function loadStats() {
             const { count } = await window.supabase
                 .from('profiles')
                 .select('*', { count: 'exact', head: true })
-                .eq('role', 'admin');
+                .in('role', ['admin', 'small_admin']);
             adminCount = count || 0;
         } catch (e) {
             console.log("Still counting admins...");
@@ -274,7 +284,6 @@ async function loadStats() {
         
         console.log("📊 Community stats ready:", { totalUsers, pendingUsers, activeUsers, adminCount });
         
-        // Update all stat displays
         const elements = {
             'totalUsers': totalUsers,
             'pendingUsers': pendingUsers,
@@ -289,8 +298,7 @@ async function loadStats() {
             if (el) el.textContent = value || 0;
         });
         
-        // Show friendly message if there are pending approvals
-        if (pendingUsers > 0) {
+        if (pendingUsers > 0 && (isBigAdmin || isSmallAdmin)) {
             showIslamicNotification(`🕌 You have ${pendingUsers} member${pendingUsers > 1 ? 's' : ''} waiting for approval`, 'info', 4000);
         }
         
@@ -299,8 +307,14 @@ async function loadStats() {
     }
 }
 
-// ===== loadPendingUsers function - Only names, no extra icons =====
 async function loadPendingUsers() {
+    // BOTH Big Admin AND Small Admin can see pending approvals
+    if (!isBigAdmin && !isSmallAdmin) {
+        const section = document.getElementById('pendingSection');
+        if (section) section.style.display = 'none';
+        return;
+    }
+    
     try {
         console.log("🔍 Looking for members waiting for approval...");
         
@@ -371,7 +385,6 @@ async function loadPendingUsers() {
     }
 }
 
-// ===== loadAllMembers function - Only names, no extra icons =====
 async function loadAllMembers() {
     try {
         console.log("👥 Loading all community members...");
@@ -396,10 +409,7 @@ async function loadAllMembers() {
             return;
         }
         
-        // Store data for search and filtering
         window.allMembersData = data;
-        
-        // Show all members initially
         renderMembers(data);
         
     } catch (err) {
@@ -416,7 +426,7 @@ async function loadAllMembers() {
     }
 }
 
-// ===== renderMembers function - Only names, no extra icons =====
+// ===== RENDER MEMBERS - WITH ROLE-BASED PERMISSIONS =====
 function renderMembers(members) {
     const container = document.getElementById('membersGrid');
     if (!container) return;
@@ -424,7 +434,7 @@ function renderMembers(members) {
     if (!members || members.length === 0) {
         container.innerHTML = `
             <div class="empty-state">
-                <i class="fas fa-users" style="color: var(--islamic-green);"></i>
+                <i class="fas fa-users" style="color: var(--islamic-green;"></i>
                 <p>No members found</p>
             </div>
         `;
@@ -433,47 +443,109 @@ function renderMembers(members) {
     
     let html = '';
     members.forEach(user => {
-        const isAdmin = user.role === 'admin';
+        const isAdminUser = user.role === 'admin';
+        const isSmallAdminUser = user.role === 'small_admin';
         const isPending = !user.is_approved;
+        const isCurrentUser = user.id === currentUserId;
         
         let cardClass = 'user-card';
         if (isPending) cardClass += ' pending';
-        else if (isAdmin) cardClass += ' admin';
+        else if (isAdminUser) cardClass += ' admin';
+        
+        // Role badges
+        let roleBadge = '';
+        if (isAdminUser) roleBadge = '<span class="badge admin">👑 Full Admin</span>';
+        else if (isSmallAdminUser) roleBadge = '<span class="badge small-admin">⭐ Small Admin</span>';
+        else if (isPending) roleBadge = '<span class="badge pending">⏳ Pending</span>';
+        else roleBadge = '<span class="badge approved">👤 Member</span>';
         
         html += `
             <div class="${cardClass}" data-user-id="${user.id}">
                 <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 1rem;">
                     <div class="user-details">
                         <h4>${user.full_name || 'Unnamed Member'}</h4>
-                        ${isAdmin ? '<span class="badge admin">Admin</span>' : ''}
-                        ${isPending ? '<span class="badge pending">Pending</span>' : ''}
-                        ${!isAdmin && !isPending ? '<span class="badge approved">Member</span>' : ''}
+                        ${roleBadge}
                     </div>
                     <div class="user-actions">
-                        ${isPending ? `
-                            <button class="btn-islamic btn-approve" onclick="approveUser('${user.id}')">
-                                <i class="fas fa-check"></i> Approve
-                            </button>
-                            <button class="btn-islamic btn-reject" onclick="rejectUser('${user.id}')">
-                                <i class="fas fa-times"></i> Decline
-                            </button>
-                        ` : `
-                            ${!isAdmin ? `
-                                <button class="btn-islamic btn-admin" onclick="makeAdmin('${user.id}')">
-                                    <i class="fas fa-crown"></i> Make Admin
-                                </button>
-                            ` : `
-                                <button class="btn-islamic btn-remove-admin" onclick="removeAdmin('${user.id}')">
-                                    <i class="fas fa-user-minus"></i> Remove Admin
-                                </button>
-                            `}
-                            <button class="btn-islamic btn-revoke" onclick="revokeAccess('${user.id}')">
-                                <i class="fas fa-ban"></i> Revoke
-                            </button>
-                        `}
-                        <button class="btn-details" onclick="viewUserDetails('${user.id}', '${user.full_name || ''}', '${user.email}')" title="View Details">
-                            <i class="fas fa-info-circle"></i>
+        `;
+        
+        if (isBigAdmin) {
+            // BIG ADMIN: Full control
+            if (isPending) {
+                html += `
+                    <button class="btn-islamic btn-approve" onclick="approveUser('${user.id}')">
+                        <i class="fas fa-check"></i> Approve
+                    </button>
+                    <button class="btn-islamic btn-reject" onclick="rejectUser('${user.id}')">
+                        <i class="fas fa-times"></i> Decline
+                    </button>
+                `;
+            } else {
+                if (isAdminUser && !isCurrentUser) {
+                    html += `
+                        <button class="btn-islamic btn-remove-admin" onclick="removeAdmin('${user.id}')">
+                            <i class="fas fa-user-minus"></i> Remove Admin
                         </button>
+                    `;
+                } else if (isSmallAdminUser) {
+                    html += `
+                        <button class="btn-islamic btn-admin" onclick="makeAdmin('${user.id}')">
+                            <i class="fas fa-crown"></i> Make Full Admin
+                        </button>
+                        <button class="btn-islamic btn-remove-admin" onclick="demoteToMember('${user.id}')">
+                            <i class="fas fa-user-minus"></i> Demote to Member
+                        </button>
+                    `;
+                } else if (!isAdminUser && !isSmallAdminUser) {
+                    html += `
+                        <button class="btn-islamic btn-small-admin" onclick="promoteToSmallAdmin('${user.id}')" style="background: #f59e0b;">
+                            <i class="fas fa-user-plus"></i> Make Small Admin
+                        </button>
+                        <button class="btn-islamic btn-admin" onclick="makeAdmin('${user.id}')">
+                            <i class="fas fa-crown"></i> Make Full Admin
+                        </button>
+                    `;
+                }
+                
+                if (!isCurrentUser) {
+                    html += `
+                        <button class="btn-islamic btn-revoke" onclick="revokeAccess('${user.id}')">
+                            <i class="fas fa-ban"></i> Revoke
+                        </button>
+                    `;
+                }
+            }
+        } 
+        else if (isSmallAdmin) {
+            // SMALL ADMIN: Can see pending users but NO Revoke button
+            if (isPending) {
+                // Small admin can approve/reject pending users
+                html += `
+                    <button class="btn-islamic btn-approve" onclick="approveUser('${user.id}')">
+                        <i class="fas fa-check"></i> Approve
+                    </button>
+                    <button class="btn-islamic btn-reject" onclick="rejectUser('${user.id}')">
+                        <i class="fas fa-times"></i> Decline
+                    </button>
+                `;
+            } else {
+                // For approved users, Small Admin only sees "View Only" - NO Revoke button
+                html += `
+                    <span class="badge view-only" style="background: #f59e0b; color: #fff; padding: 8px 12px;">
+                        <i class="fas fa-eye"></i> View Only
+                    </span>
+                `;
+            }
+        }
+        
+        // View details button (available for both big and small admin)
+        html += `
+            <button class="btn-details" onclick="viewUserDetails('${user.id}', '${escapeHtml(user.full_name || '')}', '${user.email}')" title="View Details">
+                <i class="fas fa-info-circle"></i>
+            </button>
+        `;
+        
+        html += `
                     </div>
                 </div>
             </div>
@@ -482,9 +554,306 @@ function renderMembers(members) {
     container.innerHTML = html;
 }
 
-// ===== viewUserDetails function - Clean popup with all info =====
+function escapeHtml(str) {
+    if (!str) return '';
+    return str.replace(/[&<>]/g, function(m) {
+        if (m === '&') return '&amp;';
+        if (m === '<') return '&lt;';
+        if (m === '>') return '&gt;';
+        return m;
+    });
+}
+
+// ===== PROMOTE TO SMALL ADMIN (Big Admin only) =====
+window.promoteToSmallAdmin = async function(userId) {
+    if (!isBigAdmin) {
+        showIslamicNotification("Only Big Admin can promote to Small Admin", "error");
+        return;
+    }
+    
+    if (!confirm('Make this member a Small Admin?\n\nSmall Admins have:\n- Can approve/reject members\n- Can create events & announcements\n- Can set map locations\n- Can delete ANY user messages\n- CANNOT revoke/ban users')) return;
+    
+    try {
+        const { data: user } = await window.supabase
+            .from('profiles')
+            .select('full_name')
+            .eq('id', userId)
+            .single();
+        
+        const { error } = await window.supabase
+            .from('profiles')
+            .update({ role: 'small_admin' })
+            .eq('id', userId);
+        
+        if (error) throw error;
+        
+        showIslamicNotification(`⭐ ${user?.full_name || 'Member'} is now a Small Admin`, 'success');
+        
+        await Promise.all([
+            loadStats(),
+            loadAllMembers(),
+            loadRecentActivity()
+        ]);
+        
+    } catch (err) {
+        console.error("Small admin promotion error:", err);
+        showIslamicNotification("Something went wrong. Please try again.", "error");
+    }
+};
+
+// ===== MAKE FULL ADMIN (Big Admin only) =====
+window.makeAdmin = async function(userId) {
+    if (!isBigAdmin) {
+        showIslamicNotification("Only Big Admin can make Full Admins", "error");
+        return;
+    }
+    
+    if (!confirm('Make this member a Full Admin?')) return;
+    
+    try {
+        const { data: user } = await window.supabase
+            .from('profiles')
+            .select('full_name')
+            .eq('id', userId)
+            .single();
+        
+        const { error } = await window.supabase
+            .from('profiles')
+            .update({ role: 'admin' })
+            .eq('id', userId);
+        
+        if (error) throw error;
+        
+        showIslamicNotification(`👑 ${user?.full_name || 'Member'} is now a Full Admin`, 'success');
+        
+        await Promise.all([
+            loadStats(),
+            loadAllMembers(),
+            loadRecentActivity()
+        ]);
+        
+    } catch (err) {
+        console.error("Admin promotion error:", err);
+        showIslamicNotification("Something went wrong. Please try again.", "error");
+    }
+};
+
+// ===== DEMOTE TO MEMBER (Big Admin only) =====
+window.demoteToMember = async function(userId) {
+    if (!isBigAdmin) {
+        showIslamicNotification("Only Big Admin can demote users", "error");
+        return;
+    }
+    
+    if (!confirm('Remove admin/small admin privileges?')) return;
+    
+    try {
+        const { data: user } = await window.supabase
+            .from('profiles')
+            .select('full_name')
+            .eq('id', userId)
+            .single();
+        
+        const { error } = await window.supabase
+            .from('profiles')
+            .update({ role: 'member' })
+            .eq('id', userId);
+        
+        if (error) throw error;
+        
+        showIslamicNotification(`⬇️ ${user?.full_name || 'User'} is now a regular member`, 'success');
+        
+        await Promise.all([
+            loadStats(),
+            loadAllMembers(),
+            loadRecentActivity()
+        ]);
+        
+    } catch (err) {
+        console.error("Demote error:", err);
+        showIslamicNotification("Something went wrong. Please try again.", "error");
+    }
+};
+
+// ===== REMOVE FULL ADMIN (Big Admin only) =====
+window.removeAdmin = async function(userId) {
+    if (!isBigAdmin) {
+        showIslamicNotification("Only Big Admin can remove admins", "error");
+        return;
+    }
+    
+    if (!confirm('Remove admin privileges?')) return;
+    
+    try {
+        const { data: user } = await window.supabase
+            .from('profiles')
+            .select('full_name')
+            .eq('id', userId)
+            .single();
+        
+        const { error } = await window.supabase
+            .from('profiles')
+            .update({ role: 'member' })
+            .eq('id', userId);
+        
+        if (error) throw error;
+        
+        showIslamicNotification(`⬇️ ${user?.full_name || 'User'} is no longer an admin`, 'success');
+        
+        await Promise.all([
+            loadStats(),
+            loadAllMembers(),
+            loadRecentActivity()
+        ]);
+        
+    } catch (err) {
+        console.error("Admin removal error:", err);
+        showIslamicNotification("Something went wrong. Please try again.", "error");
+    }
+};
+
+// ===== REVOKE ACCESS (Big Admin only) - SMALL ADMIN CANNOT DO THIS =====
+window.revokeAccess = async function(userId) {
+    if (!isBigAdmin) {
+        showIslamicNotification("Only Big Admin can revoke access", "error");
+        return;
+    }
+    
+    if (!confirm('Revoke access for this member? They will need re-approval to log in again.')) return;
+    
+    try {
+        const { data: user } = await window.supabase
+            .from('profiles')
+            .select('full_name')
+            .eq('id', userId)
+            .single();
+        
+        const { error } = await window.supabase
+            .from('profiles')
+            .update({ is_approved: false })
+            .eq('id', userId);
+        
+        if (error) throw error;
+        
+        showIslamicNotification(`⏳ Access revoked for ${user?.full_name || 'user'} - Needs re-approval`, 'warning');
+        
+        await Promise.all([
+            loadStats(),
+            loadAllMembers(),
+            loadPendingUsers(),
+            loadRecentActivity()
+        ]);
+        
+    } catch (err) {
+        console.error("Revoke error:", err);
+        showIslamicNotification("Something went wrong. Please try again.", "error");
+    }
+};
+
+// ===== APPROVE USER (Both Big Admin AND Small Admin can do this) =====
+window.approveUser = async function(userId) {
+    if (!isBigAdmin && !isSmallAdmin) {
+        showIslamicNotification("Only admins can approve users", "error");
+        return;
+    }
+    
+    try {
+        console.log("✨ Approving member:", userId);
+        
+        const { data: user, error: fetchError } = await window.supabase
+            .from('profiles')
+            .select('full_name')
+            .eq('id', userId)
+            .single();
+        
+        if (fetchError) {
+            console.error("Error finding user:", fetchError);
+            showIslamicNotification("Couldn't find this member.", "error");
+            return;
+        }
+        
+        const { error } = await window.supabase
+            .from('profiles')
+            .update({ is_approved: true })
+            .eq('id', userId);
+        
+        if (error) {
+            console.error("Approve error:", error);
+            showIslamicNotification("Unable to approve: " + error.message, "error");
+            return;
+        }
+        
+        console.log("✅ Member approved");
+        showIslamicNotification(`🎉 ${user?.full_name || 'Member'} approved!`, 'success');
+        
+        await Promise.all([
+            loadStats(),
+            loadPendingUsers(),
+            loadAllMembers(),
+            loadRecentActivity()
+        ]);
+        
+    } catch (err) {
+        console.error("Approval error:", err);
+        showIslamicNotification("Something went wrong. Please try again.", "error");
+    }
+};
+
+// ===== REJECT USER - COMPLETE DELETION (Both Big Admin AND Small Admin can do this) =====
+window.rejectUser = async function(userId) {
+    if (!isBigAdmin && !isSmallAdmin) {
+        showIslamicNotification("Only admins can reject users", "error");
+        return;
+    }
+    
+    if (!confirm('Delete this user permanently?')) return;
+    
+    try {
+        console.log("Declining member:", userId);
+        
+        const { data: user, error: fetchError } = await window.supabase
+            .from('profiles')
+            .select('email, full_name')
+            .eq('id', userId)
+            .single();
+        
+        if (fetchError) {
+            console.error("Error finding user:", fetchError);
+            showIslamicNotification("Couldn't find this member request.", "error");
+            return;
+        }
+        
+        showIslamicNotification("Deleting user account...", "info", 3000);
+        
+        const { error: profileError } = await window.supabase
+            .from('profiles')
+            .delete()
+            .eq('id', userId);
+        
+        if (profileError) {
+            console.error("Error deleting profile:", profileError);
+            showIslamicNotification("Error deleting profile: " + profileError.message, "error");
+            return;
+        }
+        
+        console.log("✅ Profile deleted successfully");
+        showIslamicNotification(`✅ ${user?.full_name || user?.email} deleted`, 'success');
+        
+        await Promise.all([
+            loadStats(),
+            loadPendingUsers(),
+            loadAllMembers(),
+            loadRecentActivity()
+        ]);
+        
+    } catch (err) {
+        console.error("Rejection error:", err);
+        showIslamicNotification("Something went wrong. Please try again.", "error");
+    }
+};
+
+// ===== VIEW USER DETAILS =====
 window.viewUserDetails = function(userId, name, email) {
-    // Create a nice popup notification with all details
     const detailsPopup = document.createElement('div');
     detailsPopup.style.cssText = `
         position: fixed;
@@ -529,7 +898,6 @@ window.viewUserDetails = function(userId, name, email) {
     
     document.body.appendChild(detailsPopup);
     
-    // Remove on outside click
     setTimeout(() => {
         document.addEventListener('click', function closePopup(e) {
             if (!detailsPopup.contains(e.target)) {
@@ -540,7 +908,7 @@ window.viewUserDetails = function(userId, name, email) {
     }, 100);
 };
 
-// Filter function for stat cards (filter tabs removed as requested)
+// ===== FILTER MEMBERS =====
 window.filterMembers = function(filterType) {
     console.log("🔍 Filtering members:", filterType);
     
@@ -559,7 +927,7 @@ window.filterMembers = function(filterType) {
             filtered = window.allMembersData.filter(u => u.is_approved === true && u.role === 'member');
             break;
         case 'admin':
-            filtered = window.allMembersData.filter(u => u.role === 'admin');
+            filtered = window.allMembersData.filter(u => u.role === 'admin' || u.role === 'small_admin');
             break;
         case 'all':
         default:
@@ -569,8 +937,6 @@ window.filterMembers = function(filterType) {
     
     renderMembers(filtered);
     showIslamicNotification(`Showing ${filtered.length} members`, 'info', 2000);
-    
-    // Scroll to members section
     document.getElementById('membersSection').scrollIntoView({ behavior: 'smooth' });
 };
 
@@ -599,7 +965,6 @@ function setupSearch() {
     });
 }
 
-// ===== loadRecentActivity function with View All button =====
 async function loadRecentActivity() {
     try {
         console.log("📝 Checking recent community activity...");
@@ -608,7 +973,7 @@ async function loadRecentActivity() {
             .from('profiles')
             .select('*')
             .order('created_at', { ascending: false })
-            .limit(20); // Get more items for view all
+            .limit(20);
         
         if (error) throw error;
         
@@ -636,8 +1001,6 @@ async function loadRecentActivity() {
             
             const action = user.is_approved ? 'joined' : 'requested to join';
             const icon = user.is_approved ? '✅' : '🆕';
-            
-            // Add hidden class for items after the first 5
             const hiddenClass = index >= 5 ? 'hidden' : '';
             
             html += `
@@ -653,7 +1016,6 @@ async function loadRecentActivity() {
             `;
         });
         
-        // Add View All button if there are more than 5 items
         if (data.length > 5) {
             html += `
                 <button class="view-all-btn" id="viewAllActivityBtn" onclick="toggleAllActivity()">
@@ -669,21 +1031,17 @@ async function loadRecentActivity() {
     }
 }
 
-// ===== Function to toggle all activity items =====
 window.toggleAllActivity = function() {
     const hiddenItems = document.querySelectorAll('.timeline-item.hidden');
     const viewBtn = document.getElementById('viewAllActivityBtn');
     
     if (hiddenItems.length > 0) {
-        // Show all hidden items
         hiddenItems.forEach(item => {
             item.classList.add('show');
         });
         
-        // Change button to "Show Less"
         viewBtn.innerHTML = '<i class="fas fa-chevron-up"></i> Show Less';
         
-        // Update onclick to hide them again
         viewBtn.onclick = function() {
             const allItems = document.querySelectorAll('.timeline-item');
             allItems.forEach((item, index) => {
@@ -693,8 +1051,6 @@ window.toggleAllActivity = function() {
             });
             viewBtn.innerHTML = `<i class="fas fa-chevron-down"></i> View All (${allItems.length - 5} more)`;
             viewBtn.onclick = toggleAllActivity;
-            
-            // Scroll back to activity section smoothly
             document.getElementById('activitySection').scrollIntoView({ behavior: 'smooth' });
         };
         
@@ -702,220 +1058,22 @@ window.toggleAllActivity = function() {
     }
 };
 
-// ============================================
-// USER MANAGEMENT FUNCTIONS
-// ============================================
-
-window.approveUser = async function(userId) {
-    try {
-        console.log("✨ Approving member:", userId);
-        
-        const { data: user, error: fetchError } = await window.supabase
-            .from('profiles')
-            .select('*')
-            .eq('id', userId)
-            .single();
-        
-        if (fetchError) {
-            console.error("Error finding user:", fetchError);
-            showIslamicNotification("Couldn't find this member. Please refresh and try again.", "error");
-            return;
-        }
-        
-        const { error } = await window.supabase
-            .from('profiles')
-            .update({ is_approved: true })
-            .eq('id', userId);
-        
-        if (error) {
-            console.error("Approve error:", error);
-            showIslamicNotification("Unable to approve: " + error.message, "error");
-            return;
-        }
-        
-        console.log("✅ Member approved");
-        showIslamicNotification(`🎉 ${user.full_name || 'Member'} approved!`, 'success');
-        
-        // Refresh all sections
-        await Promise.all([
-            loadStats(),
-            loadPendingUsers(),
-            loadAllMembers(),
-            loadRecentActivity()
-        ]);
-        
-    } catch (err) {
-        console.error("Approval error:", err);
-        showIslamicNotification("Something went wrong. Please try again.", "error");
-    }
-};
-
-// ================= REJECT USER - COMPLETE DELETION =================
-window.rejectUser = async function(userId) {
-    if (!confirm('Delete this user?')) return;
-    
-    try {
-        console.log("Declining member:", userId);
-        
-        // First, get user details for logging
-        const { data: user, error: fetchError } = await window.supabase
-            .from('profiles')
-            .select('email, full_name')
-            .eq('id', userId)
-            .single();
-        
-        if (fetchError) {
-            console.error("Error finding user:", fetchError);
-            showIslamicNotification("Couldn't find this member request.", "error");
-            return;
-        }
-        
-        console.log("Found member to decline:", user);
-        
-        showIslamicNotification("Deleting user account...", "info", 3000);
-        
-        // Delete from profiles table
-        const { error: profileError } = await window.supabase
-            .from('profiles')
-            .delete()
-            .eq('id', userId);
-        
-        if (profileError) {
-            console.error("Error deleting profile:", profileError);
-            showIslamicNotification("Error deleting profile: " + profileError.message, "error");
-            return;
-        }
-        
-        console.log("✅ Profile deleted successfully");
-        showIslamicNotification(`✅ ${user.full_name || user.email} deleted`, 'success');
-        
-        // Refresh all sections
-        await Promise.all([
-            loadStats(),
-            loadPendingUsers(),
-            loadAllMembers(),
-            loadRecentActivity()
-        ]);
-        
-    } catch (err) {
-        console.error("Rejection error:", err);
-        showIslamicNotification("Something went wrong. Please try again.", "error");
-    }
-};
-
-window.makeAdmin = async function(userId) {
-    if (!confirm('Make this member an admin?')) return;
-    
-    try {
-        console.log("Promoting to admin:", userId);
-        
-        const { error } = await window.supabase
-            .from('profiles')
-            .update({ role: 'admin' })
-            .eq('id', userId);
-        
-        if (error) {
-            console.error("Make admin error:", error);
-            showIslamicNotification("Couldn't make admin: " + error.message, "error");
-            return;
-        }
-        
-        console.log("✅ Admin promotion successful");
-        showIslamicNotification('👑 Member is now an admin', 'success');
-        
-        await Promise.all([
-            loadStats(),
-            loadAllMembers(),
-            loadRecentActivity()
-        ]);
-        
-    } catch (err) {
-        console.error("Admin promotion error:", err);
-        showIslamicNotification("Something went wrong. Please try again.", "error");
-    }
-};
-
-window.removeAdmin = async function(userId) {
-    if (!confirm('Remove admin privileges?')) return;
-    
-    try {
-        console.log("Removing admin:", userId);
-        
-        const { error } = await window.supabase
-            .from('profiles')
-            .update({ role: 'member' })
-            .eq('id', userId);
-        
-        if (error) {
-            console.error("Remove admin error:", error);
-            showIslamicNotification("Couldn't remove admin: " + error.message, "error");
-            return;
-        }
-        
-        console.log("✅ Admin removal successful");
-        showIslamicNotification('⬇️ Admin privileges removed', 'success');
-        
-        await Promise.all([
-            loadStats(),
-            loadAllMembers(),
-            loadRecentActivity()
-        ]);
-        
-    } catch (err) {
-        console.error("Admin removal error:", err);
-        showIslamicNotification("Something went wrong. Please try again.", "error");
-    }
-};
-
-window.revokeAccess = async function(userId) {
-    if (!confirm('Revoke access for this member?')) return;
-    
-    try {
-        console.log("Revoking access:", userId);
-        
-        const { error } = await window.supabase
-            .from('profiles')
-            .update({ is_approved: false })
-            .eq('id', userId);
-        
-        if (error) {
-            console.error("Revoke error:", error);
-            showIslamicNotification("Couldn't revoke access: " + error.message, "error");
-            return;
-        }
-        
-        console.log("✅ Access revoked");
-        showIslamicNotification('⏳ Access revoked', 'warning');
-        
-        await Promise.all([
-            loadStats(),
-            loadAllMembers(),
-            loadPendingUsers(),
-            loadRecentActivity()
-        ]);
-        
-    } catch (err) {
-        console.error("Revoke error:", err);
-        showIslamicNotification("Something went wrong. Please try again.", "error");
-    }
-};
-
 function setupAdminListeners() {
-    // Refresh buttons
     const refreshPending = document.getElementById('refreshPending');
     if (refreshPending) {
-        refreshPending.addEventListener('click', async function(e) {
-            e.preventDefault();
-            const btn = this;
-            btn.disabled = true;
-            btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Refreshing...';
-            
-            await loadPendingUsers();
-            
-            btn.disabled = false;
-            btn.innerHTML = '<i class="fas fa-sync-alt"></i> Refresh';
-            showIslamicNotification("✨ Pending approvals updated!", "success", 1500);
-        });
+        if (!isBigAdmin && !isSmallAdmin && refreshPending) refreshPending.style.display = 'none';
+        else {
+            refreshPending.addEventListener('click', async function(e) {
+                e.preventDefault();
+                const btn = this;
+                btn.disabled = true;
+                btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Refreshing...';
+                await loadPendingUsers();
+                btn.disabled = false;
+                btn.innerHTML = '<i class="fas fa-sync-alt"></i> Refresh';
+                showIslamicNotification("✨ Pending approvals updated!", "success", 1500);
+            });
+        }
     }
     
     const refreshMembers = document.getElementById('refreshMembers');
@@ -925,9 +1083,7 @@ function setupAdminListeners() {
             const btn = this;
             btn.disabled = true;
             btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Refreshing...';
-            
             await loadAllMembers();
-            
             btn.disabled = false;
             btn.innerHTML = '<i class="fas fa-sync-alt"></i> Refresh';
             showIslamicNotification("👥 Member list updated!", "success", 1500);
@@ -941,16 +1097,13 @@ function setupAdminListeners() {
             const btn = this;
             btn.disabled = true;
             btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Refreshing...';
-            
             await loadRecentActivity();
-            
             btn.disabled = false;
             btn.innerHTML = '<i class="fas fa-sync-alt"></i> Refresh';
             showIslamicNotification("📝 Activity timeline updated!", "success", 1500);
         });
     }
     
-    // Logout buttons
     const logoutBtns = document.querySelectorAll('#logoutBtn, .logout-btn-sidebar');
     logoutBtns.forEach(btn => {
         if (btn) {
@@ -988,6 +1141,28 @@ style.textContent = `
             transform: translateX(100%);
             opacity: 0;
         }
+    }
+    
+    .badge.small-admin {
+        background: #f59e0b;
+        color: white;
+        border: none;
+    }
+    
+    .badge.view-only {
+        background: #f59e0b;
+        color: white;
+    }
+    
+    .btn-small-admin {
+        background: #f59e0b;
+        color: white;
+        border: none;
+    }
+    
+    .btn-small-admin:hover {
+        background: #e67e22;
+        transform: translateY(-2px);
     }
 `;
 document.head.appendChild(style);

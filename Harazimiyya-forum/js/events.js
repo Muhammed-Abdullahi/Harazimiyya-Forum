@@ -2,6 +2,7 @@
 // HARAZIMIYYA FORUM - EVENTS DASHBOARD
 // Admin: Create, Edit, Delete Events
 // Members: View Events, RSVP
+// UPDATED: Small Admin can also create/edit/delete events
 // Features: AM/PM time format, Auto-limit to 11 events, Contact Phone Number
 // ============================================
 
@@ -233,13 +234,14 @@ async function initEvents() {
     }
 
     currentProfile = profile;
-    isAdmin = profile.role === "admin";
-    console.log("Is admin:", isAdmin);
+    // UPDATED: Small Admin can also create events
+    isAdmin = (profile.role === 'admin' || profile.role === 'small_admin');
+    console.log("Is admin or small admin:", isAdmin);
 
     // Create modals
     createModals();
 
-    // Show create button only for admin
+    // Show create button only for admin/small admin
     if (createEventBtn) {
       if (isAdmin) {
         createEventBtn.style.display = 'flex';
@@ -434,13 +436,12 @@ function formatTimeWithAmPm(timeString) {
   if (!timeString) return '';
   
   try {
-    // Parse time string (assuming format "HH:MM" or "HH:MM:SS")
     const timeParts = timeString.split(':');
     if (timeParts.length >= 2) {
       const hours = parseInt(timeParts[0]);
       const minutes = timeParts[1];
       const ampm = hours >= 12 ? 'PM' : 'AM';
-      const hours12 = hours % 12 || 12; // Convert 0 to 12 for 12 AM
+      const hours12 = hours % 12 || 12;
       return `at ${hours12}:${minutes} ${ampm}`;
     }
     return `at ${timeString}`;
@@ -473,7 +474,6 @@ function createEventCard(event) {
     day: 'numeric'
   });
   
-  // Format time with AM/PM
   const timeDisplay = formatTimeWithAmPm(event.time);
   
   const isHost = event.host_id === currentUser.id;
@@ -516,7 +516,6 @@ function createEventCard(event) {
         </div>
       ` : ''}
       
-      <!-- Phone Number Display -->
       ${event.phone ? `
         <div class="event-detail">
           <i class="fas fa-phone"></i>
@@ -600,12 +599,11 @@ window.toggleAttendance = async function(eventId) {
   } else if (currentStatus === 'attending') {
     newStatus = 'maybe';
   } else if (currentStatus === 'maybe') {
-    newStatus = null; // Remove attendance
+    newStatus = null;
   }
   
   try {
     if (newStatus === null) {
-      // Remove attendance
       const { error } = await supabase
         .from('event_attendees')
         .delete()
@@ -618,7 +616,6 @@ window.toggleAttendance = async function(eventId) {
       showNotification('You are no longer attending this event');
       
     } else {
-      // Upsert attendance
       const { error } = await supabase
         .from('event_attendees')
         .upsert({
@@ -633,7 +630,6 @@ window.toggleAttendance = async function(eventId) {
       showNotification(newStatus === 'attending' ? 'You are now attending!' : 'Status updated to Maybe');
     }
     
-    // Update event counts
     await updateEventAttendeeCount(eventId);
     
   } catch (err) {
@@ -658,7 +654,6 @@ async function updateEventAttendeeCount(eventId) {
       .update({ current_attendees: count })
       .eq('id', eventId);
     
-    // Reload events to reflect changes
     await loadEvents();
     
   } catch (err) {
@@ -669,7 +664,6 @@ async function updateEventAttendeeCount(eventId) {
 // ================= ENFORCE EVENT LIMIT (MAX 11) =================
 async function enforceEventLimit() {
   try {
-    // Count total events
     const { count, error: countError } = await supabase
       .from('events')
       .select('*', { count: 'exact', head: true });
@@ -678,14 +672,12 @@ async function enforceEventLimit() {
     
     console.log(`Current event count: ${count}, limit: 11`);
     
-    // If we have more than 11 events, delete the oldest ones
     if (count > 11) {
-      // Get the oldest events (excluding the most recent 11)
       const { data: oldestEvents, error: fetchError } = await supabase
         .from('events')
         .select('id, title, date')
-        .order('date', { ascending: true }) // Oldest first
-        .limit(count - 11); // Number of events to delete
+        .order('date', { ascending: true })
+        .limit(count - 11);
       
       if (fetchError) throw fetchError;
       
@@ -693,7 +685,6 @@ async function enforceEventLimit() {
         const idsToDelete = oldestEvents.map(e => e.id);
         console.log(`Deleting ${idsToDelete.length} oldest events to maintain limit of 11:`, oldestEvents);
         
-        // First, delete associated attendees (foreign key constraint)
         const { error: attendeesError } = await supabase
           .from('event_attendees')
           .delete()
@@ -701,7 +692,6 @@ async function enforceEventLimit() {
         
         if (attendeesError) throw attendeesError;
         
-        // Then delete the events
         const { error: deleteError } = await supabase
           .from('events')
           .delete()
@@ -730,7 +720,6 @@ window.viewEventDetails = function(eventId) {
     day: 'numeric'
   });
   
-  // Format time with AM/PM for details view
   let timeDisplay = 'Not specified';
   if (event.time) {
     try {
@@ -844,7 +833,6 @@ window.editEvent = function(eventId) {
   const event = allEvents.find(e => e.id === eventId);
   if (!event) return;
   
-  // Parse time if exists
   if (event.time) {
     const timeParts = event.time.split(':');
     if (timeParts.length >= 2) {
@@ -889,12 +877,10 @@ async function saveEvent() {
     return;
   }
   
-  // Get time components
   const hour = document.getElementById('eventHour').value;
   const minute = document.getElementById('eventMinute').value;
   const ampm = document.getElementById('eventAmPm').value;
   
-  // Convert to 24-hour format for storage
   let time = null;
   if (hour && minute) {
     time = convertTo24Hour(hour, minute, ampm);
@@ -920,13 +906,11 @@ async function saveEvent() {
     let error;
     
     if (selectedEventId) {
-      // Update existing event
       ({ error } = await supabase
         .from('events')
         .update(eventData)
         .eq('id', selectedEventId));
     } else {
-      // Create new event
       ({ error } = await supabase
         .from('events')
         .insert([eventData]));
@@ -937,10 +921,7 @@ async function saveEvent() {
     eventModal.classList.add('hidden');
     showNotification(selectedEventId ? 'Event updated successfully' : 'Event created successfully');
     
-    // Enforce event limit (keep only 11 most recent events)
     await enforceEventLimit();
-    
-    // Reload events
     await loadEvents();
     
   } catch (err) {
@@ -969,8 +950,6 @@ async function confirmDelete() {
     
     deleteModal.classList.add('hidden');
     showNotification('Event deleted successfully');
-    
-    // Reload events
     await loadEvents();
     
   } catch (err) {

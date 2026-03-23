@@ -1,44 +1,39 @@
 // js/chat.js - Complete Group Chat with Line Break Preservation and Image Resizing + Cloudinary Integration
+// UPDATED: Small Admin can delete ANY user's messages (text, image, voice, video)
+
 console.log("💬 Chat page loading...");
 
 // ================= CLOUDINARY CONFIGURATION =================
 const CLOUDINARY_CONFIG = {
-    cloudName: 'df3koezfk', // Your cloud name from the URLs
-    uploadPreset: 'community_upload', // Your actual upload preset name
-    folder: 'community-app', // Base folder
+    cloudName: 'df3koezfk',
+    uploadPreset: 'community_upload',
+    folder: 'community-app',
     subFolders: {
         image: 'Image',
         video: 'Video',
-        audio: 'Voice-record' // Matches your folder name
+        audio: 'Voice-record'
     }
 };
 
-// Helper function to get Cloudinary upload URL
 function getCloudinaryUploadUrl() {
     return `https://api.cloudinary.com/v1_1/${CLOUDINARY_CONFIG.cloudName}/auto/upload`;
 }
 
-// Helper function to determine resource type for Cloudinary
 function getCloudinaryResourceType(fileType) {
     if (fileType.startsWith('image/')) return 'image';
     if (fileType.startsWith('video/')) return 'video';
-    if (fileType.startsWith('audio/')) return 'video'; // Audio uses video endpoint
+    if (fileType.startsWith('audio/')) return 'video';
     return 'auto';
 }
 
-// ================= CHECK IF URL IS FROM CLOUDINARY =================
 function isCloudinaryUrl(url) {
     return url && url.includes('cloudinary.com');
 }
 
-// ================= GET OPTIMIZED CLOUDINARY URL (Optional) =================
 function getOptimizedCloudinaryUrl(url, options = {}) {
     if (!url || !isCloudinaryUrl(url)) return url;
     
-    // You can add transformations here if needed
-    // For example: resize images on the fly
     if (options.width || options.height) {
-        // This is a simplified version - you can add more transformations
         const parts = url.split('/upload/');
         if (parts.length === 2) {
             let transformation = '';
@@ -56,7 +51,6 @@ function getOptimizedCloudinaryUrl(url, options = {}) {
     return url;
 }
 
-// Helper function to prevent null URL errors
 function safeUrl(url) {
     if (!url || url === 'null' || url === 'undefined' || url === '') {
         return null;
@@ -67,6 +61,7 @@ function safeUrl(url) {
 // Global variables
 let currentUser = null;
 let isAdmin = false;
+let isSmallAdmin = false;  // NEW: Small Admin role
 let messagesSubscription = null;
 let presenceSubscription = null;
 let typingSubscription = null;
@@ -92,42 +87,27 @@ let swipeThreshold = 80;
 let allMembers = [];
 let typingTimeout = null;
 let isTyping = false;
-
-// Context menu and highlighting variables
 let highlightedMessages = new Set();
 let contextMenuActive = false;
 let longPressTimer = null;
 let longPressThreshold = 500;
 let lastTapTime = 0;
 let doubleTapThreshold = 300;
-
-// Message reactions storage
 let messageReactions = new Map();
-
-// Recording operation flag
 let isRecordingOperation = false;
-
-// Smart scroll variables
 let showJumpToBottom = false;
 let hasUnreadMessages = false;
 let firstUnreadMessageId = null;
-
-// Theme variables
-const themes = ['dark', 'light', 'sepia', 'forest'];
 let currentTheme = localStorage.getItem('chatTheme') || 'dark';
-
-// ===== MAKE isTouchDevice GLOBAL =====
 let isTouchDevice = false;
 
 document.addEventListener('DOMContentLoaded', function() {
     console.log("DOM loaded, initializing chat...");
     
-    // Detect if this is a touch device (mobile/tablet)
     isTouchDevice = ('ontouchstart' in window) || 
                     (navigator.maxTouchPoints > 0) || 
                     (navigator.msMaxTouchPoints > 0);
     
-    // Also check screen width as additional mobile detection
     if (window.innerWidth <= 768) {
         isTouchDevice = true;
     }
@@ -146,25 +126,20 @@ document.addEventListener('DOMContentLoaded', function() {
         initTheme();
         setupThemeToggle();
         
-        // Load reactions from database
         setTimeout(function() {
             loadReactions();
         }, 2000);
         
-        // Check for pending reply
         setTimeout(function() {
             checkPendingReply();
         }, 3000);
         
-        // Create jump to bottom button on page load
         setTimeout(function() {
             createJumpToBottomButton();
         }, 1000);
         
-        // Setup click outside to clear highlights
         setupClickOutsideHandler();
         
-        // Setup reaction touch handlers for mobile
         setTimeout(function() {
             setupReactionTouchHandlers();
         }, 3000);
@@ -173,38 +148,29 @@ document.addEventListener('DOMContentLoaded', function() {
     initializeChat();
 });
 
-// ================= DISABLE TEXT SELECTION ON ALL MESSAGES =================
 function disableTextSelection() {
-    // This function is now handled by CSS, but we keep it for compatibility
     console.log("✅ Text selection disabled on messages");
 }
 
-// ================= REACTION TOUCH HANDLER FOR MOBILE =================
 function setupReactionTouchHandlers() {
     document.addEventListener('touchstart', function(e) {
-        // Check if touching a reaction
         var reaction = e.target.closest('.reaction');
         if (!reaction) {
-            // If touching outside reaction, hide any open tooltip/modal
             hideReactionTooltip();
             var existingModal = document.querySelector('.online-users-modal');
             if (existingModal) existingModal.remove();
             return;
         }
         
-        // Prevent default to avoid double events
         e.preventDefault();
         
-        // Get reaction data
         var messageId = reaction.dataset.messageId;
         var reactionType = reaction.dataset.reactionType;
         
-        // Show who reacted
         showReactionUsers(messageId, reactionType);
     }, { passive: false });
 }
 
-// ================= LOAD REACTIONS FROM DATABASE =================
 async function loadReactions() {
     try {
         console.log("🔄 Loading reactions from database...");
@@ -216,7 +182,6 @@ async function loadReactions() {
         if (error) {
             console.error("❌ Error loading reactions:", error);
             
-            // Check if table exists
             if (error.code === '42P01') {
                 console.warn("⚠️ message_reactions table doesn't exist. Please create it in Supabase.");
                 showNotification("Please create the message_reactions table in Supabase", "error", 5000);
@@ -224,10 +189,8 @@ async function loadReactions() {
             return;
         }
         
-        // Clear existing reactions
         messageReactions.clear();
         
-        // Organize reactions by message
         reactions.forEach(function(reaction) {
             if (!messageReactions.has(reaction.message_id)) {
                 messageReactions.set(reaction.message_id, { likes: [], loves: [] });
@@ -243,7 +206,6 @@ async function loadReactions() {
         
         console.log("✅ Reactions loaded from database:", messageReactions);
         
-        // Update all message displays
         messageReactions.forEach(function(_, messageId) {
             updateMessageReactions(messageId);
         });
@@ -253,13 +215,11 @@ async function loadReactions() {
     }
 }
 
-// ================= CHECK PENDING REPLY =================
 function checkPendingReply() {
     var pendingReplyData = sessionStorage.getItem('replyingTo');
     if (pendingReplyData) {
         try {
             var replyData = JSON.parse(pendingReplyData);
-            // Store in both replyingTo and pendingReply
             replyingTo = { id: replyData.id, name: replyData.name };
             pendingReply = { id: replyData.id, name: replyData.name, content: replyData.content, type: replyData.type };
             console.log("📝 Restored pending reply from sessionStorage:", pendingReply);
@@ -271,47 +231,38 @@ function checkPendingReply() {
     }
 }
 
-// ================= CLICK OUTSIDE HANDLER =================
 function setupClickOutsideHandler() {
     document.addEventListener('click', function(e) {
-        // Don't clear if clicking on context menu or action bar
         if (e.target.closest('.context-menu') || e.target.closest('.action-bar')) {
             return;
         }
         
-        // Don't clear if clicking on a message (handled separately)
         if (e.target.closest('.message')) {
             return;
         }
         
-        // Clear all highlights when clicking outside
         clearAllHighlights();
     });
 }
 
-// ================= HIGHLIGHT MANAGEMENT =================
 function toggleMessageHighlight(messageId) {
     var messageEl = document.querySelector('.message[data-message-id="' + messageId + '"]');
     if (!messageEl) return;
     
     if (highlightedMessages.has(messageId)) {
-        // Remove highlight
         highlightedMessages.delete(messageId);
         messageEl.classList.remove('highlighted');
     } else {
-        // Add highlight
         highlightedMessages.add(messageId);
         messageEl.classList.add('highlighted');
     }
     
-    // Update action bar if it exists
     updateActionBar();
 }
 
 function clearAllHighlights() {
     if (highlightedMessages.size === 0) return;
     
-    // Remove highlight class from all messages
     highlightedMessages.forEach(function(messageId) {
         var messageEl = document.querySelector('.message[data-message-id="' + messageId + '"]');
         if (messageEl) {
@@ -321,11 +272,9 @@ function clearAllHighlights() {
     
     highlightedMessages.clear();
     
-    // Remove action bar
     var actionBar = document.querySelector('.action-bar');
     if (actionBar) actionBar.remove();
     
-    // Remove context menu
     var contextMenu = document.querySelector('.context-menu');
     if (contextMenu) contextMenu.remove();
 }
@@ -334,30 +283,25 @@ function updateActionBar() {
     var count = highlightedMessages.size;
     
     if (count === 0) {
-        // Remove action bar if no highlights
         var actionBar = document.querySelector('.action-bar');
         if (actionBar) actionBar.remove();
         return;
     }
     
-    // Check if we're on mobile or desktop
     var isMobile = window.innerWidth <= 768;
     
     if (isMobile) {
-        // Show mobile action bar
         showMobileActionBar(count);
     }
 }
 
 function showMobileActionBar(count) {
-    // Remove existing action bar
     var existingBar = document.querySelector('.action-bar');
     if (existingBar) existingBar.remove();
     
     var actionBar = document.createElement('div');
     actionBar.className = 'action-bar';
     
-    // Check if any selected message has reactions
     var hasLikes = checkIfAnyHasReaction('like');
     var hasLoves = checkIfAnyHasReaction('love');
     
@@ -380,7 +324,6 @@ function showMobileActionBar(count) {
     document.body.appendChild(actionBar);
 }
 
-// ================= REACTION FUNCTIONS =================
 async function toggleReaction(messageId, reactionType) {
     console.log("🔄 Toggling " + reactionType + " for message:", messageId);
     
@@ -390,12 +333,10 @@ async function toggleReaction(messageId, reactionType) {
         return;
     }
     
-    // Show loading state
     var reactionBtn = document.querySelector('.reaction.' + reactionType + '-reaction[data-message-id="' + messageId + '"]');
     if (reactionBtn) reactionBtn.classList.add('loading');
     
     try {
-        // Initialize reactions for this message if not exists
         if (!messageReactions.has(messageId)) {
             messageReactions.set(messageId, { likes: [], loves: [] });
         }
@@ -404,13 +345,10 @@ async function toggleReaction(messageId, reactionType) {
         var userReactionArray = reactionType === 'like' ? reactions.likes : reactions.loves;
         var otherReactionArray = reactionType === 'like' ? reactions.loves : reactions.likes;
         
-        // Check if user already reacted with this type
         var userIndex = userReactionArray.indexOf(currentUser.id);
         var hasReaction = userIndex !== -1;
         
         if (hasReaction) {
-            // Remove reaction from database
-            console.log("🗑️ Removing " + reactionType + " reaction");
             var { error } = await supabase
                 .from('message_reactions')
                 .delete()
@@ -423,15 +361,12 @@ async function toggleReaction(messageId, reactionType) {
                 throw error;
             }
             
-            // Remove from local array
             userReactionArray.splice(userIndex, 1);
             console.log("✅ " + reactionType + " reaction removed");
             
         } else {
-            // Check if user has the other reaction type and remove it first
             var otherIndex = otherReactionArray.indexOf(currentUser.id);
             if (otherIndex !== -1) {
-                // Remove other reaction from database
                 var otherType = reactionType === 'like' ? 'love' : 'like';
                 console.log("🔄 Removing conflicting " + otherType + " reaction");
                 
@@ -445,13 +380,10 @@ async function toggleReaction(messageId, reactionType) {
                 if (otherError) {
                     console.error("❌ Error removing other reaction:", otherError);
                 } else {
-                    // Remove from local array
                     otherReactionArray.splice(otherIndex, 1);
                 }
             }
             
-            // Add new reaction to database
-            console.log("➕ Adding " + reactionType + " reaction");
             var { error } = await supabase
                 .from('message_reactions')
                 .insert([{
@@ -465,15 +397,12 @@ async function toggleReaction(messageId, reactionType) {
                 throw error;
             }
             
-            // Add to local array
             userReactionArray.push(currentUser.id);
             console.log("✅ " + reactionType + " reaction added");
         }
         
-        // Update message display
         updateMessageReactions(messageId);
         
-        // Show notification
         if (hasReaction) {
             showNotification('Removed ' + (reactionType === 'like' ? '👍' : '❤️') + ' reaction', 'success', 1500);
         } else {
@@ -495,11 +424,9 @@ function updateMessageReactions(messageId) {
     var reactions = messageReactions.get(messageId);
     if (!reactions) return;
     
-    // Remove existing reaction display
     var existingReactions = messageEl.querySelector('.message-reactions');
     if (existingReactions) existingReactions.remove();
     
-    // Create reaction display if there are any reactions
     if (reactions.likes.length > 0 || reactions.loves.length > 0) {
         var reactionsDiv = document.createElement('div');
         reactionsDiv.className = 'message-reactions';
@@ -543,44 +470,36 @@ function updateMessageReactions(messageId) {
     }
 }
 
-// Handle reaction touch for mobile
 window.handleReactionTouch = function(event, messageId, reactionType) {
     event.preventDefault();
     event.stopPropagation();
     showReactionUsers(messageId, reactionType);
 };
 
-// ================= FIXED SHOW REACTION TOOLTIP FUNCTION =================
 async function showReactionTooltip(event, element, messageId, reactionType) {
-    // Prevent event bubbling
     if (event) {
         event.stopPropagation();
         event.preventDefault();
     }
     
-    // Get reactions from our local storage
     var reactions = messageReactions.get(messageId);
     if (!reactions) return;
     
     var userIds = reactionType === 'like' ? reactions.likes : reactions.loves;
     if (!userIds || userIds.length === 0) return;
     
-    // Remove any existing tooltip first
     hideReactionTooltip();
     
-    // Create tooltip
     var tooltip = document.createElement('div');
     tooltip.className = 'reaction-tooltip';
     
     try {
-        // Fetch user profiles
         var { data: profiles, error } = await supabase
             .from('profiles')
             .select('full_name')
             .in('id', userIds);
         
         if (!error && profiles && profiles.length > 0) {
-            // Format names nicely
             if (profiles.length === 1) {
                 tooltip.textContent = profiles[0].full_name || 'Someone';
             } else if (profiles.length === 2) {
@@ -593,15 +512,12 @@ async function showReactionTooltip(event, element, messageId, reactionType) {
                 tooltip.textContent = firstFew + ' and ' + (profiles.length - 3) + ' others';
             }
         } else {
-            // Fallback to count
             tooltip.textContent = userIds.length + ' ' + reactionType + (userIds.length > 1 ? 's' : '');
         }
     } catch (err) {
-        // Fallback to count
         tooltip.textContent = userIds.length + ' ' + reactionType + (userIds.length > 1 ? 's' : '');
     }
     
-    // Position tooltip
     var rect = element.getBoundingClientRect();
     tooltip.style.left = (rect.left + rect.width / 2) + 'px';
     tooltip.style.top = (rect.top - 40) + 'px';
@@ -609,7 +525,6 @@ async function showReactionTooltip(event, element, messageId, reactionType) {
     
     document.body.appendChild(tooltip);
     
-    // Auto hide after 2 seconds
     setTimeout(function() {
         hideReactionTooltip();
     }, 2000);
@@ -620,7 +535,6 @@ function hideReactionTooltip() {
     if (tooltip) tooltip.remove();
 }
 
-// ================= FIXED SHOW REACTION USERS =================
 async function showReactionUsers(messageId, reactionType) {
     var reactions = messageReactions.get(messageId);
     if (!reactions) return;
@@ -628,12 +542,10 @@ async function showReactionUsers(messageId, reactionType) {
     var userIds = reactionType === 'like' ? reactions.likes : reactions.loves;
     if (userIds.length === 0) return;
     
-    // Remove any existing modal
     var existingModal = document.querySelector('.online-users-modal');
     if (existingModal) existingModal.remove();
     
     try {
-        // Fetch user profiles
         var { data: profiles, error } = await supabase
             .from('profiles')
             .select('full_name, email')
@@ -644,7 +556,6 @@ async function showReactionUsers(messageId, reactionType) {
             return;
         }
         
-        // Create modal to show who reacted
         var modal = document.createElement('div');
         modal.className = 'online-users-modal';
         
@@ -679,10 +590,8 @@ async function showReactionUsers(messageId, reactionType) {
         
         document.body.appendChild(modal);
         
-        // Close modal when clicking close button
         modal.querySelector('.close-online-modal').onclick = function() { modal.remove(); };
         
-        // Close modal when tapping outside
         modal.onclick = function(e) {
             if (e.target === modal) modal.remove();
         };
@@ -711,24 +620,21 @@ window.handleBulkReaction = function(reactionType) {
     clearAllHighlights();
 };
 
-// ================= DESKTOP CONTEXT MENU =================
 function showContextMenu(x, y, messageId, senderName, messageContent, messageType) {
-    // Remove existing context menu
     var existingMenu = document.querySelector('.context-menu');
     if (existingMenu) existingMenu.remove();
     
     var messageEl = document.querySelector('.message[data-message-id="' + messageId + '"]');
     var senderId = messageEl ? messageEl.dataset.senderId : null;
     
-    // Strict check: Only admin OR the message owner can delete
-    var canDelete = isAdmin || (senderId === currentUser.id);
+    // UPDATED: Small Admin can delete ANY user's messages
+    var canDelete = isAdmin || isSmallAdmin || (senderId === currentUser.id);
     
     var contextMenu = document.createElement('div');
     contextMenu.className = 'context-menu desktop';
     contextMenu.style.left = x + 'px';
     contextMenu.style.top = y + 'px';
     
-    // Escape quotes in message content for safe HTML
     var escapedContent = messageContent.replace(/'/g, "\\'").replace(/"/g, '&quot;');
     var escapedSenderName = senderName.replace(/'/g, "\\'");
     
@@ -755,7 +661,6 @@ function showContextMenu(x, y, messageId, senderName, messageContent, messageTyp
     contextMenu.innerHTML = menuHtml;
     document.body.appendChild(contextMenu);
     
-    // Remove menu when clicking outside
     setTimeout(function() {
         document.addEventListener('click', function removeMenu(e) {
             if (!contextMenu.contains(e.target)) {
@@ -766,12 +671,10 @@ function showContextMenu(x, y, messageId, senderName, messageContent, messageTyp
     }, 100);
 }
 
-// ================= MESSAGE EVENT HANDLERS =================
 function setupMessageEventListeners() {
     var messages = document.querySelectorAll('.message');
     
     messages.forEach(function(msg) {
-        // Remove existing listeners
         msg.removeEventListener('touchstart', handleTouchStart);
         msg.removeEventListener('touchend', handleTouchEnd);
         msg.removeEventListener('touchmove', handleTouchMove);
@@ -780,7 +683,6 @@ function setupMessageEventListeners() {
         msg.removeEventListener('dblclick', handleMessageDoubleClick);
         msg.removeEventListener('contextmenu', handleMessageRightClick);
         
-        // Add new listeners
         msg.addEventListener('touchstart', handleTouchStart, { passive: true });
         msg.addEventListener('touchend', handleTouchEnd);
         msg.addEventListener('touchmove', handleTouchMove, { passive: false });
@@ -792,17 +694,14 @@ function setupMessageEventListeners() {
 }
 
 function handleTouchStart(e) {
-    // Don't start if in recording operation
     if (isRecordingOperation) return;
     
     var touch = e.touches[0];
     touchStartX = touch.clientX;
     currentSwipeElement = this;
     
-    // Clear any existing long press timer
     if (longPressTimer) clearTimeout(longPressTimer);
     
-    // Start long press timer
     longPressTimer = setTimeout(function() {
         handleLongPress(currentSwipeElement);
     }, longPressThreshold);
@@ -814,7 +713,6 @@ function handleTouchMove(e) {
     var touch = e.touches[0];
     var diffX = touch.clientX - touchStartX;
     
-    // If user starts swiping, cancel long press
     if (Math.abs(diffX) > 20) {
         if (longPressTimer) {
             clearTimeout(longPressTimer);
@@ -822,12 +720,10 @@ function handleTouchMove(e) {
         }
     }
     
-    // Handle swipe to reply (only if not in highlight mode)
     if (highlightedMessages.size === 0 && diffX > 0 && diffX < 150) {
         e.preventDefault();
         currentSwipeElement.style.transform = 'translateX(' + diffX + 'px)';
         
-        // Show swipe indicator
         var indicator = document.querySelector('.swipe-reply-indicator');
         if (!indicator) {
             indicator = document.createElement('div');
@@ -850,7 +746,6 @@ function handleTouchEnd(e) {
     
     var diffX = e.changedTouches[0].clientX - touchStartX;
     
-    // Handle swipe to reply
     if (highlightedMessages.size === 0 && diffX > swipeThreshold) {
         var messageId = currentSwipeElement.dataset.messageId;
         var senderNameElement = currentSwipeElement.querySelector('small');
@@ -866,10 +761,8 @@ function handleTouchEnd(e) {
         handleReply(messageId, senderName, messageContent, messageType);
     }
     
-    // Reset transform
     currentSwipeElement.style.transform = '';
     
-    // Remove swipe indicator
     var indicator = document.querySelector('.swipe-reply-indicator');
     if (indicator) indicator.remove();
     
@@ -896,22 +789,18 @@ function handleLongPress(messageEl) {
     
     var messageId = messageEl.dataset.messageId;
     
-    // On mobile, toggle highlight
     toggleMessageHighlight(messageId);
     
-    // Provide haptic feedback if available
     if (navigator.vibrate) {
         navigator.vibrate(50);
     }
 }
 
 function handleMessageClick(e) {
-    // Check for double tap
     var currentTime = new Date().getTime();
     var tapLength = currentTime - lastTapTime;
     
     if (tapLength < doubleTapThreshold && tapLength > 0) {
-        // Double tap detected
         handleDoubleTap(this);
         lastTapTime = 0;
     } else {
@@ -940,37 +829,43 @@ function handleMessageRightClick(e) {
     else if (messageEl.querySelector('video')) messageType = 'video';
     else if (messageEl.querySelector('audio')) messageType = 'audio';
     
-    // Show context menu at mouse position
     showContextMenu(e.pageX, e.pageY, messageId, senderName, messageContent, messageType);
 }
 
-// ================= ACTION HANDLERS =================
+function handleDoubleTap(messageEl) {
+    var messageId = messageEl.dataset.messageId;
+    var reactions = messageReactions.get(messageId);
+    var hasLove = reactions && reactions.loves.includes(currentUser.id);
+    
+    if (hasLove) {
+        toggleReaction(messageId, 'love');
+    } else {
+        toggleReaction(messageId, 'love');
+    }
+}
+
 window.handleReply = function(messageId, senderName, messageContent, messageType) {
     console.log("📝 Handling reply to message:", messageId);
     
-    // Clear any highlights
     clearAllHighlights();
     
-    // Show reply input - this will set replyingTo and pendingReply
     window.showReplyInput(messageId, senderName, messageContent, messageType);
     
-    // Remove context menu
     var contextMenu = document.querySelector('.context-menu');
     if (contextMenu) contextMenu.remove();
 };
 
-// ================= FIXED HANDLE DELETE - ONLY OWN MESSAGES OR ADMIN =================
+// ================= UPDATED HANDLE DELETE - Small Admin can delete ANY user's messages =================
 window.handleDelete = async function(messageId) {
     var messageEl = document.querySelector('.message[data-message-id="' + messageId + '"]');
     var senderId = messageEl ? messageEl.dataset.senderId : null;
     
-    // Strict check: Only admin OR the message owner can delete
-    if (!isAdmin && senderId !== currentUser.id) {
+    // UPDATED: Small Admin (isSmallAdmin) can delete ANY user's messages
+    if (!isAdmin && !isSmallAdmin && senderId !== currentUser.id) {
         showNotification("❌ You can only delete your own messages", "error");
         return;
     }
     
-    // Use a custom modal instead of confirm
     if (await confirmDelete()) {
         try {
             var { error } = await supabase
@@ -994,11 +889,11 @@ window.handleDelete = async function(messageId) {
     }
 };
 
-// ================= FIXED HANDLE DELETE SELECTED - ONLY OWN MESSAGES =================
+// ================= UPDATED HANDLE DELETE SELECTED - Small Admin can delete ANY user's messages =================
 window.handleDeleteSelected = async function() {
     if (highlightedMessages.size === 0) return;
     
-    // Filter messages - user can only delete their own unless admin
+    // UPDATED: Small Admin (isSmallAdmin) can delete ANY user's messages
     var deletableMessages = [];
     var nonDeletableMessages = [];
     
@@ -1006,7 +901,7 @@ window.handleDeleteSelected = async function() {
         var messageEl = document.querySelector('.message[data-message-id="' + messageId + '"]');
         var senderId = messageEl ? messageEl.dataset.senderId : null;
         
-        if (isAdmin || senderId === currentUser.id) {
+        if (isAdmin || isSmallAdmin || senderId === currentUser.id) {
             deletableMessages.push(messageId);
         } else {
             nonDeletableMessages.push(messageId);
@@ -1023,7 +918,6 @@ window.handleDeleteSelected = async function() {
         showNotification(`⚠️ ${nonDeletableMessages.length} message(s) not yours - skipping`, "warning", 3000);
     }
     
-    // Use a custom modal instead of confirm
     if (await confirmDelete(deletableMessages.length + ' message' + (deletableMessages.length > 1 ? 's' : ''))) {
         var successCount = 0;
         var failCount = 0;
@@ -1057,11 +951,9 @@ window.handleDeleteSelected = async function() {
     }
 };
 
-// ================= CUSTOM CONFIRM DIALOG FUNCTION =================
 function confirmDelete(item) {
     if (!item) item = 'this message';
     
-    // Create custom confirm dialog
     return new Promise(function(resolve) {
         var modal = document.createElement('div');
         modal.className = 'confirm-modal';
@@ -1122,7 +1014,6 @@ function confirmDelete(item) {
     });
 }
 
-// ================= THEME MANAGEMENT =================
 function initTheme() {
     document.body.setAttribute('data-theme', currentTheme);
     updateThemeCheckmark();
@@ -1173,7 +1064,6 @@ function setupThemeToggle() {
     });
 }
 
-// ================= NOTIFICATION FUNCTION =================
 function showNotification(message, type, duration) {
     if (!type) type = 'success';
     if (!duration) duration = 3000;
@@ -1200,7 +1090,6 @@ function showNotification(message, type, duration) {
     }, duration);
 }
 
-// ================= JUMP TO BOTTOM BUTTON FUNCTIONS =================
 function createJumpToBottomButton() {
     var existingBtn = document.getElementById('jumpToBottomBtn');
     if (existingBtn) existingBtn.remove();
@@ -1226,7 +1115,6 @@ function scrollToBottom() {
     }
 }
 
-// ================= SMART SCROLL POSITIONING =================
 function findFirstUnreadMessage() {
     var messages = document.querySelectorAll('.message.received');
     for (var i = 0; i < messages.length; i++) {
@@ -1255,7 +1143,6 @@ function scrollToFirstUnread() {
     }
 }
 
-// ================= SIDEBAR SETUP =================
 function setupSidebar() {
     var sidebar = document.getElementById('sidebar');
     var openBtn = document.getElementById('openSidebar');
@@ -1286,7 +1173,6 @@ function setupSidebar() {
     }
 }
 
-// ================= ONLINE COUNTER =================
 async function setupPresenceTracking() {
     try {
         var channel = supabase.channel('online-users', {
@@ -1338,7 +1224,6 @@ async function setupPresenceTracking() {
     }
 }
 
-// ================= TYPING INDICATOR =================
 function setupTypingListener() {
     if (!presenceSubscription) return;
     
@@ -1438,7 +1323,6 @@ async function updateTypingDisplay() {
     typingIndicator.classList.remove('hidden');
 }
 
-// ================= SHOW ONLINE USERS MODAL =================
 async function showOnlineUsers() {
     try {
         var onlineUserIds = Array.from(onlineUsers);
@@ -1510,7 +1394,6 @@ function updateOnlineCount() {
     }
 }
 
-// ================= MAIN CHAT FUNCTIONS =================
 async function loadChatData() {
     try {
         var { data: { user }, error: userError } = await supabase.auth.getUser();
@@ -1535,41 +1418,31 @@ async function loadChatData() {
     }
 }
 
-// ================= SETUP CLICK OUTSIDE TO CANCEL REPLY =================
 function setupClickOutsideCancel() {
     document.addEventListener('click', function(e) {
-        // Don't cancel if we have highlights
         if (highlightedMessages.size > 0) return;
-        
-        // Don't cancel during recording
         if (isRecordingOperation) return;
-        
-        // Only check if we have an active reply
         if (!replyingTo && !pendingReply) return;
         
-        // Get the clicked element
         var clickedElement = e.target;
         
-        // Check if click is on ANY interactive element related to replying
         var isReplyElement = 
-            clickedElement.closest('.reply-indicator') || // Reply indicator
-            clickedElement.closest('#messageInput') || // Text input
-            clickedElement.closest('.media-btn') || // Any media button
-            clickedElement.closest('#sendBtn') || // Send button
-            clickedElement.closest('#voiceBtn') || // Voice button
-            clickedElement.closest('#imageBtn') || // Image button
-            clickedElement.closest('#videoBtn') || // Video button
-            clickedElement.closest('#fileInput') || // File input
-            clickedElement.closest('.chat-input-area') || // Entire input area
-            clickedElement.closest('.message'); // Any message
+            clickedElement.closest('.reply-indicator') ||
+            clickedElement.closest('#messageInput') ||
+            clickedElement.closest('.media-btn') ||
+            clickedElement.closest('#sendBtn') ||
+            clickedElement.closest('#voiceBtn') ||
+            clickedElement.closest('#imageBtn') ||
+            clickedElement.closest('#videoBtn') ||
+            clickedElement.closest('#fileInput') ||
+            clickedElement.closest('.chat-input-area') ||
+            clickedElement.closest('.message');
         
-        // If click is on any reply-related element, DO NOT CANCEL
         if (isReplyElement) {
             console.log("📝 Click on reply-related element - preserving reply");
             return;
         }
         
-        // Check if click is on the reply button in context menu
         var isReplyButton = clickedElement.closest('button') && 
                            clickedElement.closest('button').innerHTML && 
                            clickedElement.closest('button').innerHTML.includes('fa-reply');
@@ -1579,13 +1452,11 @@ function setupClickOutsideCancel() {
             return;
         }
         
-        // If we get here, it's a click outside - cancel the reply
         console.log("📝 Click outside - cancelling reply");
         cancelReply();
     }, true);
 }
 
-// ================= CREATE REPLY INDICATOR WITH ANIMATION =================
 function createReplyIndicator(senderName, messageContent, messageType) {
     var existingIndicator = document.getElementById('replyIndicator');
     if (existingIndicator) existingIndicator.remove();
@@ -1618,11 +1489,9 @@ function createReplyIndicator(senderName, messageContent, messageType) {
         </button>\
     ';
     
-    // Insert indicator above messages
     var messagesContainer = document.getElementById('messages');
     messagesContainer.parentNode.insertBefore(indicator, messagesContainer);
     
-    // Store reply info in both replyingTo and pendingReply for persistence
     if (replyingTo) {
         pendingReply = {
             id: replyingTo.id,
@@ -1631,12 +1500,10 @@ function createReplyIndicator(senderName, messageContent, messageType) {
             type: messageType
         };
         
-        // Also store in sessionStorage for page refresh
         sessionStorage.setItem('replyingTo', JSON.stringify(pendingReply));
         console.log("📝 Reply saved to sessionStorage and pendingReply:", pendingReply);
     }
     
-    // Add click handler for cancel button with stopPropagation
     document.getElementById('cancelReplyBtn').addEventListener('click', function(e) {
         e.stopPropagation();
         cancelReply();
@@ -1647,9 +1514,8 @@ function createReplyIndicator(senderName, messageContent, messageType) {
         messageInput.classList.add('replying');
         messageInput.focus();
         
-        // Force animation to restart
         messageInput.style.animation = 'none';
-        messageInput.offsetHeight; // Trigger reflow
+        messageInput.offsetHeight;
         messageInput.style.animation = 'replyPulse 2s infinite';
     }
 }
@@ -1668,11 +1534,9 @@ function cancelReply() {
     replyingTo = null;
     pendingReply = null;
     
-    // Clear from sessionStorage
     sessionStorage.removeItem('replyingTo');
 }
 
-// ================= UPDATE MESSAGE STATUS =================
 function updateMessageStatus(messageId, status) {
     var messageEl = document.querySelector('.message[data-message-id="' + messageId + '"]');
     if (!messageEl) return;
@@ -1710,8 +1574,10 @@ async function loadUserProfile(userId) {
         
         if (error) throw error;
         
+        // UPDATED: Set both isAdmin and isSmallAdmin
         isAdmin = data.role === 'admin';
-        console.log("User role:", data.role, "isAdmin:", isAdmin);
+        isSmallAdmin = data.role === 'small_admin';
+        console.log("User role:", data.role, "isAdmin:", isAdmin, "isSmallAdmin:", isSmallAdmin);
         
         var userNameEl = document.getElementById('userName');
         if (userNameEl) userNameEl.textContent = data.full_name || 'Member';
@@ -1733,7 +1599,6 @@ async function loadUserProfile(userId) {
     }
 }
 
-// ================= SEARCHABLE MEMBER DROPDOWN =================
 async function loadMembers() {
     try {
         var { data, error } = await supabase
@@ -1917,7 +1782,6 @@ function createSearchableMemberDropdown() {
     searchMembers('');
 }
 
-// ================= GET MESSAGE PREVIEW =================
 function getMessagePreview(msg) {
     if (!msg) return '';
     
@@ -1935,7 +1799,6 @@ function getMessagePreview(msg) {
     return '💬 Message';
 }
 
-// ================= LOAD MESSAGES WITH PROPER PARENT SENDER INFO =================
 async function loadGroupMessages() {
     try {
         var messagesContainer = document.getElementById('messages');
@@ -1946,7 +1809,6 @@ async function loadGroupMessages() {
         var query;
         
         if (isAdmin && currentChatPartner) {
-            // Admin viewing private chat with specific member
             console.log("📨 Loading private messages between admin and member:", currentChatPartner);
             query = supabase
                 .from('chat_messages')
@@ -1964,8 +1826,7 @@ async function loadGroupMessages() {
                 ')
                 .or('and(sender_id.eq.' + currentUser.id + ',receiver_id.eq.' + currentChatPartner + '),and(sender_id.eq.' + currentChatPartner + ',receiver_id.eq.' + currentUser.id + ')')
                 .order('created_at', { ascending: true });
-        } else if (!isAdmin) {
-            // Regular member - show group messages AND their private messages
+        } else if (!isAdmin && !isSmallAdmin) {
             console.log("📨 Loading messages for regular member");
             query = supabase
                 .from('chat_messages')
@@ -1984,8 +1845,7 @@ async function loadGroupMessages() {
                 .or('receiver_id.is.null,and(sender_id.eq.' + currentUser.id + '),and(receiver_id.eq.' + currentUser.id + ')')
                 .order('created_at', { ascending: true });
         } else {
-            // Admin viewing group chat (default)
-            console.log("📨 Loading group messages for admin");
+            console.log("📨 Loading group messages for admin/small admin");
             query = supabase
                 .from('chat_messages')
                 .select('\
@@ -2025,10 +1885,8 @@ async function loadGroupMessages() {
         
         renderMessages(messages);
         
-        // Load reactions after messages are rendered
         await loadReactions();
         
-        // Smart scroll positioning after messages load
         setTimeout(function() {
             var firstUnreadId = findFirstUnreadMessage();
             if (firstUnreadId) {
@@ -2038,7 +1896,6 @@ async function loadGroupMessages() {
             }
         }, 500);
         
-        // Mark messages as read after loading
         setTimeout(function() {
             markAllVisibleMessagesAsRead();
         }, 1000);
@@ -2052,7 +1909,6 @@ async function loadGroupMessages() {
     }
 }
 
-// ================= MARK MESSAGES AS READ =================
 function setupScrollListener() {
     var messagesContainer = document.getElementById('messages');
     if (!messagesContainer) return;
@@ -2118,7 +1974,6 @@ async function markAllVisibleMessagesAsRead() {
     }
 }
 
-// ================= SCROLL TO MESSAGE =================
 window.scrollToMessage = function(messageId) {
     var messageElement = document.querySelector('.message[data-message-id="' + messageId + '"]');
     if (messageElement) {
@@ -2130,16 +1985,13 @@ window.scrollToMessage = function(messageId) {
     }
 };
 
-// ================= SHOW REPLY INPUT =================
 window.showReplyInput = function(parentId, senderName, messageContent, messageType) {
     console.log("📝 Show reply input for message:", parentId);
     
-    // Cancel any existing reply first
     if (replyingTo || pendingReply) {
         cancelReply();
     }
     
-    // Set both replyingTo and pendingReply
     replyingTo = { id: parentId, name: senderName };
     pendingReply = { id: parentId, name: senderName, content: messageContent, type: messageType };
     
@@ -2148,7 +2000,6 @@ window.showReplyInput = function(parentId, senderName, messageContent, messageTy
     createReplyIndicator(senderName, messageContent, messageType);
 };
 
-// ================= RENDER MESSAGES =================
 function renderMessages(messages) {
     var container = document.getElementById('messages');
     if (!container) return;
@@ -2190,7 +2041,6 @@ function renderMessages(messages) {
             status = 'seen';
         }
         
-        // Status indicator
         var statusIndicator = '';
         if (isSent) {
             if (status === 'seen') {
@@ -2200,38 +2050,29 @@ function renderMessages(messages) {
             }
         }
         
-        // FOR SENT MESSAGES
         if (isSent) {
             html += '\
                 <div class="message sent" data-message-id="' + msg.id + '" data-sender="' + senderName + '" data-sender-id="' + msg.sender_id + '">\
                     <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 5px;">\
                         <small style="font-weight: bold;">You ' + (messageTypeLabel ? '• ' + messageTypeLabel : '') + '</small>\
                     </div>\
-                    \
                     ' + renderQuotedMessage(msg.parent) + '\
-                    \
                     <div class="message-content-wrapper">\
                         <div class="message-content">' + renderMessageContent(msg) + '</div>\
                     </div>\
-                    \
                     <span class="time">' + timeStr + statusIndicator + '</span>\
                 </div>\
             ';
-        } 
-        // FOR RECEIVED MESSAGES
-        else {
+        } else {
             html += '\
                 <div class="message received" data-message-id="' + msg.id + '" data-sender="' + senderName + '" data-sender-id="' + msg.sender_id + '">\
                     <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 5px;">\
                         <small style="font-weight: bold;">' + senderName + crown + ' ' + (messageTypeLabel ? '• ' + messageTypeLabel : '') + '</small>\
                     </div>\
-                    \
                     ' + renderQuotedMessage(msg.parent) + '\
-                    \
                     <div class="message-content-wrapper">\
                         <div class="message-content">' + renderMessageContent(msg) + '</div>\
                     </div>\
-                    \
                     <span class="time">' + timeStr + '</span>\
                 </div>\
             ';
@@ -2240,27 +2081,22 @@ function renderMessages(messages) {
     
     container.innerHTML = html;
     
-    // DISABLE TEXT SELECTION ON ALL MESSAGES
     disableTextSelection();
     
-    // Re-render reactions after messages are loaded
     messageReactions.forEach(function(reactions, messageId) {
         updateMessageReactions(messageId);
     });
     
-    // Setup message event listeners
     setTimeout(function() {
         setupMessageEventListeners();
     }, 100);
 }
 
-// ================= RENDER QUOTED MESSAGE WITH PROPER SENDER NAME =================
 function renderQuotedMessage(parentMsg) {
     if (!parentMsg) return '';
     
     console.log("📝 Rendering quoted message:", parentMsg);
     
-    // Get sender name from the parent message's sender object
     var senderName = parentMsg.sender ? (parentMsg.sender.full_name || parentMsg.sender.email || 'Unknown') : 'Unknown';
     var contentPreview = getMessagePreview(parentMsg);
     
@@ -2272,13 +2108,9 @@ function renderQuotedMessage(parentMsg) {
     ';
 }
 
-// ================= UPDATED RENDER MESSAGE CONTENT WITH CLOUDINARY SUPPORT AND ERROR HANDLING =================
 function renderMessageContent(msg) {
     if (msg.message_type === 'text') {
-        // CRITICAL FIX: Convert line breaks to <br> tags AND use pre-wrap for display
-        // This ensures line breaks are preserved in the displayed message
         var textWithBreaks = (msg.content || '').replace(/\n/g, '<br>');
-        // Add user-select: none to prevent text selection on mobile
         return '<p style="white-space: pre-wrap; word-wrap: break-word; word-break: break-word; line-height: 1.5; margin: 0; -webkit-user-select: none; -moz-user-select: none; -ms-user-select: none; user-select: none;">' + textWithBreaks + '</p>';
     }
     
@@ -2286,14 +2118,10 @@ function renderMessageContent(msg) {
         var imageUrl = safeUrl(msg.file_url);
         if (!imageUrl) return '<p>Image not available</p>';
         
-        // If it's from Cloudinary, we can add optimization parameters
         if (isCloudinaryUrl(imageUrl)) {
-            // Get optimized version for chat (smaller size)
             const optimizedUrl = getOptimizedCloudinaryUrl(imageUrl, { width: 400, height: 400, crop: 'limit' });
-            // Add error handling to fallback to original URL if optimized fails
             return '<img src="' + optimizedUrl + '" alt="Image" onclick="window.open(\'' + imageUrl + '\')" style="cursor: pointer; max-width: 100%; border-radius: 12px;" loading="lazy" onerror="this.onerror=null; this.src=\'' + imageUrl + '\';">';
         } else {
-            // Old Supabase image
             return '<img src="' + imageUrl + '" alt="Image" onclick="window.open(\'' + imageUrl + '\')" style="cursor: pointer; max-width: 100%; border-radius: 12px;" loading="lazy">';
         }
     }
@@ -2338,14 +2166,13 @@ async function handleNewMessage(newMessage) {
         (!newMessage.receiver_id && !currentChatPartner) ||
         (newMessage.receiver_id === currentUser.id && newMessage.sender_id === currentChatPartner) ||
         (newMessage.sender_id === currentUser.id && newMessage.receiver_id === currentChatPartner) ||
-        (!isAdmin && (newMessage.receiver_id === currentUser.id || !newMessage.receiver_id));
+        ((!isAdmin && !isSmallAdmin) && (newMessage.receiver_id === currentUser.id || !newMessage.receiver_id));
     
     if (isRelevant) {
         loadGroupMessages();
     }
 }
 
-// ================= RESIZE IMAGE BEFORE UPLOAD (UPDATED) =================
 async function resizeImage(file, maxWidth = 800, maxHeight = 800, quality = 0.9) {
     return new Promise((resolve, reject) => {
         const reader = new FileReader();
@@ -2354,7 +2181,6 @@ async function resizeImage(file, maxWidth = 800, maxHeight = 800, quality = 0.9)
             const img = new Image();
             img.src = e.target.result;
             img.onload = () => {
-                // Calculate new dimensions
                 let width = img.width;
                 let height = img.height;
                 
@@ -2370,7 +2196,6 @@ async function resizeImage(file, maxWidth = 800, maxHeight = 800, quality = 0.9)
                     }
                 }
                 
-                // Create canvas and resize
                 const canvas = document.createElement('canvas');
                 canvas.width = width;
                 canvas.height = height;
@@ -2378,9 +2203,7 @@ async function resizeImage(file, maxWidth = 800, maxHeight = 800, quality = 0.9)
                 const ctx = canvas.getContext('2d');
                 ctx.drawImage(img, 0, 0, width, height);
                 
-                // Convert to blob with better quality
                 canvas.toBlob((blob) => {
-                    // Create new file from blob
                     const resizedFile = new File([blob], file.name, {
                         type: file.type,
                         lastModified: Date.now()
@@ -2395,31 +2218,23 @@ async function resizeImage(file, maxWidth = 800, maxHeight = 800, quality = 0.9)
     });
 }
 
-// ================= RESIZE VIDEO (COMPRESS) =================
 async function compressVideo(file, maxSizeMB = 10) {
     return new Promise((resolve, reject) => {
-        // If video is already small enough, return as is
         if (file.size <= maxSizeMB * 1024 * 1024) {
             resolve(file);
             return;
         }
         
-        // For videos, we'll use FFmpeg.wasm or similar in production
-        // For now, show warning and let user know
         console.log(`Video size: ${(file.size / (1024*1024)).toFixed(2)}MB`);
         
-        // Simple compression warning
         if (file.size > 20 * 1024 * 1024) {
             alert("Video is large (>20MB). It may take time to upload and might be compressed.");
         }
         
-        // In a production app, you'd use a library like ffmpeg.wasm
-        // For now, we'll just return the original file with a note
         resolve(file);
     });
 }
 
-// ================= MODIFIED handleFileSelect with resize =================
 function handleFileSelect(e) {
     var file = e.target.files[0];
     if (!file) return;
@@ -2437,10 +2252,8 @@ function handleFileSelect(e) {
     
     if (file.type.startsWith('image/')) {
         currentFileType = 'image';
-        // Show loading indicator
         showNotification('🖼️ Resizing image...', 'info', 2000);
         
-        // Resize image before preview
         resizeImage(file, 800, 800, 0.9).then(resizedFile => {
             currentFile = resizedFile;
             console.log(`Image resized: ${(file.size/1024).toFixed(2)}KB → ${(resizedFile.size/1024).toFixed(2)}KB`);
@@ -2453,10 +2266,8 @@ function handleFileSelect(e) {
         
     } else if (file.type.startsWith('video/')) {
         currentFileType = 'video';
-        // Show loading indicator
         showNotification('🎥 Processing video...', 'info', 2000);
         
-        // Compress video
         compressVideo(file, 10).then(compressedFile => {
             currentFile = compressedFile;
             console.log(`Video processed: ${(file.size/(1024*1024)).toFixed(2)}MB → ${(compressedFile.size/(1024*1024)).toFixed(2)}MB`);
@@ -2473,7 +2284,6 @@ function handleFileSelect(e) {
     }
 }
 
-// ================= MODIFIED showImagePreview with resize options =================
 function showImagePreview(file) {
     var reader = new FileReader();
     reader.onload = function(e) {
@@ -2485,7 +2295,6 @@ function showImagePreview(file) {
         previewDiv.id = 'mediaPreview';
         previewDiv.style.cssText = 'display: flex; align-items: center; gap: 10px; padding: 10px; background: var(--card-bg); border-radius: 8px; margin-bottom: 10px; width: 100%; flex-wrap: wrap;';
         
-        // Calculate reduced size for preview
         var img = new Image();
         img.src = e.target.result;
         img.onload = function() {
@@ -2520,7 +2329,6 @@ function showImagePreview(file) {
     reader.readAsDataURL(file);
 }
 
-// ================= MODIFIED showVideoPreview with size info =================
 function showVideoPreview(file) {
     var reader = new FileReader();
     reader.onload = function(e) {
@@ -2559,14 +2367,12 @@ function showVideoPreview(file) {
     reader.readAsDataURL(file);
 }
 
-// ================= UPLOAD FILE TO CLOUDINARY (UPDATED WITH CORRECT PRESET) =================
 async function uploadFile(file) {
     try {
         if (!file) throw new Error("No file to upload");
         
         console.log("📤 Uploading to Cloudinary:", file.name, file.type);
         
-        // Determine folder and resource type
         let folder = CLOUDINARY_CONFIG.folder;
         let resourceType = 'auto';
         
@@ -2578,19 +2384,16 @@ async function uploadFile(file) {
             resourceType = 'video';
         } else if (file.type.startsWith('audio/')) {
             folder += '/' + CLOUDINARY_CONFIG.subFolders.audio;
-            resourceType = 'video'; // Audio uses video endpoint
+            resourceType = 'video';
         }
         
-        // Create form data for Cloudinary
         const formData = new FormData();
         formData.append('file', file);
-        formData.append('upload_preset', CLOUDINARY_CONFIG.uploadPreset); // 'community_upload'
+        formData.append('upload_preset', CLOUDINARY_CONFIG.uploadPreset);
         formData.append('folder', folder);
         
-        // Show uploading notification
         showNotification('📤 Uploading to Cloudinary...', 'info', 2000);
         
-        // Upload to Cloudinary
         const response = await fetch(getCloudinaryUploadUrl(), {
             method: 'POST',
             body: formData
@@ -2606,7 +2409,6 @@ async function uploadFile(file) {
         
         showNotification('✅ Uploaded to Cloudinary', 'success', 1500);
         
-        // Return the Cloudinary URL
         return data.secure_url;
         
     } catch (err) {
@@ -2616,7 +2418,6 @@ async function uploadFile(file) {
     }
 }
 
-// ================= UPDATED SHOW AUDIO PREVIEW WITH PROPER FILE NAME =================
 function showAudioPreview(audioUrl) {
     var existingPreview = document.getElementById('audioPreview');
     if (existingPreview) existingPreview.remove();
@@ -2647,7 +2448,6 @@ function showAudioPreview(audioUrl) {
     
     document.getElementById('sendPreviewBtn').addEventListener('click', async function() {
         if (recordedAudio) {
-            // FIX: Give the file a proper name with timestamp
             const fileName = 'voice-message-' + Date.now() + '.webm';
             currentFile = new File([recordedAudio], fileName, { type: 'audio/webm' });
             currentFileType = 'audio';
@@ -2657,7 +2457,6 @@ function showAudioPreview(audioUrl) {
     });
 }
 
-// ================= SIMPLE, GUARANTEED ANDROID ENTER KEY FIX =================
 function setupChatListeners() {
     var sendBtn = document.getElementById('sendBtn');
     var messageInput = document.getElementById('messageInput');
@@ -2669,25 +2468,18 @@ function setupChatListeners() {
     if (sendBtn) sendBtn.addEventListener('click', sendMessage);
     
     if (messageInput) {
-        // Simple detection - if it's a touch device or small screen
         var isMobile = ('ontouchstart' in window) || window.innerWidth <= 768;
         console.log("📱 Mobile mode:", isMobile);
         
-        // Remove any existing listeners (simple approach)
         var newTextarea = messageInput.cloneNode(true);
         messageInput.parentNode.replaceChild(newTextarea, messageInput);
         messageInput = newTextarea;
         
-        // ONE simple event handler
         messageInput.addEventListener('keydown', function(e) {
             if (e.key === 'Enter') {
                 if (isMobile) {
-                    // Mobile: ALWAYS let the default happen (new line)
-                    // We don't prevent anything, just let Android do its thing
-                    console.log("📱 Mobile: Letting Enter create new line");
-                    return true; // Let default behavior happen
+                    return true;
                 } else {
-                    // Desktop: Enter sends, Shift+Enter new line
                     if (!e.shiftKey) {
                         console.log("💻 Desktop: Enter - sending message");
                         e.preventDefault();
@@ -2698,12 +2490,10 @@ function setupChatListeners() {
             }
         });
         
-        // Auto-resize textarea as user types
         messageInput.addEventListener('input', function() {
             this.style.height = 'auto';
             this.style.height = (this.scrollHeight) + 'px';
             
-            // Typing indicator
             if (!isTyping) {
                 isTyping = true;
                 broadcastTypingStatus(true);
@@ -2716,7 +2506,6 @@ function setupChatListeners() {
             }, 1000);
         });
         
-        // Reset height on blur
         messageInput.addEventListener('blur', function() {
             if (this.value === '') {
                 this.style.height = 'auto';
@@ -2724,7 +2513,6 @@ function setupChatListeners() {
         });
     }
     
-    // File upload buttons (unchanged)
     if (imageBtn && fileInput) {
         imageBtn.addEventListener('click', function() {
             fileInput.accept = 'image/*';
@@ -2748,7 +2536,6 @@ function setupChatListeners() {
     }
 }
 
-// ================= VOICE RECORDING =================
 async function toggleVoiceRecording() {
     var voiceBtn = document.getElementById('voiceBtn');
     var timerDiv = document.getElementById('recordingTimer');
@@ -2821,12 +2608,10 @@ async function toggleVoiceRecording() {
     }
 }
 
-// ================= UPDATED SEND MESSAGE - PRESERVES LINE BREAKS =================
 async function sendMessage() {
     var messageInput = document.getElementById('messageInput');
-    var message = messageInput.value; // Don't trim() - preserve line breaks
+    var message = messageInput.value;
     
-    // Check if message has content (including line breaks)
     if (!message.trim() && !currentFile && !recordedAudio) {
         alert("Please enter a message or select a file");
         return;
@@ -2837,7 +2622,6 @@ async function sendMessage() {
     sendBtn.disabled = true;
     sendBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Sending...';
     
-    // Get reply data from pendingReply
     var replyToSend = pendingReply ? JSON.parse(JSON.stringify(pendingReply)) : null;
     
     console.log("📝 Final reply being sent:", replyToSend);
@@ -2846,12 +2630,11 @@ async function sendMessage() {
         var messageData = {
             sender_id: currentUser.id,
             message_type: 'text',
-            content: message, // Send the original message with line breaks
+            content: message,
             created_at: new Date().toISOString(),
             read_at: null
         };
         
-        // Add parent_id if replying
         if (replyToSend && replyToSend.id) {
             messageData.parent_id = replyToSend.id;
             console.log("📝 Adding reply to message ID:", replyToSend.id);
@@ -2923,25 +2706,19 @@ async function sendMessage() {
         
         console.log("✅ Message sent successfully! Reply to:", replyToSend ? replyToSend.id : 'none');
         
-        // Clear the textarea
         messageInput.value = '';
-        
-        // Reset textarea height if needed
         messageInput.style.height = 'auto';
         
-        // Clear reply indicator after sending
         if (replyToSend) {
             cancelReply();
         }
         
-        // Clear any previews
         var mediaPreview = document.getElementById('mediaPreview');
         if (mediaPreview) mediaPreview.remove();
         
         var audioPreview = document.getElementById('audioPreview');
         if (audioPreview) audioPreview.remove();
         
-        // Show success notification
         showNotification('✅ Message sent', 'success', 2000);
         
     } catch (err) {
@@ -2953,7 +2730,6 @@ async function sendMessage() {
     }
 }
 
-// ================= LOGOUT =================
 function setupLogoutButtons() {
     var logoutBtns = document.querySelectorAll('#logoutBtn, .logout-btn-sidebar');
     
@@ -2971,7 +2747,6 @@ function setupLogoutButtons() {
     });
 }
 
-// Add date separator styles
 var style = document.createElement('style');
 style.textContent = '\
     .date-separator {\

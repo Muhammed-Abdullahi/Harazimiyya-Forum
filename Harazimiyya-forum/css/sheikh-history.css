@@ -1432,3 +1432,46 @@ input[type="file"] {
 .content-type-video #selectFileBtn {
     display: inline-block;
 }
+
+
+
+
+
+/* ================= FIX: PRESERVE LINE BREAKS IN TEXT CONTENT ================= */
+.card-content .text-content,
+.card-content p {
+    white-space: pre-wrap !important;
+    word-wrap: break-word !important;
+    word-break: break-word !important;
+    line-height: 1.6 !important;
+    margin: 0 !important;
+    font-family: inherit !important;
+}
+
+/* Ensure text cards display properly */
+.content-card.text .card-content {
+    background: var(--card);
+    padding: 20px;
+}
+
+/* Fix for any existing styles that might override */
+.card-content p br {
+    display: block !important;
+    content: "" !important;
+    margin: 0.5em 0 !important;
+}
+
+
+
+
+
+/* FORCE LINE BREAKS - DO NOT REMOVE */
+.content-card.text .card-content .text-content {
+    white-space: pre-wrap !important;
+    word-wrap: break-word !important;
+    word-break: break-word !important;
+    line-height: 1.6 !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    font-family: inherit !important;
+}

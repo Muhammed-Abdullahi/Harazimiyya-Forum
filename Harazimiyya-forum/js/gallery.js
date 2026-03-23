@@ -1,6 +1,7 @@
 // ============================================
 // HARAZIMIYYA FORUM - GALLERY
 // Complete Working Version with Fixed Upload Button and Center Menu
+// UPDATED: Small Admin can delete ANY content (not just own)
 // Features: 
 // - Upload to Cloudinary
 // - Love/Like reactions per user
@@ -18,21 +19,18 @@ const CLOUDINARY_CONFIG = {
         image: 'Image',
         video: 'Video'
     },
-    apiKey: 'YOUR_API_KEY' // You'll need to add this for delete functionality
+    apiKey: 'YOUR_API_KEY'
 };
 
-// Helper function to get Cloudinary upload URL
 function getCloudinaryUploadUrl() {
     return `https://api.cloudinary.com/v1_1/${CLOUDINARY_CONFIG.cloudName}/auto/upload`;
 }
 
-// Helper function to extract public ID from Cloudinary URL
 function extractCloudinaryPublicId(url) {
     try {
-        // Cloudinary URL format: https://res.cloudinary.com/cloudname/image/upload/v1234567/folder/public_id.jpg
         const matches = url.match(/\/upload\/(?:v\d+\/)?(.+?)\.(jpg|jpeg|png|gif|mp4|webm|mov)$/i);
         if (matches && matches[1]) {
-            return matches[1]; // Returns full path including folder: community-app/Image/filename
+            return matches[1];
         }
         return null;
     } catch (e) {
@@ -41,12 +39,11 @@ function extractCloudinaryPublicId(url) {
     }
 }
 
-// ================= DELETE FROM CLOUDINARY =================
 async function deleteFromCloudinary(mediaUrl, mediaType) {
     try {
         if (!mediaUrl || !mediaUrl.includes('cloudinary.com')) {
             console.log("Not a Cloudinary URL, skipping Cloudinary delete");
-            return true; // Skip if not Cloudinary
+            return true;
         }
 
         const publicId = extractCloudinaryPublicId(mediaUrl);
@@ -56,23 +53,6 @@ async function deleteFromCloudinary(mediaUrl, mediaType) {
         }
 
         console.log(`Deleting from Cloudinary: ${publicId}`);
-
-        // IMPORTANT: You need a backend endpoint for this
-        // Cloudinary delete requires API secret which should NOT be in frontend
-        // For demo, we'll simulate success and rely on Supabase delete
-        
-        // In production, you'd call your backend:
-        /*
-        const response = await fetch('/api/delete-from-cloudinary', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ publicId, resourceType: mediaType === 'video' ? 'video' : 'image' })
-        });
-        
-        if (!response.ok) throw new Error('Failed to delete from Cloudinary');
-        */
-
-        // For now, we'll just log and return true
         console.log("✅ Simulated Cloudinary delete (implement backend for production)");
         return true;
 
@@ -82,17 +62,14 @@ async function deleteFromCloudinary(mediaUrl, mediaType) {
     }
 }
 
-// ================= CHECK IF URL IS FROM CLOUDINARY =================
 function isCloudinaryUrl(url) {
     return url && url.includes('cloudinary.com');
 }
 
-// ================= CHECK IF URL IS FROM SUPABASE =================
 function isSupabaseUrl(url) {
     return url && url.includes('supabase.co');
 }
 
-// ================= GET FALLBACK IMAGE =================
 function getFallbackImageUrl() {
     return 'data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' width=\'400\' height=\'300\' viewBox=\'0 0 400 300\'%3E%3Crect width=\'400\' height=\'300\' fill=\'%230b5e3b\'/%3E%3Ctext x=\'50\' y=\'150\' font-family=\'Arial\' font-size=\'20\' fill=\'%23ffffff\'%3EImage failed to load%3C/text%3E%3C/svg%3E';
 }
@@ -101,6 +78,7 @@ function getFallbackImageUrl() {
 let currentUser = null;
 let currentProfile = null;
 let isAdmin = false;
+let isSmallAdmin = false;
 let allMedia = [];
 let selectedFile = null;
 let viewedMedia = new Set();
@@ -108,9 +86,7 @@ let currentLightbox = null;
 let failedImages = new Set();
 let lightboxActive = false;
 let currentTheme = 'dark';
-let autoScrolled = false; // Flag to prevent multiple auto-scrolls
-
-// Reaction tracking
+let autoScrolled = false;
 let mediaReactions = new Map();
 
 // DOM Elements
@@ -162,7 +138,6 @@ const themes = {
     }
 };
 
-// ================= CREATE THEME DROPDOWN =================
 function createThemeDropdown() {
     const dropdown = document.createElement('div');
     dropdown.className = 'theme-dropdown hidden';
@@ -190,7 +165,6 @@ function createThemeDropdown() {
     return dropdown;
 }
 
-// ================= APPLY THEME =================
 function applyTheme(themeKey) {
     currentTheme = themeKey;
     const theme = themes[themeKey];
@@ -211,7 +185,6 @@ function applyTheme(themeKey) {
     showNotification(`Theme changed to ${theme.name}`, 'success');
 }
 
-// ================= TOGGLE THEME DROPDOWN =================
 function toggleThemeDropdown(event) {
     event.stopPropagation();
     
@@ -247,7 +220,6 @@ if (overlay) {
     });
 }
 
-// ================= NOTIFICATION FUNCTION =================
 function showNotification(message, type = 'success') {
     const notification = document.createElement('div');
     notification.className = `notification ${type}`;
@@ -262,17 +234,12 @@ function showNotification(message, type = 'success') {
     }, 3000);
 }
 
-// ================= AUTO-SCROLL TO FIRST UNREAD OR LATEST =================
 function autoScrollToMedia() {
     if (!galleryGrid || autoScrolled || allMedia.length === 0) return;
     
     console.log("Auto-scrolling to media...");
-    console.log("Viewed media:", Array.from(viewedMedia));
-    console.log("Total media:", allMedia.length);
     
-    // Wait a bit for DOM to render
     setTimeout(() => {
-        // Find first unread media (oldest unseen)
         let firstUnreadIndex = -1;
         
         for (let i = 0; i < allMedia.length; i++) {
@@ -283,7 +250,6 @@ function autoScrollToMedia() {
             }
         }
         
-        // If unread found, scroll to it
         if (firstUnreadIndex !== -1) {
             console.log(`Found unread media at index ${firstUnreadIndex}, scrolling to it`);
             
@@ -294,14 +260,10 @@ function autoScrollToMedia() {
                     block: 'start'
                 });
                 
-                // Mark as viewed when scrolled to
                 markMediaAsViewed(allMedia[firstUnreadIndex].id);
-                
                 showNotification(`📸 New media: ${allMedia[firstUnreadIndex].title}`, 'info');
             }
-        } 
-        // No unread, scroll to bottom (latest)
-        else {
+        } else {
             console.log("No unread media, scrolling to bottom (latest)");
             
             galleryGrid.scrollTo({
@@ -309,7 +271,6 @@ function autoScrollToMedia() {
                 behavior: 'smooth'
             });
             
-            // Mark latest as viewed
             if (allMedia.length > 0) {
                 const latestMedia = allMedia[allMedia.length - 1];
                 markMediaAsViewed(latestMedia.id);
@@ -317,10 +278,9 @@ function autoScrollToMedia() {
         }
         
         autoScrolled = true;
-    }, 500); // Wait 500ms for DOM to render
+    }, 500);
 }
 
-// ================= TRACK MEDIA VIEW =================
 function markMediaAsViewed(mediaId) {
     if (!viewedMedia.has(mediaId)) {
         viewedMedia.add(mediaId);
@@ -342,7 +302,6 @@ function markMediaAsViewed(mediaId) {
     }
 }
 
-// ================= LOAD VIEWED MEDIA =================
 function loadViewedMedia() {
     try {
         const viewed = JSON.parse(localStorage.getItem('viewedGalleryMedia') || '[]');
@@ -353,7 +312,6 @@ function loadViewedMedia() {
     }
 }
 
-// ================= LOAD REACTIONS FROM SUPABASE =================
 async function loadReactions() {
     try {
         const { data, error } = await supabase
@@ -362,7 +320,6 @@ async function loadReactions() {
         
         if (error) throw error;
         
-        // Group reactions by media_id
         const reactionsMap = new Map();
         data.forEach(reaction => {
             if (!reactionsMap.has(reaction.media_id)) {
@@ -380,7 +337,6 @@ async function loadReactions() {
                 mediaReaction.like++;
             }
             
-            // Check if current user reacted
             if (reaction.user_id === currentUser?.id) {
                 mediaReaction.userReacted = reaction.reaction_type;
             }
@@ -388,7 +344,6 @@ async function loadReactions() {
         
         mediaReactions = reactionsMap;
         
-        // Update UI for all media cards
         allMedia.forEach(item => {
             updateMediaReactions(item.id);
         });
@@ -398,7 +353,6 @@ async function loadReactions() {
     }
 }
 
-// ================= ADD REACTION TO SUPABASE =================
 async function addReaction(mediaId, reactionType) {
     if (!currentUser) {
         showNotification('Please login to react', 'error');
@@ -406,7 +360,6 @@ async function addReaction(mediaId, reactionType) {
     }
     
     try {
-        // Check if user already reacted
         const { data: existing, error: checkError } = await supabase
             .from('media_reactions')
             .select('*')
@@ -418,7 +371,6 @@ async function addReaction(mediaId, reactionType) {
         if (checkError) throw checkError;
         
         if (existing) {
-            // User already has this reaction - remove it
             const { error: deleteError } = await supabase
                 .from('media_reactions')
                 .delete()
@@ -428,7 +380,6 @@ async function addReaction(mediaId, reactionType) {
             
             showNotification(`${reactionType} removed`, 'info');
         } else {
-            // Check if user has any other reaction on this media
             const { data: otherReaction, error: otherError } = await supabase
                 .from('media_reactions')
                 .select('*')
@@ -439,7 +390,6 @@ async function addReaction(mediaId, reactionType) {
             if (otherError) throw otherError;
             
             if (otherReaction) {
-                // Remove other reaction first
                 const { error: deleteOtherError } = await supabase
                     .from('media_reactions')
                     .delete()
@@ -448,7 +398,6 @@ async function addReaction(mediaId, reactionType) {
                 if (deleteOtherError) throw deleteOtherError;
             }
             
-            // Add new reaction
             const { error: insertError } = await supabase
                 .from('media_reactions')
                 .insert([{
@@ -462,7 +411,6 @@ async function addReaction(mediaId, reactionType) {
             showNotification(`Added ${reactionType}`, 'success');
         }
         
-        // Reload reactions to update UI
         await loadReactions();
         
     } catch (err) {
@@ -471,7 +419,6 @@ async function addReaction(mediaId, reactionType) {
     }
 }
 
-// ================= UPDATE MEDIA REACTIONS UI =================
 function updateMediaReactions(mediaId) {
     const mediaCard = document.querySelector(`.media-card[data-media-id="${mediaId}"]`);
     if (!mediaCard) return;
@@ -514,7 +461,6 @@ function updateMediaReactions(mediaId) {
     mediaCard.appendChild(reactionsDiv);
 }
 
-// ================= CREATE DELETE MODAL =================
 function createDeleteModal() {
     const deleteModalHTML = `
         <div id="deleteModal" class="modal hidden">
@@ -543,7 +489,6 @@ function createDeleteModal() {
     document.getElementById('confirmDeleteBtn').addEventListener('click', confirmDelete);
 }
 
-// ================= DOWNLOAD MEDIA =================
 async function downloadMedia(url, filename) {
     try {
         showNotification('Downloading...', 'info');
@@ -567,7 +512,6 @@ async function downloadMedia(url, filename) {
     }
 }
 
-// ================= CREATE CONTEXT MENU =================
 function createContextMenu() {
     const menu = document.createElement('div');
     menu.className = 'longpress-menu hidden';
@@ -576,15 +520,12 @@ function createContextMenu() {
     return menu;
 }
 
-// ================= SHOW CONTEXT MENU IN CENTER =================
 function showContextMenu(event, mediaId) {
     event.preventDefault();
     event.stopPropagation();
     
-    // Set flag that long press is active
     isLongPressActive = true;
     
-    // Hide any existing menu
     if (contextMenu) {
         contextMenu.remove();
         contextMenu = null;
@@ -604,7 +545,8 @@ function showContextMenu(event, mediaId) {
     contextMenuMediaId = mediaId;
     
     const media = allMedia.find(m => m.id === mediaId);
-    const canDelete = isAdmin || (media && media.uploaded_by === currentUser?.id);
+    // UPDATED: Small Admin can delete ANY content
+    const canDelete = isAdmin || isSmallAdmin || (media && media.uploaded_by === currentUser?.id);
     
     let filename = media?.title || 'media';
     filename += media?.media_type === 'image' ? '.jpg' : '.mp4';
@@ -635,7 +577,6 @@ function showContextMenu(event, mediaId) {
     
     contextMenu.innerHTML = menuItems;
     
-    // Add click handlers to menu items
     contextMenu.querySelectorAll('.longpress-menu-item').forEach(item => {
         item.addEventListener('click', (e) => {
             e.preventDefault();
@@ -646,7 +587,6 @@ function showContextMenu(event, mediaId) {
             const filename = item.dataset.filename;
             const media = allMedia.find(m => m.id === mediaId);
             
-            // Execute action
             switch(action) {
                 case 'love':
                     addReaction(mediaId, 'love');
@@ -664,17 +604,14 @@ function showContextMenu(event, mediaId) {
                     break;
             }
             
-            // Hide menu after action
             hideContextMenu();
         });
         
-        // Prevent touchend from bubbling to document
         item.addEventListener('touchend', (e) => {
             e.stopPropagation();
         });
     });
     
-    // Position menu in the CENTER of the screen
     const centerX = window.innerWidth / 2;
     const centerY = window.innerHeight / 2;
     
@@ -685,7 +622,6 @@ function showContextMenu(event, mediaId) {
     contextMenu.classList.remove('hidden');
 }
 
-// ================= HIDE CONTEXT MENU =================
 function hideContextMenu() {
     if (contextMenu) {
         contextMenu.classList.add('hidden');
@@ -694,7 +630,6 @@ function hideContextMenu() {
             card.classList.remove('menu-open');
         });
         
-        // Remove menu after animation
         setTimeout(() => {
             if (contextMenu && contextMenu.parentNode) {
                 contextMenu.remove();
@@ -704,19 +639,16 @@ function hideContextMenu() {
     }
     contextMenuMediaId = null;
     
-    // Reset long press flag after a delay
     setTimeout(() => {
         isLongPressActive = false;
     }, 500);
 }
 
-// ================= SETUP CONTEXT MENU =================
 function setupContextMenu(element, mediaId) {
     let touchStart = 0;
     let touchStartX, touchStartY;
     let longPressTriggered = false;
     
-    // Right click for desktop
     element.addEventListener('contextmenu', (e) => {
         e.preventDefault();
         e.stopPropagation();
@@ -724,7 +656,6 @@ function setupContextMenu(element, mediaId) {
         return false;
     });
     
-    // Touch start for mobile
     element.addEventListener('touchstart', (e) => {
         if (isLongPressActive) {
             e.preventDefault();
@@ -736,12 +667,10 @@ function setupContextMenu(element, mediaId) {
         touchStartY = e.touches[0].clientY;
         longPressTriggered = false;
         
-        // Clear any existing timer
         if (longPressTimer) {
             clearTimeout(longPressTimer);
         }
         
-        // Set timer for long press
         longPressTimer = setTimeout(() => {
             longPressTriggered = true;
             if (navigator.vibrate) {
@@ -751,7 +680,6 @@ function setupContextMenu(element, mediaId) {
         }, 500);
     }, { passive: true });
     
-    // Touch move - cancel if user moves too much
     element.addEventListener('touchmove', (e) => {
         if (touchStartX && touchStartY && !longPressTriggered) {
             const moveX = Math.abs(e.touches[0].clientX - touchStartX);
@@ -764,12 +692,10 @@ function setupContextMenu(element, mediaId) {
         }
     }, { passive: true });
     
-    // Touch end
     element.addEventListener('touchend', (e) => {
         clearTimeout(longPressTimer);
         longPressTimer = null;
         
-        // If long press was triggered, prevent default
         if (longPressTriggered) {
             e.preventDefault();
             e.stopPropagation();
@@ -778,7 +704,6 @@ function setupContextMenu(element, mediaId) {
         longPressTriggered = false;
     }, { passive: false });
     
-    // Touch cancel
     element.addEventListener('touchcancel', () => {
         clearTimeout(longPressTimer);
         longPressTimer = null;
@@ -786,18 +711,14 @@ function setupContextMenu(element, mediaId) {
     });
 }
 
-// ================= CLICK OUTSIDE MENU HANDLER =================
 document.addEventListener('click', function(e) {
-    // Only hide if click is outside menu and menu exists
     if (contextMenu && !contextMenu.contains(e.target) && !e.target.closest('.longpress-menu-item')) {
         hideContextMenu();
     }
 });
 
 document.addEventListener('touchstart', function(e) {
-    // Only hide if touch is outside menu and menu exists
     if (contextMenu && !contextMenu.contains(e.target) && !e.target.closest('.longpress-menu-item')) {
-        // Don't hide immediately on touch start, give time for menu item clicks
         setTimeout(() => {
             if (contextMenu && !contextMenu.contains(e.target)) {
                 hideContextMenu();
@@ -806,7 +727,6 @@ document.addEventListener('touchstart', function(e) {
     }
 }, { passive: true });
 
-// ================= CREATE LIGHTBOX =================
 function createLightbox(src, type, mediaId, title) {
     if (currentLightbox) {
         closeLightbox();
@@ -864,7 +784,6 @@ function createLightbox(src, type, mediaId, title) {
     });
 }
 
-// ================= CLOSE LIGHTBOX =================
 function closeLightbox() {
     if (currentLightbox) {
         currentLightbox.remove();
@@ -873,7 +792,6 @@ function closeLightbox() {
     }
 }
 
-// ================= HANDLE IMAGE ERROR =================
 function handleImageError(mediaId) {
     failedImages.add(mediaId);
     
@@ -887,7 +805,6 @@ function handleImageError(mediaId) {
     }
 }
 
-// ================= CREATE MEDIA CARD =================
 function createMediaCard(item) {
     const card = document.createElement("div");
     card.className = `media-card ${item.media_type}`;
@@ -990,7 +907,6 @@ function createMediaCard(item) {
     return card;
 }
 
-// ================= SETUP TIKTOK VIDEO CONTROLS =================
 function setupTikTokVideoControls(card, mediaId) {
     const video = card.querySelector('video');
     const videoContainer = card.querySelector('.video-container');
@@ -1150,7 +1066,6 @@ function setupTikTokVideoControls(card, mediaId) {
     showControls();
 }
 
-// ================= TIKTOK UPLOAD MODAL FUNCTIONS =================
 function initTikTokModal() {
     tiktokModal = document.getElementById('tiktokUploadModal');
     tiktokTypeImage = document.getElementById('tiktokTypeImage');
@@ -1364,7 +1279,6 @@ function displayTikTokPreview(file) {
     }
 }
 
-// ================= OPEN ADD MODAL =================
 function openAddModal() {
     console.log("Opening add modal");
     
@@ -1385,7 +1299,6 @@ function openAddModal() {
     }
 }
 
-// ================= SAVE MEDIA =================
 async function saveTikTokMedia() {
     const title = tiktokMediaTitle ? tiktokMediaTitle.value.trim() : '';
     if (!title) {
@@ -1467,7 +1380,6 @@ async function saveTikTokMedia() {
     }
 }
 
-// ================= CLOSE MODAL =================
 function closeTikTokModal() {
     if (tiktokModal) {
         tiktokModal.classList.add('hidden');
@@ -1486,7 +1398,6 @@ function closeTikTokModal() {
     setMediaType('image');
 }
 
-// ================= UPLOAD TO CLOUDINARY =================
 async function uploadFileToCloudinary(file, type) {
     try {
         if (!file) throw new Error("No file to upload");
@@ -1527,7 +1438,6 @@ async function uploadFileToCloudinary(file, type) {
     }
 }
 
-// ================= ADD THEME BUTTON =================
 function addThemeButton() {
     const topBar = document.querySelector('.top-bar');
     if (!topBar) return;
@@ -1550,7 +1460,6 @@ function addThemeButton() {
     }
 }
 
-// ================= LOAD GALLERY =================
 async function loadGallery() {
     if (!galleryGrid) return;
     
@@ -1574,10 +1483,8 @@ async function loadGallery() {
         allMedia = data || [];
         displayGallery(allMedia);
         
-        // Load reactions after gallery is loaded
         await loadReactions();
         
-        // Auto-scroll to first unread or latest
         autoScrollToMedia();
 
     } catch (err) {
@@ -1592,7 +1499,6 @@ async function loadGallery() {
     }
 }
 
-// ================= DISPLAY GALLERY =================
 function displayGallery(media) {
     if (!galleryGrid) return;
     
@@ -1615,9 +1521,7 @@ function displayGallery(media) {
     });
 }
 
-// ================= INITIALIZATION =================
 document.addEventListener("DOMContentLoaded", async () => {
-    // Force show upload button
     if (addMediaBtn) {
         addMediaBtn.classList.remove("hidden");
         addMediaBtn.style.display = "inline-flex";
@@ -1656,21 +1560,21 @@ async function init() {
         }
 
         currentProfile = profile;
-        isAdmin = profile.role === "admin";
+        isAdmin = profile.role === 'admin';
+        isSmallAdmin = profile.role === 'small_admin';
+        console.log("User role:", profile.role, "isAdmin:", isAdmin, "isSmallAdmin:", isSmallAdmin);
 
         const userNameEl = document.getElementById('userName');
         if (userNameEl) {
             userNameEl.textContent = profile.full_name || 'Member';
         }
 
-        // Ensure upload button is visible and has click handler
         if (addMediaBtn) {
             addMediaBtn.classList.remove("hidden");
             addMediaBtn.style.display = "inline-flex";
             addMediaBtn.onclick = openAddModal;
         }
 
-        // Initialize components
         createDeleteModal();
         loadViewedMedia();
         
@@ -1686,7 +1590,6 @@ async function init() {
     }
 }
 
-// ================= SETUP EVENT LISTENERS =================
 if (logoutBtn) {
     logoutBtn.addEventListener('click', async () => {
         await supabase.auth.signOut();
@@ -1694,7 +1597,6 @@ if (logoutBtn) {
     });
 }
 
-// ================= OPEN DELETE MODAL =================
 window.openDeleteModal = function(id) {
     const media = allMedia.find(m => m.id === id);
     if (media) {
@@ -1707,19 +1609,27 @@ window.openDeleteModal = function(id) {
     }
 };
 
-// ================= CONFIRM DELETE - DELETES FROM BOTH CLOUDINARY AND SUPABASE =================
+// ================= UPDATED CONFIRM DELETE - Small Admin can delete ANY content =================
 async function confirmDelete() {
     if (!selectedMediaId || !selectedMediaUrl) return;
+    
+    const media = allMedia.find(m => m.id === selectedMediaId);
+    
+    // UPDATED: Small Admin can delete ANY content (not just own)
+    const canDelete = isAdmin || isSmallAdmin || (media && media.uploaded_by === currentUser?.id);
+    
+    if (!canDelete) {
+        showNotification('❌ You can only delete your own content', 'error');
+        return;
+    }
 
     showNotification('🗑️ Deleting media...', 'info');
 
     try {
-        // 1. First, delete from Cloudinary (if it's a Cloudinary URL)
         if (isCloudinaryUrl(selectedMediaUrl)) {
             await deleteFromCloudinary(selectedMediaUrl, selectedMediaType);
         }
 
-        // 2. Delete all reactions from Supabase
         const { error: reactionsError } = await supabase
             .from('media_reactions')
             .delete()
@@ -1727,7 +1637,6 @@ async function confirmDelete() {
         
         if (reactionsError) throw reactionsError;
         
-        // 3. Delete media record from Supabase
         const { error } = await supabase
             .from('gallery')
             .delete()
@@ -1735,33 +1644,27 @@ async function confirmDelete() {
 
         if (error) throw error;
 
-        // 4. Remove from local state
         mediaReactions.delete(selectedMediaId);
         allMedia = allMedia.filter(m => m.id !== selectedMediaId);
         
-        // 5. Hide modal and show success
         if (deleteModal) deleteModal.classList.add('hidden');
         showNotification('✅ Media deleted from Cloudinary and gallery', 'success');
         
-        // 6. Reload gallery to reflect changes
         await loadGallery();
 
     } catch (err) {
         console.error("Error deleting media:", err);
         showNotification('Error deleting media: ' + err.message, 'error');
     } finally {
-        // Clean up
         selectedMediaId = null;
         selectedMediaUrl = null;
         selectedMediaType = null;
     }
 }
 
-// Make functions globally available
 window.handleImageError = handleImageError;
 window.downloadMedia = downloadMedia;
 
-// ================= FORCE UPLOAD BUTTON TO WORK =================
 window.addEventListener('load', function() {
     console.log("🔧 Applying final fixes...");
     
@@ -1781,21 +1684,17 @@ window.addEventListener('load', function() {
         return;
     }
     
-    // Make sure add button is visible
     addBtn.classList.remove('hidden');
     addBtn.style.display = 'inline-flex';
     
-    // Remove all existing click handlers by cloning and replacing
     const newAddBtn = addBtn.cloneNode(true);
     addBtn.parentNode.replaceChild(newAddBtn, addBtn);
     
-    // Attach our working click handler
     newAddBtn.onclick = function(e) {
         e.preventDefault();
         e.stopPropagation();
         console.log("✅ Add button clicked - opening modal");
         
-        // Reset form
         const titleInput = document.getElementById('tiktokMediaTitle');
         const fileInput = document.getElementById('tiktokMediaFile');
         const previewArea = document.getElementById('tiktokPreviewArea');
@@ -1806,21 +1705,18 @@ window.addEventListener('load', function() {
         if (previewArea) previewArea.innerHTML = '';
         if (progress) progress.classList.add('hidden');
         
-        // Show modal
         modal.classList.remove('hidden');
         modal.style.display = 'flex';
         
         return false;
     };
     
-    // Close modal function
     function closeModal() {
         console.log("Closing modal");
         modal.classList.add('hidden');
         modal.style.display = 'none';
     }
     
-    // Attach close handlers
     if (closeBtn) {
         closeBtn.onclick = function(e) {
             e.preventDefault();
@@ -1837,7 +1733,6 @@ window.addEventListener('load', function() {
         };
     }
     
-    // Close on backdrop click
     modal.onclick = function(e) {
         if (e.target === modal) {
             closeModal();
@@ -1847,7 +1742,6 @@ window.addEventListener('load', function() {
     console.log("✅ Final fixes applied - upload button should now work!");
 });
 
-// Also run a backup fix after a delay
 setTimeout(function() {
     const addBtn = document.getElementById('addMediaBtn');
     const modal = document.getElementById('tiktokUploadModal');
@@ -1863,20 +1757,16 @@ setTimeout(function() {
     }
 }, 2000);
 
-// ================= FIX 1: ANDROID ADD BUTTON - CENTERED + BIG ICON =================
 function adjustAddButtonForMobile() {
     const addBtn = document.getElementById('addMediaBtn');
     if (!addBtn) return;
     
-    // Apply styles directly
     addBtn.style.display = 'inline-flex';
     addBtn.style.alignItems = 'center';
     addBtn.style.justifyContent = 'center';
     addBtn.style.textAlign = 'center';
     
-    // Check if it's a mobile device (screen width <= 480px)
     if (window.innerWidth <= 480) {
-        // On mobile: show only icon, make it bigger
         addBtn.innerHTML = '<i class="fas fa-plus" style="font-size: 24px; line-height: 1;"></i>';
         addBtn.title = 'Add Media';
         addBtn.style.padding = '0';
@@ -1884,7 +1774,6 @@ function adjustAddButtonForMobile() {
         addBtn.style.height = '48px';
         addBtn.style.borderRadius = '50%';
     } else {
-        // On laptop: show icon + text
         addBtn.innerHTML = '<i class="fas fa-plus" style="font-size: 16px;"></i> Add';
         addBtn.style.padding = '10px 20px';
         addBtn.style.width = 'auto';
@@ -1893,16 +1782,13 @@ function adjustAddButtonForMobile() {
     }
 }
 
-// Run on load and resize
 window.addEventListener('load', adjustAddButtonForMobile);
 window.addEventListener('resize', adjustAddButtonForMobile);
 
-// ================= FIX 2: FORCE UPLOAD BUTTON VISIBLE ON LAPTOP =================
 function forceUploadButtonVisible() {
     const uploadBtn = document.getElementById('tiktokSaveMediaBtn');
     if (!uploadBtn) return;
     
-    // Force styles with !important equivalent
     uploadBtn.style.setProperty('display', 'flex', 'important');
     uploadBtn.style.setProperty('visibility', 'visible', 'important');
     uploadBtn.style.setProperty('opacity', '1', 'important');
@@ -1910,21 +1796,17 @@ function forceUploadButtonVisible() {
     uploadBtn.style.setProperty('z-index', '1000000', 'important');
     uploadBtn.style.setProperty('pointer-events', 'auto', 'important');
     
-    // Also check parent container
     const actionsDiv = document.querySelector('.tiktok-actions');
     if (actionsDiv) {
         actionsDiv.style.setProperty('display', 'flex', 'important');
         actionsDiv.style.setProperty('visibility', 'visible', 'important');
     }
     
-    // Log for debugging
     console.log("🔧 Force upload button visible:", uploadBtn);
 }
 
-// Run repeatedly to ensure button appears
 setInterval(forceUploadButtonVisible, 300);
 
-// Also run when modal opens
 const originalOpenAddModal = openAddModal;
 openAddModal = function() {
     originalOpenAddModal();
@@ -1932,11 +1814,9 @@ openAddModal = function() {
     setTimeout(forceUploadButtonVisible, 500);
 };
 
-// ================= FIX 3: ADD CSS TO ENSURE VISIBILITY =================
 function addVisibilityStyles() {
     const style = document.createElement('style');
     style.textContent = `
-        /* Force upload button to be visible */
         #tiktokSaveMediaBtn {
             display: flex !important;
             visibility: visible !important;
@@ -1968,7 +1848,6 @@ function addVisibilityStyles() {
             z-index: 999999 !important;
         }
         
-        /* Ensure modal content is visible */
         .tiktok-upload-container {
             background: #1a1a1a !important;
             width: 90% !important;
@@ -1982,7 +1861,6 @@ function addVisibilityStyles() {
             z-index: 1000000 !important;
         }
         
-        /* Unread indicator styling */
         .media-card.unseen::before {
             content: 'NEW';
             position: absolute;
@@ -2006,13 +1884,10 @@ function addVisibilityStyles() {
     document.head.appendChild(style);
 }
 
-// Add CSS styles
 addVisibilityStyles();
 
-// Reset auto-scroll flag when gallery is reloaded
 const originalLoadGallery = loadGallery;
 loadGallery = async function() {
     autoScrolled = false;
     await originalLoadGallery();
 };
-

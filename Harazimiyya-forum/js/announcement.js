@@ -2,6 +2,7 @@
 // HARAZIMIYYA FORUM - ANNOUNCEMENTS DASHBOARD
 // Admin: Create, Edit, Delete, Pin Announcements
 // Members: View All Announcements
+// UPDATED: Small Admin can also create/edit/delete announcements
 // ============================================
 
 // Global variables
@@ -169,13 +170,14 @@ async function init() {
     }
 
     currentProfile = profile;
-    isAdmin = profile.role === "admin";
-    console.log("Is admin:", isAdmin);
+    // UPDATED: Small Admin can also create announcements
+    isAdmin = (profile.role === 'admin' || profile.role === 'small_admin');
+    console.log("Is admin or small admin:", isAdmin);
 
     // Create modals
     createModals();
 
-    // Show add button only for admin
+    // Show add button only for admin/small admin
     if (addAnnouncementBtn) {
       if (isAdmin) {
         addAnnouncementBtn.classList.remove("hidden");
@@ -191,7 +193,7 @@ async function init() {
   }
 }
 
-// ================= LOAD ANNOUNCEMENTS (SIMPLIFIED) =================
+// ================= LOAD ANNOUNCEMENTS =================
 async function loadAnnouncements() {
   // Show skeleton loading
   showSkeleton();
@@ -404,13 +406,11 @@ async function saveAnnouncement() {
     let error;
     
     if (selectedAnnouncementId) {
-      // Update existing
       ({ error } = await supabase
         .from('announcements')
         .update(announcementData)
         .eq('id', selectedAnnouncementId));
     } else {
-      // Create new
       ({ error } = await supabase
         .from('announcements')
         .insert([announcementData]));

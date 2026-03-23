@@ -1,4 +1,6 @@
 // js/auth.js - COMPLETE FIXED VERSION WITH FRIENDLY MESSAGES AND AUTO PROFILE CREATION
+// UPDATED: Small Admin now redirects to admin dashboard (not home)
+
 document.addEventListener('DOMContentLoaded', function() {
     console.log("✨ Getting things ready for you...");
     
@@ -205,7 +207,7 @@ function initializeAuth() {
         });
     }
 
-    // ================= LOGIN WITH PROPER UNAPPROVED HANDLING =================
+    // ================= LOGIN WITH PROPER REDIRECT FOR SMALL ADMIN =================
     if (loginBtn) {
         loginBtn.addEventListener('click', async () => {
             const email = document.getElementById('email').value.trim();
@@ -256,11 +258,16 @@ function initializeAuth() {
                     return;
                 }
 
-                // User is approved - redirect based on role
-                console.log("✅ User approved, redirecting...");
-                if (profile.role === 'admin') {
+                // UPDATED: User is approved - redirect based on role
+                console.log("✅ User approved, role:", profile.role);
+                console.log("Redirecting based on role...");
+                
+                // Redirect admins (both full admin AND small admin) to admin dashboard
+                if (profile.role === 'admin' || profile.role === 'small_admin') {
+                    console.log("Admin or Small Admin detected - redirecting to admin dashboard");
                     window.location.href = 'html/admin.html';
                 } else {
+                    console.log("Regular member - redirecting to home");
                     window.location.href = 'html/home.html';
                 }
 
@@ -424,9 +431,12 @@ function initializeAuth() {
                     .single();
                 
                 if (profile && profile.is_approved) {
-                    if (profile.role === 'admin') {
+                    // UPDATED: Both admin AND small_admin go to admin dashboard
+                    if (profile.role === 'admin' || profile.role === 'small_admin') {
+                        console.log("Existing session: Admin or Small Admin - redirecting to admin dashboard");
                         window.location.href = 'html/admin.html';
                     } else {
+                        console.log("Existing session: Regular member - redirecting to home");
                         window.location.href = 'html/home.html';
                     }
                 }

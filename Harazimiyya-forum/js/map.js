@@ -1,7 +1,6 @@
 // ============================================
 // HARAZIMIYYA FORUM - MAP DASHBOARD
-// Only Admin Can Add/Edit Locations
-// Members Can View All Locations
+// UPDATED: Fixed map loading issues
 // ============================================
 
 // Global variables
@@ -61,34 +60,51 @@ const startTime = document.getElementById("startTime");
 const endTime = document.getElementById("endTime");
 
 // ================= SIDEBAR TOGGLE =================
-openSidebar.onclick = () => {
-  sidebar.classList.add("active");
-  overlay.classList.add("active");
-};
+if (openSidebar) {
+  openSidebar.onclick = () => {
+    sidebar.classList.add("active");
+    overlay.classList.add("active");
+  };
+}
 
-closeSidebar.onclick = () => {
-  sidebar.classList.remove("active");
-  overlay.classList.remove("active");
-};
+if (closeSidebar) {
+  closeSidebar.onclick = () => {
+    sidebar.classList.remove("active");
+    overlay.classList.remove("active");
+  };
+}
 
-overlay.onclick = () => {
-  sidebar.classList.remove("active");
-  overlay.classList.remove("active");
-};
+if (overlay) {
+  overlay.onclick = () => {
+    sidebar.classList.remove("active");
+    overlay.classList.remove("active");
+  };
+}
+
+// ================= NOTIFICATION FUNCTION =================
+function showNotification(message, type = 'success') {
+  const notification = document.createElement('div');
+  notification.className = `notification ${type}`;
+  notification.innerHTML = `
+    <i class="fas ${type === 'success' ? 'fa-check-circle' : type === 'error' ? 'fa-exclamation-circle' : 'fa-info-circle'}"></i>
+    <span>${message}</span>
+  `;
+  document.body.appendChild(notification);
+  
+  setTimeout(() => {
+    notification.remove();
+  }, 3000);
+}
 
 // ================= ZOOM CONTROLS TOUCH HANDLER =================
 function setupTouchZoom() {
   if (!mapCard) return;
 
-  // Show controls on touch
   mapCard.addEventListener("touchstart", () => {
     mapCard.classList.add("touch-active");
-    
-    // Clear previous timer
     if (touchTimer) clearTimeout(touchTimer);
   });
 
-  // Hide controls after touch ends
   mapCard.addEventListener("touchend", () => {
     touchTimer = setTimeout(() => {
       mapCard.classList.remove("touch-active");
@@ -101,7 +117,6 @@ function setupTouchZoom() {
     }, 2000);
   });
 
-  // Also handle mouse for desktop
   mapCard.addEventListener("mouseenter", () => {
     mapCard.classList.add("touch-active");
   });
@@ -114,7 +129,8 @@ function setupTouchZoom() {
 // ================= INITIALIZATION =================
 async function init() {
   try {
-    // Check if user is logged in
+    console.log("🗺️ Initializing map page...");
+    
     const { data: { user }, error: userError } = await supabase.auth.getUser();
     
     if (userError || !user) {
@@ -126,7 +142,6 @@ async function init() {
     currentUser = user;
     console.log("Current user:", user.email);
 
-    // Get user profile
     const { data: profile, error: profileError } = await supabase
       .from("profiles")
       .select("*")
@@ -139,12 +154,14 @@ async function init() {
     }
 
     currentProfile = profile;
-    isAdmin = profile.role === "admin";
-    console.log("Is admin:", isAdmin);
+    isAdmin = (profile.role === 'admin' || profile.role === 'small_admin');
+    console.log("Is admin or small admin:", isAdmin);
 
-    // Show admin actions if admin
+    // Show/hide admin actions
     if (isAdmin && adminActions) {
       adminActions.style.display = "block";
+    } else if (adminActions) {
+      adminActions.style.display = "none";
     }
 
     // Load members for host selection (only for admin)
@@ -152,20 +169,23 @@ async function init() {
       await loadMembers();
     }
 
-    // Initialize map with zoom limits
+    // Initialize map first
     initMainMap();
-
-    // Setup touch zoom controls
-    setupTouchZoom();
-
+    
+    // Setup touch zoom after map is ready
+    setTimeout(() => {
+      setupTouchZoom();
+    }, 500);
+    
     // Load locations
     await loadLocations();
-
+    
     // Setup event listeners
     setupEventListeners();
 
   } catch (err) {
     console.error("Initialization error:", err);
+    showNotification("Error loading map: " + err.message, "error");
   }
 }
 
@@ -182,11 +202,12 @@ async function loadMembers() {
     
     allMembers = data || [];
     
-    // Populate host select dropdown
-    hostSelect.innerHTML = '<option value="">Select a member...</option>';
-    allMembers.forEach(member => {
-      hostSelect.innerHTML += `<option value="${member.id}">${member.full_name} (${member.state || 'State not set'})</option>`;
-    });
+    if (hostSelect) {
+      hostSelect.innerHTML = '<option value="">Select a member...</option>';
+      allMembers.forEach(member => {
+        hostSelect.innerHTML += `<option value="${member.id}">${member.full_name} (${member.state || 'State not set'})</option>`;
+      });
+    }
 
   } catch (err) {
     console.error("Error loading members:", err);
@@ -195,29 +216,49 @@ async function loadMembers() {
 
 // ================= INIT MAIN MAP =================
 function initMainMap() {
-  // Center on Nigeria with zoom limits
-  map = L.map("map", {
-    center: [9.0820, 8.6753],
-    zoom: 6,
-    minZoom: 5,
-    maxZoom: 18,
-    zoomControl: true,
-    fadeAnimation: true,
-    zoomAnimation: true
-  });
+  const mapElement = document.getElementById("map");
+  if (!mapElement) {
+    console.error("Map element not found!");
+    return;
+  }
+  
+  // Check if Leaflet is loaded
+  if (typeof L === 'undefined') {
+    console.error("Leaflet library not loaded! Make sure Leaflet CSS and JS are included.");
+    showNotification("Map library not loaded. Please refresh the page.", "error");
+    return;
+  }
+  
+  try {
+    // Center on Nigeria with zoom limits
+    map = L.map("map", {
+      center: [9.0820, 8.6753],
+      zoom: 6,
+      minZoom: 5,
+      maxZoom: 18,
+      zoomControl: true,
+      fadeAnimation: true,
+      zoomAnimation: true
+    });
 
-  L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
-    attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
-    maxZoom: 18,
-    minZoom: 5
-  }).addTo(map);
+    L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+      attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
+      maxZoom: 18,
+      minZoom: 5
+    }).addTo(map);
+    
+    console.log("✅ Map initialized successfully");
+    
+  } catch (err) {
+    console.error("Error initializing map:", err);
+    showNotification("Failed to load map. Please refresh the page.", "error");
+  }
 }
 
 // ================= CREATE SAMPLE LOCATIONS =================
 async function createSampleLocations() {
   console.log("Creating sample locations...");
   
-  // Get admin user for host_id
   const { data: adminProfile } = await supabase
     .from("profiles")
     .select("id")
@@ -266,42 +307,17 @@ async function createSampleLocations() {
       program_date: new Date(Date.now() + 5 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
       start_time: "13:00",
       end_time: "14:30"
-    },
-    {
-      title: "Moulud Celebration - Kaduna",
-      description: "Special Moulud celebration with community",
-      state: "Kaduna",
-      address: "Kaduna Township",
-      latitude: 10.5264,
-      longitude: 7.4388,
-      host_id: adminProfile.id,
-      program_date: new Date(Date.now() + 10 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
-      start_time: "20:00",
-      end_time: "22:00"
-    },
-    {
-      title: "Islamic Lecture - Sokoto",
-      description: "Educational lecture on spiritual growth",
-      state: "Sokoto",
-      address: "Sokoto City Center",
-      latitude: 13.0059,
-      longitude: 5.2476,
-      host_id: adminProfile.id,
-      program_date: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
-      start_time: "16:00",
-      end_time: "18:00"
     }
   ];
   
   try {
-    // Insert sample locations
     const { data, error } = await supabase
       .from("locations")
       .insert(sampleLocations)
       .select();
     
     if (error) {
-      console.log("Sample data may already exist:", error.message);
+      console.log("Sample data error:", error.message);
       return [];
     }
     
@@ -316,8 +332,14 @@ async function createSampleLocations() {
 
 // ================= LOAD LOCATIONS =================
 async function loadLocations() {
+  const locationsContainer = document.getElementById("locationsList");
+  if (!locationsContainer) return;
+  
+  locationsContainer.innerHTML = '<div class="loading-spinner"><i class="fas fa-spinner fa-spin"></i> Loading locations...</div>';
+  
   try {
-    // Try to get locations from database
+    console.log("📍 Loading locations from database...");
+    
     const { data, error } = await supabase
       .from("locations")
       .select(`
@@ -329,9 +351,8 @@ async function loadLocations() {
     if (error) {
       console.error("Error loading locations:", error);
       
-      // If table doesn't exist or no data, show empty state
-      if (error.code === '42P01') { // Table doesn't exist
-        locationsList.innerHTML = `
+      if (error.code === '42P01') {
+        locationsContainer.innerHTML = `
           <div class="empty-state">
             <i class="fas fa-map-marked-alt"></i>
             <h3>No Locations Yet</h3>
@@ -344,59 +365,64 @@ async function loadLocations() {
       throw error;
     }
 
-    // If no locations exist and user is admin, offer to create sample data
-    if ((!data || data.length === 0) && isAdmin) {
-      locationsList.innerHTML = `
-        <div class="empty-state">
-          <i class="fas fa-map-marked-alt"></i>
-          <h3>No Locations Yet</h3>
-          <p>Click "Add Location" to create your first program location.</p>
-          <button id="createSampleBtn" class="primary-btn" style="margin-top: 15px;">
-            <i class="fas fa-magic"></i> Create Sample Locations
-          </button>
-        </div>
-      `;
-      
-      // Add event listener for sample button
-      const createSampleBtn = document.getElementById('createSampleBtn');
-      if (createSampleBtn) {
-        createSampleBtn.onclick = async () => {
-          createSampleBtn.disabled = true;
-          createSampleBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Creating...';
-          
-          const samples = await createSampleLocations();
-          if (samples.length > 0) {
-            await loadLocations(); // Reload
-          } else {
-            createSampleBtn.disabled = false;
-            createSampleBtn.innerHTML = '<i class="fas fa-magic"></i> Create Sample Locations';
-            alert('Sample locations already exist or could not be created.');
-          }
-        };
+    console.log("Locations loaded:", data);
+    
+    if (!data || data.length === 0) {
+      if (isAdmin) {
+        locationsContainer.innerHTML = `
+          <div class="empty-state">
+            <i class="fas fa-map-marked-alt"></i>
+            <h3>No Locations Yet</h3>
+            <p>Click "Add Location" to create your first program location.</p>
+            <button id="createSampleBtn" class="primary-btn" style="margin-top: 15px;">
+              <i class="fas fa-magic"></i> Create Sample Locations
+            </button>
+          </div>
+        `;
+        
+        const createSampleBtn = document.getElementById('createSampleBtn');
+        if (createSampleBtn) {
+          createSampleBtn.onclick = async () => {
+            createSampleBtn.disabled = true;
+            createSampleBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Creating...';
+            
+            const samples = await createSampleLocations();
+            if (samples.length > 0) {
+              await loadLocations();
+            } else {
+              createSampleBtn.disabled = false;
+              createSampleBtn.innerHTML = '<i class="fas fa-magic"></i> Create Sample Locations';
+              showNotification('Sample locations could not be created.', 'error');
+            }
+          };
+        }
+      } else {
+        locationsContainer.innerHTML = `
+          <div class="empty-state">
+            <i class="fas fa-map-marked-alt"></i>
+            <h3>No Locations Yet</h3>
+            <p>Check back later for program locations</p>
+          </div>
+        `;
       }
       return;
     }
 
     allLocations = data || [];
-    console.log("Locations loaded:", allLocations.length);
+    console.log("All locations count:", allLocations.length);
     
-    // Update states filter
     updateStateFilter();
-    
-    // Update locations list
     filterAndDisplayLocations();
-    
-    // Update markers on map
     updateMapMarkers();
 
   } catch (err) {
     console.error("Error loading locations:", err);
-    locationsList.innerHTML = `
+    locationsContainer.innerHTML = `
       <div class="empty-state">
         <i class="fas fa-exclamation-circle"></i>
         <h3>Error Loading Locations</h3>
         <p>Please try again later</p>
-        <small>${err.message}</small>
+        <small>${err.message || 'Unknown error'}</small>
       </div>
     `;
   }
@@ -404,10 +430,9 @@ async function loadLocations() {
 
 // ================= UPDATE STATE FILTER =================
 function updateStateFilter() {
-  // Get unique states from locations
-  const states = [...new Set(allLocations.map(loc => loc.state).filter(Boolean))];
+  if (!stateFilter) return;
   
-  // If no states, use all Nigeria states
+  const states = [...new Set(allLocations.map(loc => loc.state).filter(Boolean))];
   const options = states.length > 0 ? states : nigeriaStates;
   
   stateFilter.innerHTML = '<option value="">All States</option>';
@@ -418,13 +443,12 @@ function updateStateFilter() {
 
 // ================= FILTER AND DISPLAY LOCATIONS =================
 function filterAndDisplayLocations() {
-  const searchTerm = searchInput?.value.toLowerCase() || "";
+  const searchTerm = searchInput?.value?.toLowerCase() || "";
   const selectedState = stateFilter?.value || "";
   const selectedDate = dateFilter?.value || "all";
 
-  let filtered = allLocations;
+  let filtered = [...allLocations];
 
-  // Apply search filter
   if (searchTerm) {
     filtered = filtered.filter(loc => 
       loc.title?.toLowerCase().includes(searchTerm) ||
@@ -434,12 +458,10 @@ function filterAndDisplayLocations() {
     );
   }
 
-  // Apply state filter
   if (selectedState) {
     filtered = filtered.filter(loc => loc.state === selectedState);
   }
 
-  // Apply date filter
   if (selectedDate !== "all") {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
@@ -471,12 +493,10 @@ function filterAndDisplayLocations() {
     });
   }
 
-  // Update count
   if (locationsCount) {
     locationsCount.textContent = `${filtered.length} location${filtered.length !== 1 ? 's' : ''}`;
   }
 
-  // Display locations
   displayLocationsList(filtered);
 }
 
@@ -504,19 +524,19 @@ function displayLocationsList(locations) {
     html += `
       <div class="location-item ${isAdmin ? 'admin-controls' : ''}" onclick="focusOnLocation('${loc.id}')">
         <div class="location-header">
-          <h4>${loc.title}</h4>
+          <h4>${escapeHtml(loc.title)}</h4>
           ${loc.program_date ? '<span class="location-badge"><i class="fas fa-calendar"></i> ' + date + '</span>' : ''}
         </div>
         
         <div class="location-details">
-          <p><i class="fas fa-map-pin"></i> ${loc.state || 'State not set'}${loc.address ? ' - ' + loc.address : ''}</p>
+          <p><i class="fas fa-map-pin"></i> ${escapeHtml(loc.state || 'State not set')}${loc.address ? ' - ' + escapeHtml(loc.address) : ''}</p>
           ${time ? `<p><i class="fas fa-clock"></i> ${time}</p>` : ''}
-          ${loc.description ? `<p><i class="fas fa-align-left"></i> ${loc.description}</p>` : ''}
+          ${loc.description ? `<p><i class="fas fa-align-left"></i> ${escapeHtml(loc.description.substring(0, 100))}${loc.description.length > 100 ? '...' : ''}</p>` : ''}
         </div>
         
         <div class="location-host">
           <i class="fas fa-user"></i>
-          <span>Hosted by: <strong>${hostName}</strong></span>
+          <span>Hosted by: <strong>${escapeHtml(hostName)}</strong></span>
         </div>
         
         ${isAdmin ? `
@@ -536,10 +556,27 @@ function displayLocationsList(locations) {
   locationsList.innerHTML = html;
 }
 
+function escapeHtml(str) {
+  if (!str) return '';
+  return str.replace(/[&<>]/g, function(m) {
+    if (m === '&') return '&amp;';
+    if (m === '<') return '&lt;';
+    if (m === '>') return '&gt;';
+    return m;
+  });
+}
+
 // ================= UPDATE MAP MARKERS =================
 function updateMapMarkers() {
+  if (!map) {
+    console.warn("Map not initialized yet");
+    return;
+  }
+  
   // Clear existing markers
-  markers.forEach(marker => map.removeLayer(marker));
+  markers.forEach(marker => {
+    if (map && marker) map.removeLayer(marker);
+  });
   markers = [];
 
   if (!allLocations || allLocations.length === 0) {
@@ -553,31 +590,37 @@ function updateMapMarkers() {
 
   allLocations.forEach(loc => {
     if (loc.latitude && loc.longitude) {
-      const marker = L.marker([loc.latitude, loc.longitude])
-        .addTo(map)
-        .bindPopup(`
-          <strong>${loc.title}</strong><br>
-          <i class="fas fa-map-pin"></i> ${loc.state || ''}<br>
-          <i class="fas fa-user"></i> Host: ${loc.host?.full_name || 'Unknown'}<br>
-          ${loc.program_date ? `<i class="fas fa-calendar"></i> ${new Date(loc.program_date).toLocaleDateString()}` : ''}
-        `);
+      try {
+        const marker = L.marker([parseFloat(loc.latitude), parseFloat(loc.longitude)])
+          .addTo(map)
+          .bindPopup(`
+            <strong>${escapeHtml(loc.title)}</strong><br>
+            <i class="fas fa-map-pin"></i> ${escapeHtml(loc.state || '')}<br>
+            <i class="fas fa-user"></i> Host: ${escapeHtml(loc.host?.full_name || 'Unknown')}<br>
+            ${loc.program_date ? `<i class="fas fa-calendar"></i> ${new Date(loc.program_date).toLocaleDateString()}` : ''}
+          `);
 
-      markers.push(marker);
+        markers.push(marker);
+      } catch (err) {
+        console.error("Error adding marker for location:", loc.id, err);
+      }
     }
   });
+  
+  console.log(`✅ Added ${markers.length} markers to map`);
 }
 
 // ================= FOCUS ON LOCATION =================
 window.focusOnLocation = function(locationId) {
   const loc = allLocations.find(l => l.id === locationId);
-  if (loc && loc.latitude && loc.longitude) {
-    map.setView([loc.latitude, loc.longitude], 13);
+  if (loc && loc.latitude && loc.longitude && map) {
+    map.setView([parseFloat(loc.latitude), parseFloat(loc.longitude)], 13);
     
-    // Find and open the popup for this marker
-    const marker = markers.find(m => 
-      m.getLatLng().lat === loc.latitude && 
-      m.getLatLng().lng === loc.longitude
-    );
+    const marker = markers.find(m => {
+      const latLng = m.getLatLng();
+      return latLng.lat === parseFloat(loc.latitude) && 
+             latLng.lng === parseFloat(loc.longitude);
+    });
     if (marker) {
       marker.openPopup();
     }
@@ -586,55 +629,59 @@ window.focusOnLocation = function(locationId) {
 
 // ================= INIT PREVIEW MAP =================
 function initPreviewMap(lat = 9.0820, lng = 8.6753) {
+  const previewElement = document.getElementById("mapPreview");
+  if (!previewElement) return;
+  
   if (previewMap) {
     previewMap.remove();
   }
 
-  previewMap = L.map("mapPreview").setView([lat, lng], 10);
+  try {
+    previewMap = L.map("mapPreview").setView([lat, lng], 10);
 
-  L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
-    attribution: '© OpenStreetMap'
-  }).addTo(previewMap);
+    L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+      attribution: '© OpenStreetMap'
+    }).addTo(previewMap);
 
-  // Add click handler to set coordinates
-  previewMap.on("click", (e) => {
-    locationLat.value = e.latlng.lat.toFixed(6);
-    locationLng.value = e.latlng.lng.toFixed(6);
-    
-    if (previewMarker) {
-      previewMap.removeLayer(previewMarker);
+    previewMap.on("click", (e) => {
+      if (locationLat) locationLat.value = e.latlng.lat.toFixed(6);
+      if (locationLng) locationLng.value = e.latlng.lng.toFixed(6);
+      
+      if (previewMarker) {
+        previewMap.removeLayer(previewMarker);
+      }
+      
+      previewMarker = L.marker([e.latlng.lat, e.latlng.lng]).addTo(previewMap);
+    });
+
+    if (lat && lng) {
+      previewMarker = L.marker([lat, lng]).addTo(previewMap);
     }
-    
-    previewMarker = L.marker([e.latlng.lat, e.latlng.lng]).addTo(previewMap);
-  });
-
-  if (lat && lng) {
-    previewMarker = L.marker([lat, lng]).addTo(previewMap);
+  } catch (err) {
+    console.error("Error initializing preview map:", err);
   }
 }
 
 // ================= OPEN ADD MODAL =================
 function openAddModal() {
-  modalTitle.textContent = "Add Program Location";
+  if (modalTitle) modalTitle.textContent = "Add Program Location";
   
-  // Clear form
-  locationTitle.value = "";
-  locationDescription.value = "";
-  locationState.value = "";
-  locationAddress.value = "";
-  locationLat.value = "";
-  locationLng.value = "";
-  programDate.value = "";
-  startTime.value = "";
-  endTime.value = "";
-  hostSelect.value = "";
+  if (locationTitle) locationTitle.value = "";
+  if (locationDescription) locationDescription.value = "";
+  if (locationState) locationState.value = "";
+  if (locationAddress) locationAddress.value = "";
+  if (locationLat) locationLat.value = "";
+  if (locationLng) locationLng.value = "";
+  if (programDate) programDate.value = "";
+  if (startTime) startTime.value = "";
+  if (endTime) endTime.value = "";
+  if (hostSelect) hostSelect.value = "";
   
   selectedLocationId = null;
   
-  // Initialize preview map
   setTimeout(() => initPreviewMap(), 100);
   
-  locationModal.classList.remove("hidden");
+  if (locationModal) locationModal.classList.remove("hidden");
 }
 
 // ================= EDIT LOCATION =================
@@ -642,142 +689,141 @@ window.editLocation = function(locationId) {
   const loc = allLocations.find(l => l.id === locationId);
   if (!loc) return;
 
-  modalTitle.textContent = "Edit Location";
+  if (modalTitle) modalTitle.textContent = "Edit Location";
   
-  // Fill form
-  locationTitle.value = loc.title || "";
-  locationDescription.value = loc.description || "";
-  locationState.value = loc.state || "";
-  locationAddress.value = loc.address || "";
-  locationLat.value = loc.latitude || "";
-  locationLng.value = loc.longitude || "";
-  programDate.value = loc.program_date || "";
-  startTime.value = loc.start_time || "";
-  endTime.value = loc.end_time || "";
-  hostSelect.value = loc.host_id || "";
+  if (locationTitle) locationTitle.value = loc.title || "";
+  if (locationDescription) locationDescription.value = loc.description || "";
+  if (locationState) locationState.value = loc.state || "";
+  if (locationAddress) locationAddress.value = loc.address || "";
+  if (locationLat) locationLat.value = loc.latitude || "";
+  if (locationLng) locationLng.value = loc.longitude || "";
+  if (programDate) programDate.value = loc.program_date || "";
+  if (startTime) startTime.value = loc.start_time || "";
+  if (endTime) endTime.value = loc.end_time || "";
+  if (hostSelect) hostSelect.value = loc.host_id || "";
   
   selectedLocationId = locationId;
   
-  // Initialize preview map with existing coordinates
-  setTimeout(() => initPreviewMap(loc.latitude || 9.0820, loc.longitude || 8.6753), 100);
+  setTimeout(() => initPreviewMap(parseFloat(loc.latitude) || 9.0820, parseFloat(loc.longitude) || 8.6753), 100);
   
-  locationModal.classList.remove("hidden");
+  if (locationModal) locationModal.classList.remove("hidden");
 };
 
 // ================= CONFIRM DELETE =================
 window.confirmDelete = function(locationId) {
   selectedLocationId = locationId;
-  deleteModal.classList.remove("hidden");
+  if (deleteModal) deleteModal.classList.remove("hidden");
 };
 
 // ================= SAVE LOCATION =================
-saveLocationBtn.onclick = async () => {
-  // Validate required fields
-  if (!locationTitle.value || !locationState.value || !locationLat.value || !locationLng.value || !hostSelect.value) {
-    alert("Please fill in all required fields (Title, State, Coordinates, and Host)");
-    return;
-  }
+if (saveLocationBtn) {
+  saveLocationBtn.onclick = async () => {
+    if (!locationTitle.value || !locationState.value || !locationLat.value || !locationLng.value || !hostSelect.value) {
+      alert("Please fill in all required fields (Title, State, Coordinates, and Host)");
+      return;
+    }
 
-  const locationData = {
-    title: locationTitle.value,
-    description: locationDescription.value || null,
-    state: locationState.value,
-    address: locationAddress.value || null,
-    latitude: Number(locationLat.value),
-    longitude: Number(locationLng.value),
-    host_id: hostSelect.value,
-    host_name: allMembers.find(m => m.id === hostSelect.value)?.full_name,
-    program_date: programDate.value || null,
-    start_time: startTime.value || null,
-    end_time: endTime.value || null,
-    is_active: true
+    const locationData = {
+      title: locationTitle.value,
+      description: locationDescription.value || null,
+      state: locationState.value,
+      address: locationAddress.value || null,
+      latitude: Number(locationLat.value),
+      longitude: Number(locationLng.value),
+      host_id: hostSelect.value,
+      host_name: allMembers.find(m => m.id === hostSelect.value)?.full_name,
+      program_date: programDate.value || null,
+      start_time: startTime.value || null,
+      end_time: endTime.value || null,
+      is_active: true
+    };
+
+    try {
+      let error;
+
+      if (selectedLocationId) {
+        ({ error } = await supabase
+          .from("locations")
+          .update(locationData)
+          .eq("id", selectedLocationId));
+      } else {
+        ({ error } = await supabase
+          .from("locations")
+          .insert([locationData]));
+      }
+
+      if (error) {
+        console.error("Supabase error:", error);
+        throw error;
+      }
+
+      if (locationModal) locationModal.classList.add("hidden");
+      showNotification(selectedLocationId ? "Location updated" : "Location added", "success");
+      await loadLocations();
+
+    } catch (err) {
+      console.error("Error saving location:", err);
+      alert("Error saving location: " + (err.message || "Permission denied"));
+    }
   };
-
-  try {
-    let error;
-
-    if (selectedLocationId) {
-      // Update existing location
-      ({ error } = await supabase
-        .from("locations")
-        .update(locationData)
-        .eq("id", selectedLocationId));
-    } else {
-      // Insert new location
-      ({ error } = await supabase
-        .from("locations")
-        .insert([locationData]));
-    }
-
-    if (error) {
-      console.error("Supabase error:", error);
-      throw error;
-    }
-
-    // Close modal and refresh
-    locationModal.classList.add("hidden");
-    await loadLocations();
-
-  } catch (err) {
-    console.error("Error saving location:", err);
-    alert("Error saving location: " + (err.message || "Permission denied"));
-  }
-};
+}
 
 // ================= CONFIRM DELETE =================
-confirmDeleteBtn.onclick = async () => {
-  if (!selectedLocationId) return;
+if (confirmDeleteBtn) {
+  confirmDeleteBtn.onclick = async () => {
+    if (!selectedLocationId) return;
 
-  try {
-    const { error } = await supabase
-      .from("locations")
-      .delete()
-      .eq("id", selectedLocationId);
+    try {
+      const { error } = await supabase
+        .from("locations")
+        .delete()
+        .eq("id", selectedLocationId);
 
-    if (error) throw error;
+      if (error) throw error;
 
-    deleteModal.classList.add("hidden");
-    await loadLocations();
+      if (deleteModal) deleteModal.classList.add("hidden");
+      showNotification("Location deleted", "success");
+      await loadLocations();
 
-  } catch (err) {
-    console.error("Error deleting location:", err);
-    alert("Error deleting location: " + err.message);
-  }
-};
+    } catch (err) {
+      console.error("Error deleting location:", err);
+      alert("Error deleting location: " + err.message);
+    }
+  };
+}
 
 // ================= CLOSE MODALS =================
-closeLocationBtn.onclick = () => {
-  locationModal.classList.add("hidden");
-};
+if (closeLocationBtn) {
+  closeLocationBtn.onclick = () => {
+    if (locationModal) locationModal.classList.add("hidden");
+  };
+}
 
-cancelDeleteBtn.onclick = () => {
-  deleteModal.classList.add("hidden");
-  selectedLocationId = null;
-};
+if (cancelDeleteBtn) {
+  cancelDeleteBtn.onclick = () => {
+    if (deleteModal) deleteModal.classList.add("hidden");
+    selectedLocationId = null;
+  };
+}
 
 // ================= SETUP EVENT LISTENERS =================
 function setupEventListeners() {
-  // Add location button
   if (addLocationBtn) {
     addLocationBtn.onclick = openAddModal;
   }
 
-  // Search input
   if (searchInput) {
     searchInput.addEventListener("input", filterAndDisplayLocations);
   }
 
-  // State filter
   if (stateFilter) {
     stateFilter.addEventListener("change", filterAndDisplayLocations);
   }
 
-  // Date filter
   if (dateFilter) {
     dateFilter.addEventListener("change", filterAndDisplayLocations);
   }
 
-  // Logout
   if (logoutBtn) {
     logoutBtn.onclick = async () => {
       await supabase.auth.signOut();
@@ -785,16 +831,19 @@ function setupEventListeners() {
     };
   }
 
-  // Close modal when clicking outside
   window.onclick = (e) => {
     if (e.target === locationModal) {
-      locationModal.classList.add("hidden");
+      if (locationModal) locationModal.classList.add("hidden");
     }
     if (e.target === deleteModal) {
-      deleteModal.classList.add("hidden");
+      if (deleteModal) deleteModal.classList.add("hidden");
     }
   };
 }
 
 // ================= START APPLICATION =================
-init();
+// Wait for DOM to be fully loaded
+document.addEventListener("DOMContentLoaded", function() {
+  console.log("DOM loaded, initializing map...");
+  setTimeout(init, 500);
+});
